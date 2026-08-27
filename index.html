@@ -87,6 +87,11 @@
   .file-row .fsize{color:var(--muted);font-size:12.5px}
   .btn-link{appearance:none;background:none;border:none;cursor:pointer;color:var(--accent);font:inherit;font-size:13.5px;text-decoration:underline;padding:2px}
 
+  .ref-fig{margin:0 0 16px;background:var(--panel);border-radius:12px;padding:14px 16px 10px}
+  .ref-fig .scroller{overflow-x:auto}
+  .ref-fig svg{display:block;width:100%;min-width:620px;height:auto}
+  .ref-fig figcaption{color:var(--muted);font-size:12.5px;margin-top:8px}
+
   .msg{border-radius:12px;padding:13px 17px;display:none;max-width:46em}
   .msg.show{display:block}
   .msg.warn{background:var(--warn-bg);color:var(--warn)}
@@ -183,12 +188,44 @@
   var MAX_TOTAL_B64  = 26*1024*1024;  // ~19 MB reales en total
 
   var QUESTIONS = [
-    {id:'P1', text:'Tu rol y contexto', sub:'¿Qué haces en la fábrica y en qué fases participas — construcción, pruebas, despliegue?'},
+    {id:'P1', text:'Tu rol y contexto', fig:true, sub:'¿Qué haces en la fábrica y en qué fases participas? Usa el diagrama como referencia.'},
     {id:'P2', text:'El camino de un desarrollo', sub:'Desde que llega el pedido hasta que se entrega: ¿cómo es el proceso hoy y dónde se traba más?'},
     {id:'P3', text:'Esperas y dependencias', sub:'¿Qué áreas, aprobaciones, accesos o entornos te hacen esperar más, y cuánto suelen demorar?'},
     {id:'P4', text:'Pruebas y pase a producción', sub:'¿Qué funciona bien y qué falla hoy — entornos, datos de prueba, automatización, ventanas de despliegue?'},
     {id:'P5', text:'Tu receta', sub:'Si pudieras cambiar tres cosas para llegar antes a producción con calidad, ¿cuáles serían?'}
   ];
+
+  // Diagrama de referencia: ciclo de vida de la fábrica (etapa de ejecución del SDLC)
+  var SDLC_FIG =
+    '<figure class="ref-fig">'+
+      '<div class="scroller">'+
+      '<svg viewBox="0 0 960 132" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ciclo de vida de la fábrica: análisis y diseño, construcción, pruebas, despliegue y producción">'+
+        '<g font-family="Montserrat, Trebuchet MS, sans-serif">'+
+        '<rect x="8"   y="16" width="168" height="54" rx="12" fill="var(--navy)"/>'+
+        '<rect x="200" y="16" width="168" height="54" rx="12" fill="var(--navy)"/>'+
+        '<rect x="392" y="16" width="168" height="54" rx="12" fill="var(--navy)"/>'+
+        '<rect x="584" y="16" width="168" height="54" rx="12" fill="var(--navy)"/>'+
+        '<rect x="776" y="16" width="168" height="54" rx="12" fill="none" stroke="var(--accent)" stroke-width="2.5"/>'+
+        '<text x="92"  y="49" text-anchor="middle" fill="#FFFFFF" font-size="15" font-weight="700">Análisis y diseño</text>'+
+        '<text x="284" y="49" text-anchor="middle" fill="#FFFFFF" font-size="15" font-weight="700">Construcción</text>'+
+        '<text x="476" y="49" text-anchor="middle" fill="#FFFFFF" font-size="15" font-weight="700">Pruebas</text>'+
+        '<text x="668" y="49" text-anchor="middle" fill="#FFFFFF" font-size="15" font-weight="700">Despliegue</text>'+
+        '<text x="860" y="49" text-anchor="middle" fill="var(--accent)" font-size="15" font-weight="800">Producción</text>'+
+        '<path d="M180 35 L196 43 L180 51 Z" fill="var(--accent)"/>'+
+        '<path d="M372 35 L388 43 L372 51 Z" fill="var(--accent)"/>'+
+        '<path d="M564 35 L580 43 L564 51 Z" fill="var(--accent)"/>'+
+        '<path d="M756 35 L772 43 L756 51 Z" fill="var(--accent)"/>'+
+        '<text x="92"  y="96" text-anchor="middle" fill="var(--muted)" font-size="12">Historias · Diseño técnico</text>'+
+        '<text x="284" y="96" text-anchor="middle" fill="var(--muted)" font-size="12">Código · Revisión</text>'+
+        '<text x="476" y="96" text-anchor="middle" fill="var(--muted)" font-size="12">QA · Datos · Entornos</text>'+
+        '<text x="668" y="96" text-anchor="middle" fill="var(--muted)" font-size="12">CAB · Ventana · Evidencias</text>'+
+        '<text x="860" y="96" text-anchor="middle" fill="var(--muted)" font-size="12">Monitoreo · Mejora</text>'+
+        '<text x="8" y="122" fill="var(--muted)" font-size="11.5" letter-spacing="1.5">ETAPA DE EJECUCIÓN DEL SDLC · FÁBRICA DE DESARROLLO</text>'+
+        '</g>'+
+      '</svg>'+
+      '</div>'+
+      '<figcaption>Referencia: fases del ciclo de vida en la fábrica. En el celular, desliza para ver el diagrama completo.</figcaption>'+
+    '</figure>';
 
   var $ = function(s){ return document.querySelector(s); };
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -230,6 +267,7 @@
       '<div class="qtitle"><span class="qnum">'+(idx+1)+'</span><span class="qtext">'+esc(q.text)+'</span>'+
       '<span class="answered">✓ Respondida</span></div>'+
       '<p class="qsub">'+esc(q.sub)+'</p>'+
+      (q.fig ? SDLC_FIG : '')+
       '<div class="modes">'+
         '<div class="mode">'+
           '<div class="mode-label">🎙️ Responder con tu voz</div>'+
