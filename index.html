@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Voz de la Fábrica · Hub IA</title>
-<meta name="description" content="Encuesta anónima de 5 preguntas: responde con tu voz, texto o archivos. 5–10 minutos.">
+<meta name="description" content="Encuesta SDLC / CI-CD de 6 preguntas: responde con tu voz, texto o archivos. 5–10 minutos.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="MBC · Hub IA">
 <meta property="og:title" content="Voz de la Fábrica · Hub IA">
-<meta property="og:description" content="Encuesta anónima de 5 preguntas: responde con tu voz, texto o archivos. 5–10 minutos.">
+<meta property="og:description" content="Encuesta SDLC / CI-CD de 6 preguntas: responde con tu voz, texto o archivos. 5–10 minutos.">
 <meta property="og:url" content="https://nelson2206.github.io/voz-fabrica-hub/">
 <meta property="og:image" content="https://nelson2206.github.io/voz-fabrica-hub/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -106,6 +106,16 @@
   .file-row .fsize{color:var(--muted);font-size:12.5px}
   .btn-link{appearance:none;background:none;border:none;cursor:pointer;color:var(--accent);font:inherit;font-size:13.5px;text-decoration:underline;padding:2px}
 
+  .pillbox{display:flex;flex-wrap:wrap;gap:8px}
+  .pill{position:relative;cursor:pointer}
+  .pill input{position:absolute;opacity:0;pointer-events:none}
+  .pill span{display:inline-block;border:1.5px solid var(--field-line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 15px;font-size:14px;line-height:1.2}
+  .pill input:checked + span{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:700}
+  .pill input:focus-visible + span{outline:3px solid var(--accent);outline-offset:2px}
+  .qnote{color:var(--muted);font-size:13px;margin:12px 0 0;font-style:italic}
+  .qhintline{color:var(--muted);font-size:13.5px;margin:-8px 0 16px 41px}
+  @media (max-width:560px){ .qsub,.qhintline{margin-left:0} }
+
   .ref-fig{margin:0 0 16px;background:var(--panel);border-radius:12px;padding:14px 16px 10px}
   .ref-fig .scroller{overflow-x:auto}
   .ref-fig svg{display:block;width:100%;min-width:620px;height:auto}
@@ -137,9 +147,9 @@
       <path fill="#FFFFFF" d="M3139.84 201 3860.17 201 3860.17 0 3148.64 0C3148.13 0 3147.62 0.01 3147.11 0.02 2906.1 1.66 2724.88 176.94 2724.88 428.03 2724.88 679.12 2905.48 852.72 3144.73 856.01 3145.07 856.01 3145.42 856.02 3145.76 856.03 3145.9 856.03 3146.05 856.03 3146.19 856.03 3147 856.04 3147.81 856.06 3148.63 856.06L3860.16 856.06 3860.16 655.06 3141.03 655.06C3033.15 651.52 2947.27 567.26 2947.27 428.02 2947.27 288.78 3029.79 204.6 3139.84 200.98Z"/>
       <path fill="#FFFFFF" d="M1485.95 0 2304.74 0C2482.07 0 2588.46 94.17 2588.46 231.14 2588.46 311.86 2550.55 384.01 2463.72 407.24L2463.72 426.81C2560.33 441.49 2614.14 508.75 2614.14 618.81 2614.14 765.56 2516.3 856.06 2334.08 856.06L1485.94 856.06 1485.94 0ZM2292.51 335.09C2345.1 335.09 2373.23 305.74 2373.23 259.27 2373.23 212.8 2345.1 183.45 2292.51 183.45L1706.08 183.45 1706.08 335.1 2292.51 335.1ZM2299.84 672.62C2357.32 672.62 2386.67 646.94 2386.67 595.57 2386.67 544.2 2357.32 518.52 2299.84 518.52L1706.08 518.52 1706.08 672.61 2299.84 672.61Z"/>
     </svg>
-    <p class="eyebrow">Hub IA · Fábrica de Desarrollo</p>
+    <p class="eyebrow">Hub IA · SDLC / CI-CD</p>
     <h1>Voz de la Fábrica</h1>
-    <p>Cinco preguntas, respondidas como prefieras: <strong>graba tu voz</strong>, escribe o adjunta un archivo en cada una. 5–10 minutos.</p>
+    <p>Queremos entender cómo funciona hoy el proceso de desarrollo, pruebas y despliegue — actividades, dependencias, herramientas, esperas y oportunidades de mejora. Seis preguntas: responde cada una como prefieras, <strong>con tu voz</strong>, texto o un documento. 5–10 minutos.</p>
     <span class="anon">🔒 Anónima — análisis agregado, no evalúa a personas</span>
   </div>
 </header>
@@ -165,7 +175,7 @@
   <div class="progress-wrap">
     <div class="progress-inner">
       <div class="pbar"><div id="pfill"></div></div>
-      <span class="ptext" id="ptext">0 de 5 respondidas</span>
+      <span class="ptext" id="ptext">0 de 6 respondidas</span>
     </div>
   </div>
 
@@ -206,12 +216,27 @@
   var MAX_AUDIO_SEC  = 300;           // 5 min por audio
   var MAX_TOTAL_B64  = 26*1024*1024;  // ~19 MB reales en total
 
+  var DOMAINS = ['Arquitectura','Systems Loans','Core Banking','Cross Systems','Retail Banking','Enterprise Banking','Payments','Corporate Functions','CIB Systems','Otro'];
+
   var QUESTIONS = [
-    {id:'P1', text:'Tu rol y contexto', fig:true, sub:'¿Qué haces en la fábrica y en qué fases participas? Usa el diagrama como referencia.'},
-    {id:'P2', text:'El camino de un desarrollo', sub:'Desde que llega el pedido hasta que se entrega: ¿cómo es el proceso hoy y dónde se traba más?'},
-    {id:'P3', text:'Esperas y dependencias', sub:'¿Qué áreas, aprobaciones, accesos o entornos te hacen esperar más, y cuánto suelen demorar?'},
-    {id:'P4', text:'Pruebas y pase a producción', sub:'¿Qué funciona bien y qué falla hoy — entornos, datos de prueba, automatización, ventanas de despliegue?'},
-    {id:'P5', text:'Tu receta', sub:'Si pudieras cambiar tres cosas para llegar antes a producción con calidad, ¿cuáles serían?'}
+    {id:'P1', text:'Contexto de tus últimos desarrollos', type:'domains',
+     sub:'Pensando en tus últimos desarrollos, ¿con qué temas o dominios estuvieron relacionados? Selecciona todos los que correspondan.',
+     note:'Un mismo desarrollo puede involucrar más de un dominio.'},
+    {id:'P2', text:'Tu rol y participación',
+     sub:'¿Cuál es tu rol y qué actividades realizas normalmente dentro de un desarrollo?',
+     hint:'Cuéntanos: en qué etapas participas · con qué roles o equipos interactúas · qué herramientas utilizas. Considera Scrum Master / líder técnico, Product Owner, QA, Arquitectura, Seguridad, Infraestructura, Reliability u otros especialistas.'},
+    {id:'P3', text:'Camino de un desarrollo', fig:true,
+     sub:'Piensa en un desarrollo reciente: desde que recibiste el requerimiento hasta que llegó a producción, ¿cuáles fueron los principales pasos?',
+     hint:'Intenta mencionar: principales actividades · personas o equipos involucrados · herramientas utilizadas · aprobaciones o controles · puntos de espera o retrabajo.'},
+    {id:'P4', text:'CI/CD, pruebas y despliegue',
+     sub:'¿Cómo pasa tu código desde el commit hasta producción y cómo se realizan las pruebas?',
+     hint:'Considera, cuando aplique: code review · build · pruebas automáticas y manuales · quality/security gates · despliegue a ambientes · aprobaciones · pase a producción · monitoreo. Indica qué es automático y qué manual, qué herramientas se utilizan y dónde suelen ocurrir fallos, bloqueos o demoras.'},
+    {id:'P5', text:'Dependencias, información y esperas',
+     sub:'¿De qué personas, áreas, sistemas o información dependes para poder avanzar durante un desarrollo?',
+     hint:'Puedes considerar: Product Owner · Scrum Master / líder técnico · Arquitectura · Seguridad · Infraestructura · QA · Reliability · otros equipos · accesos · ambientes · datos de prueba · documentación. Indica cuáles son las dependencias que más tiempo o esfuerzo generan.'},
+    {id:'P6', text:'Principales oportunidades de mejora',
+     sub:'Si pudieras mejorar tres cosas del proceso actual de desarrollo, pruebas y despliegue, ¿cuáles serían?',
+     hint:'Prioriza actividades relacionadas con: trabajo manual · esperas · retrabajo · coordinación entre equipos · búsqueda de información · testing · aprobaciones · despliegues · análisis de errores · uso de múltiples herramientas.'}
   ];
 
   // Diagrama de referencia: ciclo de vida de la fábrica (etapa de ejecución del SDLC)
@@ -281,7 +306,9 @@
 
   // ================== Estado por pregunta ==================
   var state = {};
-  QUESTIONS.forEach(function(q){ state[q.id] = {audio:null, text:'', file:null}; });
+  QUESTIONS.forEach(function(q){
+    state[q.id] = (q.type === 'domains') ? {domains:[], otro:''} : {audio:null, text:'', file:null};
+  });
 
   // ================== Render ==================
   var root = $('#qRoot');
@@ -289,11 +316,28 @@
     var card = document.createElement('section');
     card.className = 'qcard';
     card.id = 'card-'+q.id;
-    card.innerHTML =
+    var inner =
       '<div class="qtitle"><span class="qnum">'+(idx+1)+'</span><span class="qtext">'+esc(q.text)+'</span>'+
       '<span class="answered">✓ Respondida</span></div>'+
       '<p class="qsub">'+esc(q.sub)+'</p>'+
-      (q.fig ? SDLC_FIG : '')+
+      (q.hint ? '<p class="qhintline">'+esc(q.hint)+'</p>' : '')+
+      (q.fig ? SDLC_FIG : '');
+    if (q.type === 'domains'){
+      inner += '<div class="pillbox">';
+      DOMAINS.forEach(function(o){
+        inner += '<label class="pill"><input type="checkbox" name="dom" value="'+esc(o)+'"><span>'+esc(o)+'</span></label>';
+      });
+      inner += '</div>'+
+        '<div id="otroWrap" class="hidden" style="margin-top:12px;max-width:340px">'+
+          '<label for="otroInput" style="margin:0 0 5px">¿Cuál otro?</label>'+
+          '<input type="text" id="otroInput" maxlength="120">'+
+        '</div>'+
+        (q.note ? '<p class="qnote">'+esc(q.note)+'</p>' : '');
+      card.innerHTML = inner;
+      root.appendChild(card);
+      return;
+    }
+    card.innerHTML = inner +
       '<div class="modes">'+
         '<div class="mode">'+
           '<div class="mode-label">🎙️ Responder con tu voz</div>'+
@@ -431,7 +475,21 @@
 
   // ================== Archivos y texto ==================
   function pickFile(qid){ document.getElementById('fileinput-'+qid).click(); }
+
+  // Dominios (P1)
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="dom"]'), function(chk){
+    chk.addEventListener('change', function(){
+      var sel = Array.prototype.map.call(document.querySelectorAll('input[name="dom"]:checked'), function(c){ return c.value; });
+      state['P1'].domains = sel;
+      document.getElementById('otroWrap').classList.toggle('hidden', sel.indexOf('Otro') < 0);
+      refresh();
+    });
+  });
+  var otroInput = document.getElementById('otroInput');
+  if (otroInput) otroInput.addEventListener('input', function(ev){ state['P1'].otro = ev.target.value.trim(); });
+
   QUESTIONS.forEach(function(q){
+    if (q.type === 'domains') return;
     document.getElementById('fileinput-'+q.id).addEventListener('change', function(ev){
       var f = ev.target.files[0];
       ev.target.value = '';
@@ -479,6 +537,7 @@
   // ================== Progreso ==================
   function isAnswered(qid){
     var s = state[qid];
+    if (s.domains) return s.domains.length > 0;
     return !!(s.audio || s.text || s.file);
   }
   function refresh(){
@@ -504,7 +563,7 @@
     var pending = QUESTIONS.filter(function(q){ return !isAnswered(q.id); });
     if (pending.length){
       pending.forEach(function(q){ document.getElementById('card-'+q.id).classList.add('missing'); });
-      showMsg('warn','Te falta responder '+pending.length+' pregunta'+(pending.length>1?'s':'')+' (marcadas en fucsia). Cada una acepta audio, texto o archivo.');
+      showMsg('warn','Te falta responder '+pending.length+' pregunta'+(pending.length>1?'s':'')+' (marcadas en fucsia). La pregunta 1 es de selección; las demás aceptan audio, texto o archivo.');
       document.getElementById('card-'+pending[0].id).scrollIntoView({behavior:'smooth', block:'center'});
       return;
     }
@@ -512,6 +571,12 @@
     var answers = {}, attachments = [];
     QUESTIONS.forEach(function(q, idx){
       var s = state[q.id];
+      if (q.type === 'domains'){
+        var doms = s.domains.join('; ');
+        if (s.domains.indexOf('Otro') >= 0 && s.otro) doms += ' | Otro: ' + s.otro;
+        answers[q.id+' · '+q.text+' (dominios)'] = doms;
+        return;
+      }
       answers[q.id+' · '+q.text+' (texto)'] = s.text || '';
       if (s.audio){
         var ext = (s.audio.mime||'').indexOf('mp4') >= 0 ? 'm4a' : 'webm';
