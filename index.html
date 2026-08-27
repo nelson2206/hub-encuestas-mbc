@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voz de la Fábrica · Hub IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<style>
+  :root{
+    --bg:#E3E2DA; --card:#FFFFFF; --ink:#1C2B3A; --heading:#003478; --muted:#5B6B80;
+    --line:#CFCDC2; --accent:#FF0054; --accent-soft:#FFE3EC; --navy:#003478;
+    --panel:#F4F3EE; --field-line:#B9C4D4; --ok:#237A3F; --ok-bg:#E4F4E9;
+    --warn:#8A5A00; --warn-bg:#FBF0DA;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#081426; --card:#0F2440; --ink:#E9EEF6; --heading:#BBD0EE; --muted:#9FB0C7;
+      --line:#243C5E; --accent:#FF4D80; --accent-soft:#3A1128; --navy:#1E4A85;
+      --panel:#0B1D37; --field-line:#31517D; --ok:#6FD08C; --ok-bg:#0E3320;
+      --warn:#EFC26A; --warn-bg:#3A2B0A;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS","Segoe UI",Verdana,sans-serif;font-size:16px;line-height:1.5}
+  h1,h2,h3{font-family:Montserrat,"Trebuchet MS",sans-serif;color:var(--heading);margin:0;text-wrap:balance}
+
+  .hero{background:linear-gradient(150deg,#003478 0%,#00234F 70%,#001A3C 100%);color:#fff;padding:34px 22px 40px;position:relative;overflow:hidden}
+  .hero::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.10) 1px,transparent 1.6px);background-size:26px 26px;pointer-events:none}
+  .hero-inner{max-width:760px;margin:0 auto;position:relative;z-index:1}
+  .mbc-logo{height:24px;width:auto;display:block;margin-bottom:22px}
+  .eyebrow{font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#9FC1F2;margin:0 0 10px}
+  .hero h1{color:#fff;font-size:clamp(24px,5vw,34px);font-weight:800;line-height:1.15}
+  .hero p{max-width:44em;font-size:15.5px;color:#D7E3F5;margin:12px 0 0}
+  .hero .anon{display:inline-block;margin-top:14px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:600;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:6px 13px;background:rgba(255,255,255,.08)}
+
+  .wrap{max-width:760px;margin:0 auto;padding:26px 20px 70px;display:flex;flex-direction:column;gap:20px}
+
+  /* Login */
+  .login-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:30px 28px;max-width:420px;margin:40px auto;box-shadow:0 10px 40px rgba(0,25,60,.12)}
+  .login-card h2{font-size:20px;margin-bottom:6px}
+  .login-card p{color:var(--muted);margin:0 0 20px;font-size:14.5px}
+  label{display:block;font-family:Montserrat,sans-serif;font-weight:600;font-size:13px;color:var(--heading);margin:14px 0 5px}
+  input[type=text],input[type=password],textarea{
+    width:100%;background:var(--card);color:var(--ink);border:1.5px solid var(--field-line);
+    border-radius:10px;padding:11px 13px;font:inherit;
+  }
+  input:focus,textarea:focus,button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  textarea{min-height:96px;resize:vertical}
+
+  .btn{appearance:none;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:700;border-radius:11px;padding:12px 24px;font-size:14.5px;border:1.5px solid transparent;background:var(--accent);color:#fff}
+  .btn:hover{filter:brightness(1.07)}
+  .btn[disabled]{opacity:.55;cursor:not-allowed;filter:none}
+  .btn-ghost{background:none;border-color:var(--field-line);color:var(--heading)}
+  .btn-ghost:hover{border-color:var(--heading)}
+  .btn-sm{padding:8px 14px;font-size:13px;border-radius:9px}
+  .btn-rec{background:var(--navy)}
+  .btn-rec.on{background:var(--accent);animation:recpulse 1.6s ease-in-out infinite}
+  @keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,0,84,.4)}50%{box-shadow:0 0 0 10px rgba(255,0,84,0)}}
+  @media (prefers-reduced-motion: reduce){ .btn-rec.on{animation:none} }
+
+  .progress-wrap{position:sticky;top:0;z-index:10;background:var(--bg);padding:10px 20px;border-bottom:1px solid var(--line)}
+  .progress-inner{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:14px}
+  .pbar{flex:1;height:8px;border-radius:99px;background:var(--panel);overflow:hidden}
+  .pbar div{height:100%;width:0%;background:var(--accent);border-radius:99px;transition:width .25s ease}
+  @media (prefers-reduced-motion: reduce){ .pbar div{transition:none} }
+  .ptext{font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700;color:var(--heading);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  .qcard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px 22px 20px}
+  .qcard.missing{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+  .qtitle{display:flex;gap:11px;align-items:flex-start;margin-bottom:4px}
+  .qnum{flex:none;width:30px;height:30px;border-radius:9px;background:var(--navy);color:#fff;display:grid;place-content:center;font-family:Montserrat,sans-serif;font-weight:800;font-size:14px}
+  .qtext{font-weight:700;font-family:Montserrat,sans-serif;font-size:16px;color:var(--heading);padding-top:3px}
+  .qsub{color:var(--muted);font-size:14px;margin:6px 0 16px 41px}
+  .answered{display:none;margin-left:auto;flex:none;font-family:Montserrat,sans-serif;font-size:11.5px;font-weight:700;color:var(--ok);background:var(--ok-bg);border-radius:999px;padding:5px 11px;align-self:center}
+  .qcard.done .answered{display:inline-block}
+
+  .modes{display:flex;flex-direction:column;gap:14px;margin-left:0}
+  .mode{background:var(--panel);border-radius:12px;padding:14px 16px}
+  .mode-label{font-family:Montserrat,sans-serif;font-weight:700;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .rec-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  .rec-timer{font-family:Montserrat,sans-serif;font-weight:700;font-size:19px;color:var(--heading);font-variant-numeric:tabular-nums;min-width:52px}
+  .rec-status{color:var(--muted);font-size:13px}
+  audio{max-width:100%;width:280px;height:40px}
+  .file-row{display:flex;align-items:center;gap:10px;margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 12px}
+  .file-row .fname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13.5px}
+  .file-row .fsize{color:var(--muted);font-size:12.5px}
+  .btn-link{appearance:none;background:none;border:none;cursor:pointer;color:var(--accent);font:inherit;font-size:13.5px;text-decoration:underline;padding:2px}
+
+  .msg{border-radius:12px;padding:13px 17px;display:none;max-width:46em}
+  .msg.show{display:block}
+  .msg.warn{background:var(--warn-bg);color:var(--warn)}
+  .msg.ok{background:var(--ok-bg);color:var(--ok)}
+
+  .thanks{display:none;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:44px 24px;text-align:center}
+  .thanks.show{display:block}
+  .thanks .big{font-size:48px;line-height:1;margin-bottom:12px}
+  .thanks p{color:var(--muted);max-width:36em;margin:10px auto 0}
+
+  .foot{background:linear-gradient(150deg,#003478,#00234F);color:#C6D6EC;padding:24px 20px;margin-top:26px}
+  .foot-inner{max-width:760px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .foot .mbc-logo{height:19px;margin:0}
+  .foot p{margin:0;font-size:12.5px;max-width:44em}
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <svg class="mbc-logo" viewBox="0 0 3860.17 856.07" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MBC">
+      <path fill="#FFFFFF" d="M418.06 0 626.07 488.07 701.67 492.29 910.14 0 1328.21 0 1328.21 856.07 1100.17 856.07 1100.17 192.01 1048.6 192.48 830.28 684.35 496.03 682.1 280.46 194.49 228.04 192.01 228.04 856.07 0 856.07 0 0 418.06 0Z"/>
+      <path fill="#FFFFFF" d="M3139.84 201 3860.17 201 3860.17 0 3148.64 0C3148.13 0 3147.62 0.01 3147.11 0.02 2906.1 1.66 2724.88 176.94 2724.88 428.03 2724.88 679.12 2905.48 852.72 3144.73 856.01 3145.07 856.01 3145.42 856.02 3145.76 856.03 3145.9 856.03 3146.05 856.03 3146.19 856.03 3147 856.04 3147.81 856.06 3148.63 856.06L3860.16 856.06 3860.16 655.06 3141.03 655.06C3033.15 651.52 2947.27 567.26 2947.27 428.02 2947.27 288.78 3029.79 204.6 3139.84 200.98Z"/>
+      <path fill="#FFFFFF" d="M1485.95 0 2304.74 0C2482.07 0 2588.46 94.17 2588.46 231.14 2588.46 311.86 2550.55 384.01 2463.72 407.24L2463.72 426.81C2560.33 441.49 2614.14 508.75 2614.14 618.81 2614.14 765.56 2516.3 856.06 2334.08 856.06L1485.94 856.06 1485.94 0ZM2292.51 335.09C2345.1 335.09 2373.23 305.74 2373.23 259.27 2373.23 212.8 2345.1 183.45 2292.51 183.45L1706.08 183.45 1706.08 335.1 2292.51 335.1ZM2299.84 672.62C2357.32 672.62 2386.67 646.94 2386.67 595.57 2386.67 544.2 2357.32 518.52 2299.84 518.52L1706.08 518.52 1706.08 672.61 2299.84 672.61Z"/>
+    </svg>
+    <p class="eyebrow">Hub IA · Fábrica de Desarrollo</p>
+    <h1>Voz de la Fábrica</h1>
+    <p>Cinco preguntas, respondidas como prefieras: <strong>graba tu voz</strong>, escribe o adjunta un archivo en cada una. 5–10 minutos.</p>
+    <span class="anon">🔒 Anónima — análisis agregado, no evalúa a personas</span>
+  </div>
+</header>
+
+<!-- ===================== LOGIN ===================== -->
+<section id="loginView">
+  <div class="login-card">
+    <h2>Acceso a la encuesta</h2>
+    <p>Ingresa las credenciales que te compartió el equipo MBC.</p>
+    <label for="loginUser">Usuario</label>
+    <input type="text" id="loginUser" autocomplete="username" autocapitalize="none">
+    <label for="loginPass">Contraseña</label>
+    <input type="password" id="loginPass" autocomplete="current-password">
+    <div style="margin-top:20px;display:flex;gap:12px;align-items:center">
+      <button class="btn" id="loginBtn">Entrar</button>
+      <span class="msg warn" id="loginMsg" style="margin:0;padding:9px 13px"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ENCUESTA ===================== -->
+<div id="surveyView" class="hidden">
+  <div class="progress-wrap">
+    <div class="progress-inner">
+      <div class="pbar"><div id="pfill"></div></div>
+      <span class="ptext" id="ptext">0 de 5 respondidas</span>
+    </div>
+  </div>
+
+  <main class="wrap" id="qRoot"></main>
+
+  <div class="wrap" style="padding-top:0">
+    <div style="display:flex;flex-direction:column;gap:12px;align-items:flex-start" id="sendZone">
+      <button class="btn" id="sendBtn" style="padding:14px 30px;font-size:15px">Enviar mis respuestas</button>
+      <div class="msg" id="msg" role="status" aria-live="polite"></div>
+    </div>
+    <section class="thanks" id="thanksCard">
+      <div class="big" aria-hidden="true">🙌</div>
+      <h2>¡Gracias! Tus respuestas fueron enviadas</h2>
+      <p>Se guardaron correctamente y se analizarán de forma agregada junto con las del resto del equipo.</p>
+    </section>
+  </div>
+</div>
+
+<footer class="foot">
+  <div class="foot-inner">
+    <svg class="mbc-logo" viewBox="0 0 3860.17 856.07" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MBC">
+      <path fill="#FFFFFF" d="M418.06 0 626.07 488.07 701.67 492.29 910.14 0 1328.21 0 1328.21 856.07 1100.17 856.07 1100.17 192.01 1048.6 192.48 830.28 684.35 496.03 682.1 280.46 194.49 228.04 192.01 228.04 856.07 0 856.07 0 0 418.06 0Z"/>
+      <path fill="#FFFFFF" d="M3139.84 201 3860.17 201 3860.17 0 3148.64 0C3148.13 0 3147.62 0.01 3147.11 0.02 2906.1 1.66 2724.88 176.94 2724.88 428.03 2724.88 679.12 2905.48 852.72 3144.73 856.01 3145.07 856.01 3145.42 856.02 3145.76 856.03 3145.9 856.03 3146.05 856.03 3146.19 856.03 3147 856.04 3147.81 856.06 3148.63 856.06L3860.16 856.06 3860.16 655.06 3141.03 655.06C3033.15 651.52 2947.27 567.26 2947.27 428.02 2947.27 288.78 3029.79 204.6 3139.84 200.98Z"/>
+      <path fill="#FFFFFF" d="M1485.95 0 2304.74 0C2482.07 0 2588.46 94.17 2588.46 231.14 2588.46 311.86 2550.55 384.01 2463.72 407.24L2463.72 426.81C2560.33 441.49 2614.14 508.75 2614.14 618.81 2614.14 765.56 2516.3 856.06 2334.08 856.06L1485.94 856.06 1485.94 0ZM2292.51 335.09C2345.1 335.09 2373.23 305.74 2373.23 259.27 2373.23 212.8 2345.1 183.45 2292.51 183.45L1706.08 183.45 1706.08 335.1 2292.51 335.1ZM2299.84 672.62C2357.32 672.62 2386.67 646.94 2386.67 595.57 2386.67 544.2 2357.32 518.52 2299.84 518.52L1706.08 518.52 1706.08 672.61 2299.84 672.61Z"/>
+    </svg>
+    <p>Encuesta de diagnóstico de la fábrica de desarrollo. Uso exclusivo para el análisis agregado del equipo MBC.</p>
+  </div>
+</footer>
+
+<script>
+'use strict';
+(function(){
+  // ================== Configuración ==================
+  var BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxJ6tlqSr_tGoaRZMNuBRB8Do3ej75u6e2vE7-7cLhGyUkXo0VEXKBM62UGMi65Ui4/exec';
+  var ACCESS_USER = 'hub_ia_pe';
+  var ACCESS_PASS = 'hub_ia_pe';
+  var MAX_FILE_BYTES = 5*1024*1024;   // 5 MB por archivo
+  var MAX_AUDIO_SEC  = 300;           // 5 min por audio
+  var MAX_TOTAL_B64  = 26*1024*1024;  // ~19 MB reales en total
+
+  var QUESTIONS = [
+    {id:'P1', text:'Tu rol y contexto', sub:'¿Qué haces en la fábrica y en qué fases participas — construcción, pruebas, despliegue?'},
+    {id:'P2', text:'El camino de un desarrollo', sub:'Desde que llega el pedido hasta que se entrega: ¿cómo es el proceso hoy y dónde se traba más?'},
+    {id:'P3', text:'Esperas y dependencias', sub:'¿Qué áreas, aprobaciones, accesos o entornos te hacen esperar más, y cuánto suelen demorar?'},
+    {id:'P4', text:'Pruebas y pase a producción', sub:'¿Qué funciona bien y qué falla hoy — entornos, datos de prueba, automatización, ventanas de despliegue?'},
+    {id:'P5', text:'Tu receta', sub:'Si pudieras cambiar tres cosas para llegar antes a producción con calidad, ¿cuáles serían?'}
+  ];
+
+  var $ = function(s){ return document.querySelector(s); };
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function fmtBytes(n){ return n >= 1024*1024 ? (n/1024/1024).toFixed(1)+' MB' : Math.round(n/1024)+' KB'; }
+  function fmtSecs(s){ return Math.floor(s/60)+':'+('0'+Math.floor(s%60)).slice(-2); }
+
+  // ================== Login ==================
+  function tryLogin(){
+    var u = $('#loginUser').value.trim().toLowerCase();
+    var p = $('#loginPass').value.trim();
+    if (u === ACCESS_USER && p === ACCESS_PASS){
+      try{ sessionStorage.setItem('hub-auth','1'); }catch(e){}
+      showSurvey();
+    } else {
+      var m = $('#loginMsg');
+      m.classList.add('show');
+      m.textContent = 'Usuario o contraseña incorrectos.';
+    }
+  }
+  $('#loginBtn').addEventListener('click', tryLogin);
+  $('#loginPass').addEventListener('keydown', function(e){ if (e.key==='Enter') tryLogin(); });
+  function showSurvey(){
+    $('#loginView').classList.add('hidden');
+    $('#surveyView').classList.remove('hidden');
+  }
+  try{ if (sessionStorage.getItem('hub-auth')==='1') showSurvey(); }catch(e){}
+
+  // ================== Estado por pregunta ==================
+  var state = {};
+  QUESTIONS.forEach(function(q){ state[q.id] = {audio:null, text:'', file:null}; });
+
+  // ================== Render ==================
+  var root = $('#qRoot');
+  QUESTIONS.forEach(function(q, idx){
+    var card = document.createElement('section');
+    card.className = 'qcard';
+    card.id = 'card-'+q.id;
+    card.innerHTML =
+      '<div class="qtitle"><span class="qnum">'+(idx+1)+'</span><span class="qtext">'+esc(q.text)+'</span>'+
+      '<span class="answered">✓ Respondida</span></div>'+
+      '<p class="qsub">'+esc(q.sub)+'</p>'+
+      '<div class="modes">'+
+        '<div class="mode">'+
+          '<div class="mode-label">🎙️ Responder con tu voz</div>'+
+          '<div class="rec-row">'+
+            '<button class="btn btn-rec btn-sm" data-act="rec" data-q="'+q.id+'" type="button">Grabar</button>'+
+            '<button class="btn btn-ghost btn-sm hidden" data-act="pause" data-q="'+q.id+'" type="button">Pausa</button>'+
+            '<button class="btn btn-ghost btn-sm hidden" data-act="stop" data-q="'+q.id+'" type="button">Detener</button>'+
+            '<span class="rec-timer" id="timer-'+q.id+'">0:00</span>'+
+          '</div>'+
+          '<div class="rec-row hidden" id="play-'+q.id+'" style="margin-top:10px">'+
+            '<audio controls id="audio-'+q.id+'"></audio>'+
+            '<button class="btn-link" data-act="redo" data-q="'+q.id+'" type="button">Rehacer</button>'+
+          '</div>'+
+          '<p class="rec-status" id="status-'+q.id+'" style="margin:8px 0 0">Pulsa Grabar y habla; puedes pausar y continuar.</p>'+
+        '</div>'+
+        '<div class="mode">'+
+          '<div class="mode-label">✍️ O escribe tu respuesta</div>'+
+          '<textarea id="text-'+q.id+'" maxlength="4000" placeholder="Escribe aquí…"></textarea>'+
+        '</div>'+
+        '<div class="mode">'+
+          '<div class="mode-label">📎 O adjunta un archivo (máx. 5 MB)</div>'+
+          '<button class="btn btn-ghost btn-sm" data-act="file" data-q="'+q.id+'" type="button">Elegir archivo</button>'+
+          '<input type="file" id="fileinput-'+q.id+'" hidden>'+
+          '<div id="filerow-'+q.id+'"></div>'+
+        '</div>'+
+      '</div>';
+    root.appendChild(card);
+  });
+
+  // ================== Grabadora con pausa/reanudar/rehacer ==================
+  var recs = {};
+  var CAN_PAUSE = window.MediaRecorder && typeof MediaRecorder.prototype.pause === 'function';
+
+  function pickMime(){
+    if (!window.MediaRecorder) return '';
+    if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) return 'audio/webm;codecs=opus';
+    if (MediaRecorder.isTypeSupported('audio/mp4')) return 'audio/mp4';
+    return '';
+  }
+
+  function startRec(qid){
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder){
+      setStatus(qid, 'Tu navegador no soporta grabación: usa el campo de texto o adjunta una nota de voz.');
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+      var mime = pickMime();
+      var recorder;
+      try{ recorder = mime ? new MediaRecorder(stream,{mimeType:mime,audioBitsPerSecond:32000}) : new MediaRecorder(stream); }
+      catch(e){ recorder = new MediaRecorder(stream); }
+      var r = recs[qid] = {recorder:recorder, stream:stream, chunks:[], secs:0, timerId:0, paused:false};
+      recorder.addEventListener('dataavailable', function(ev){ if (ev.data && ev.data.size) r.chunks.push(ev.data); });
+      recorder.addEventListener('stop', function(){ onStop(qid); });
+      recorder.start();
+      r.timerId = setInterval(function(){
+        if (!r.paused){
+          r.secs++;
+          document.getElementById('timer-'+qid).textContent = fmtSecs(r.secs);
+          if (r.secs >= MAX_AUDIO_SEC) stopRec(qid);
+        }
+      }, 1000);
+      var recBtn = btn(qid,'rec');
+      recBtn.classList.add('hidden');
+      if (CAN_PAUSE) btn(qid,'pause').classList.remove('hidden');
+      btn(qid,'stop').classList.remove('hidden');
+      document.getElementById('play-'+qid).classList.add('hidden');
+      setStatus(qid, 'Grabando…' + (CAN_PAUSE ? ' puedes pausar y continuar.' : ''));
+    }).catch(function(){
+      setStatus(qid, 'No se pudo acceder al micrófono (revisa el permiso del navegador). Mientras tanto puedes escribir o adjuntar una nota de voz.');
+    });
+  }
+
+  function pauseRec(qid){
+    var r = recs[qid];
+    if (!r) return;
+    if (!r.paused){
+      try{ r.recorder.pause(); }catch(e){ return; }
+      r.paused = true;
+      btn(qid,'pause').textContent = 'Reanudar';
+      setStatus(qid, 'En pausa — pulsa Reanudar para seguir grabando.');
+    } else {
+      try{ r.recorder.resume(); }catch(e){ return; }
+      r.paused = false;
+      btn(qid,'pause').textContent = 'Pausa';
+      setStatus(qid, 'Grabando…');
+    }
+  }
+
+  function stopRec(qid){
+    var r = recs[qid];
+    if (!r) return;
+    clearInterval(r.timerId);
+    try{ if (r.recorder.state !== 'inactive') r.recorder.stop(); }catch(e){}
+  }
+
+  function onStop(qid){
+    var r = recs[qid];
+    if (!r) return;
+    if (r.stream){ r.stream.getTracks().forEach(function(t){ t.stop(); }); }
+    var blob = new Blob(r.chunks, {type: r.recorder.mimeType || 'audio/webm'});
+    resetRecButtons(qid);
+    if (!blob.size){ setStatus(qid, 'No se capturó audio. Intenta de nuevo.'); return; }
+    var fr = new FileReader();
+    fr.onload = function(){
+      state[qid].audio = {mime: blob.type, b64: String(fr.result).split(',')[1] || '', secs: r.secs};
+      var au = document.getElementById('audio-'+qid);
+      au.src = URL.createObjectURL(blob);
+      document.getElementById('play-'+qid).classList.remove('hidden');
+      setStatus(qid, 'Audio listo ('+fmtSecs(r.secs)+'). Escúchalo; si no te convence, pulsa Rehacer.');
+      refresh();
+    };
+    fr.readAsDataURL(blob);
+  }
+
+  function redoRec(qid){
+    state[qid].audio = null;
+    document.getElementById('play-'+qid).classList.add('hidden');
+    document.getElementById('timer-'+qid).textContent = '0:00';
+    setStatus(qid, 'Audio descartado. Pulsa Grabar para intentarlo de nuevo.');
+    refresh();
+  }
+
+  function resetRecButtons(qid){
+    btn(qid,'rec').classList.remove('hidden','on');
+    btn(qid,'pause').classList.add('hidden');
+    btn(qid,'pause').textContent = 'Pausa';
+    btn(qid,'stop').classList.add('hidden');
+  }
+
+  function btn(qid, act){ return document.querySelector('[data-act="'+act+'"][data-q="'+qid+'"]'); }
+  function setStatus(qid, t){ document.getElementById('status-'+qid).textContent = t; }
+
+  // ================== Archivos y texto ==================
+  function pickFile(qid){ document.getElementById('fileinput-'+qid).click(); }
+  QUESTIONS.forEach(function(q){
+    document.getElementById('fileinput-'+q.id).addEventListener('change', function(ev){
+      var f = ev.target.files[0];
+      ev.target.value = '';
+      if (!f) return;
+      if (f.size > MAX_FILE_BYTES){ showMsg('warn','"'+f.name+'" pesa '+fmtBytes(f.size)+'; el máximo es 5 MB.'); return; }
+      var fr = new FileReader();
+      fr.onload = function(){
+        state[q.id].file = {name:f.name, mime:f.type||'application/octet-stream', size:f.size, b64:String(fr.result).split(',')[1]||''};
+        renderFile(q.id);
+        refresh();
+      };
+      fr.readAsDataURL(f);
+    });
+    document.getElementById('text-'+q.id).addEventListener('input', function(ev){
+      state[q.id].text = ev.target.value.trim();
+      refresh();
+    });
+  });
+  function renderFile(qid){
+    var host = document.getElementById('filerow-'+qid);
+    host.textContent = '';
+    var f = state[qid].file;
+    if (!f) return;
+    var row = document.createElement('div');
+    row.className = 'file-row';
+    var name = document.createElement('span'); name.className='fname'; name.textContent = f.name;
+    var size = document.createElement('span'); size.className='fsize'; size.textContent = fmtBytes(f.size);
+    var rm = document.createElement('button'); rm.className='btn-link'; rm.type='button'; rm.textContent='Quitar';
+    rm.addEventListener('click', function(){ state[qid].file = null; renderFile(qid); refresh(); });
+    row.appendChild(name); row.appendChild(size); row.appendChild(rm);
+    host.appendChild(row);
+  }
+
+  root.addEventListener('click', function(ev){
+    var b = ev.target.closest('[data-act]');
+    if (!b) return;
+    var qid = b.getAttribute('data-q'), act = b.getAttribute('data-act');
+    if (act==='rec') startRec(qid);
+    else if (act==='pause') pauseRec(qid);
+    else if (act==='stop') stopRec(qid);
+    else if (act==='redo') redoRec(qid);
+    else if (act==='file') pickFile(qid);
+  });
+
+  // ================== Progreso ==================
+  function isAnswered(qid){
+    var s = state[qid];
+    return !!(s.audio || s.text || s.file);
+  }
+  function refresh(){
+    var done = 0;
+    QUESTIONS.forEach(function(q){
+      var ok = isAnswered(q.id);
+      if (ok) done++;
+      document.getElementById('card-'+q.id).classList.toggle('done', ok);
+    });
+    $('#pfill').style.width = (done/QUESTIONS.length*100)+'%';
+    $('#ptext').textContent = done+' de '+QUESTIONS.length+' respondidas';
+  }
+
+  function showMsg(kind, text){ var m=$('#msg'); m.className='msg show '+kind; m.textContent=text; }
+  function hideMsg(){ $('#msg').className='msg'; }
+
+  // ================== Envío ==================
+  $('#sendBtn').addEventListener('click', function(){
+    hideMsg();
+    document.querySelectorAll('.qcard.missing').forEach(function(el){ el.classList.remove('missing'); });
+    QUESTIONS.forEach(function(q){ if (recs[q.id] && recs[q.id].recorder && recs[q.id].recorder.state !== 'inactive') stopRec(q.id); });
+
+    var pending = QUESTIONS.filter(function(q){ return !isAnswered(q.id); });
+    if (pending.length){
+      pending.forEach(function(q){ document.getElementById('card-'+q.id).classList.add('missing'); });
+      showMsg('warn','Te falta responder '+pending.length+' pregunta'+(pending.length>1?'s':'')+' (marcadas en fucsia). Cada una acepta audio, texto o archivo.');
+      document.getElementById('card-'+pending[0].id).scrollIntoView({behavior:'smooth', block:'center'});
+      return;
+    }
+
+    var answers = {}, attachments = [];
+    QUESTIONS.forEach(function(q, idx){
+      var s = state[q.id];
+      answers[q.id+' · '+q.text+' (texto)'] = s.text || '';
+      if (s.audio){
+        var ext = (s.audio.mime||'').indexOf('mp4') >= 0 ? 'm4a' : 'webm';
+        attachments.push({q:idx+1, name:q.id+'-audio.'+ext, mime:s.audio.mime, b64:s.audio.b64});
+      }
+      if (s.file) attachments.push({q:idx+1, name:s.file.name, mime:s.file.mime, b64:s.file.b64});
+    });
+    var payload = {token: ACCESS_PASS, answers: answers, attachments: attachments};
+    var totalB64 = attachments.reduce(function(sum,a){ return sum + (a.b64?a.b64.length:0); }, 0);
+    if (totalB64 > MAX_TOTAL_B64){
+      showMsg('warn','El total de audios y archivos supera el límite (~19 MB). Rehaz algún audio más corto o quita un archivo.');
+      return;
+    }
+
+    var sendBtn = $('#sendBtn');
+    sendBtn.disabled = true; sendBtn.textContent = 'Enviando…';
+    fetch(BACKEND_URL, {method:'POST', body: JSON.stringify(payload)})
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if (res && res.ok){
+          $('#sendZone').style.display = 'none';
+          $('#qRoot').style.display = 'none';
+          document.querySelector('.progress-wrap').style.display = 'none';
+          $('#thanksCard').classList.add('show');
+          $('#thanksCard').scrollIntoView({behavior:'smooth', block:'center'});
+        } else {
+          throw new Error((res && res.error) || 'respuesta inválida');
+        }
+      })
+      .catch(function(err){
+        sendBtn.disabled = false; sendBtn.textContent = 'Enviar mis respuestas';
+        showMsg('warn','No se pudo enviar ('+err.message+'). Revisa tu conexión e inténtalo de nuevo; tus respuestas siguen aquí.');
+      });
+  });
+
+  refresh();
+})();
+</script>
+</body>
+</html>
