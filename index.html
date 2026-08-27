@@ -58,6 +58,12 @@
   .btn-rec.on{background:var(--accent);animation:recpulse 1.6s ease-in-out infinite}
   @keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,0,84,.4)}50%{box-shadow:0 0 0 10px rgba(255,0,84,0)}}
   @media (prefers-reduced-motion: reduce){ .btn-rec.on{animation:none} }
+  .btn-ico{display:inline-flex;align-items:center;gap:8px}
+  .btn-ico svg{flex:none;display:block}
+  .btn-stop{background:var(--accent)}
+  .rec-dot{width:10px;height:10px;border-radius:50%;background:var(--accent);animation:blinkdot 1s ease-in-out infinite}
+  @keyframes blinkdot{0%,100%{opacity:1}50%{opacity:.25}}
+  @media (prefers-reduced-motion: reduce){ .rec-dot{animation:none} }
 
   .progress-wrap{position:sticky;top:0;z-index:10;background:var(--bg);padding:10px 20px;border-bottom:1px solid var(--line)}
   .progress-inner{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:14px}
@@ -227,6 +233,13 @@
       '<figcaption>Referencia: fases del ciclo de vida en la fábrica. En el celular, desliza para ver el diagrama completo.</figcaption>'+
     '</figure>';
 
+  // Íconos de la grabadora (SVG inline, heredan el color del botón)
+  var IC_MIC   = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3" fill="currentColor" stroke="none"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>';
+  var IC_PAUSE = '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4.5" height="16" rx="1.5"/><rect x="13.5" y="4" width="4.5" height="16" rx="1.5"/></svg>';
+  var IC_PLAY  = '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5 19 12 7 19.5Z"/></svg>';
+  var IC_STOP  = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5"/></svg>';
+  var IC_REDO  = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5A9 9 0 1 1 3 14"/><path d="M3 4v5h5"/></svg>';
+
   var $ = function(s){ return document.querySelector(s); };
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function fmtBytes(n){ return n >= 1024*1024 ? (n/1024/1024).toFixed(1)+' MB' : Math.round(n/1024)+' KB'; }
@@ -272,14 +285,15 @@
         '<div class="mode">'+
           '<div class="mode-label">🎙️ Responder con tu voz</div>'+
           '<div class="rec-row">'+
-            '<button class="btn btn-rec btn-sm" data-act="rec" data-q="'+q.id+'" type="button">Grabar</button>'+
-            '<button class="btn btn-ghost btn-sm hidden" data-act="pause" data-q="'+q.id+'" type="button">Pausa</button>'+
-            '<button class="btn btn-ghost btn-sm hidden" data-act="stop" data-q="'+q.id+'" type="button">Detener</button>'+
+            '<button class="btn btn-rec btn-sm btn-ico" data-act="rec" data-q="'+q.id+'" type="button">'+IC_MIC+'<span>Grabar</span></button>'+
+            '<button class="btn btn-ghost btn-sm btn-ico hidden" data-act="pause" data-q="'+q.id+'" type="button">'+IC_PAUSE+'<span>Pausa</span></button>'+
+            '<button class="btn btn-stop btn-sm btn-ico hidden" data-act="stop" data-q="'+q.id+'" type="button">'+IC_STOP+'<span>Detener</span></button>'+
+            '<span class="rec-dot hidden" id="dot-'+q.id+'" aria-hidden="true"></span>'+
             '<span class="rec-timer" id="timer-'+q.id+'">0:00</span>'+
           '</div>'+
           '<div class="rec-row hidden" id="play-'+q.id+'" style="margin-top:10px">'+
             '<audio controls id="audio-'+q.id+'"></audio>'+
-            '<button class="btn-link" data-act="redo" data-q="'+q.id+'" type="button">Rehacer</button>'+
+            '<button class="btn btn-ghost btn-sm btn-ico" data-act="redo" data-q="'+q.id+'" type="button">'+IC_REDO+'<span>Rehacer</span></button>'+
           '</div>'+
           '<p class="rec-status" id="status-'+q.id+'" style="margin:8px 0 0">Pulsa Grabar y habla; puedes pausar y continuar.</p>'+
         '</div>'+
@@ -333,6 +347,7 @@
       recBtn.classList.add('hidden');
       if (CAN_PAUSE) btn(qid,'pause').classList.remove('hidden');
       btn(qid,'stop').classList.remove('hidden');
+      document.getElementById('dot-'+qid).classList.remove('hidden');
       document.getElementById('play-'+qid).classList.add('hidden');
       setStatus(qid, 'Grabando…' + (CAN_PAUSE ? ' puedes pausar y continuar.' : ''));
     }).catch(function(){
@@ -346,12 +361,12 @@
     if (!r.paused){
       try{ r.recorder.pause(); }catch(e){ return; }
       r.paused = true;
-      btn(qid,'pause').textContent = 'Reanudar';
+      btn(qid,'pause').innerHTML = IC_PLAY+'<span>Reanudar</span>';
       setStatus(qid, 'En pausa — pulsa Reanudar para seguir grabando.');
     } else {
       try{ r.recorder.resume(); }catch(e){ return; }
       r.paused = false;
-      btn(qid,'pause').textContent = 'Pausa';
+      btn(qid,'pause').innerHTML = IC_PAUSE+'<span>Pausa</span>';
       setStatus(qid, 'Grabando…');
     }
   }
@@ -393,8 +408,9 @@
   function resetRecButtons(qid){
     btn(qid,'rec').classList.remove('hidden','on');
     btn(qid,'pause').classList.add('hidden');
-    btn(qid,'pause').textContent = 'Pausa';
+    btn(qid,'pause').innerHTML = IC_PAUSE+'<span>Pausa</span>';
     btn(qid,'stop').classList.add('hidden');
+    document.getElementById('dot-'+qid).classList.add('hidden');
   }
 
   function btn(qid, act){ return document.querySelector('[data-act="'+act+'"][data-q="'+qid+'"]'); }
