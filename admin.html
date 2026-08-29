@@ -376,17 +376,20 @@
               '<div class="surv-title">'+esc(s.titulo)+'</div>'+
               '<div class="meta">'+s.num_preguntas+' preguntas · usuario <code>'+esc(s.usuario)+'</code> · clave <code>'+esc(s.password)+'</code>'+
               (s.fecha_cierre ? ' · vence '+esc(s.fecha_cierre) : '')+(s.cupo ? ' · cupo '+esc(s.cupo) : '')+'</div>'+
-              (s.shortlink ? '<div class="meta">🔗 <a href="'+esc(s.shortlink)+'" target="_blank" rel="noopener">'+esc(s.shortlink)+'</a></div>' : '')+
+              '<div class="meta" style="margin-top:6px;word-break:break-all">🌐 <strong>URL completo:</strong> <a href="'+esc(s.link)+'" target="_blank" rel="noopener">'+esc(s.link)+'</a></div>'+
+              '<div class="meta" style="word-break:break-all">🔗 <strong>URL corto:</strong> '+
+                (s.shortlink ? '<a href="'+esc(s.shortlink)+'" target="_blank" rel="noopener">'+esc(s.shortlink)+'</a>'
+                             : '<em>aún no generado — usa el botón "Generar link corto"</em>')+'</div>'+
             '</div>'+
             '<div style="text-align:center"><div class="cnt">'+s.respuestas+(s.cupo?'<span class="meta">/'+esc(s.cupo)+'</span>':'')+'</div><div class="meta">respuestas</div></div>'+
             '<span class="pillst '+(s.abierta?'st-on':'st-off')+'">'+estadoTxt+'</span>'+
           '</div>'+
           '<div class="row" style="margin-top:12px" data-id="'+esc(s.id)+'" data-titulo="'+esc(s.titulo)+'" data-link="'+esc(s.link)+'">'+
-            '<button class="btn btn-ghost btn-xs" data-a="toggle">'+(String(s.estado)==='activa'?'⏸ Cerrar':'▶ Activar')+'</button>'+
+            '<button class="btn btn-ghost btn-xs" data-a="toggle" title="'+(String(s.estado)==='activa'?'Deja de aceptar respuestas nuevas; los datos ya recibidos se conservan':'Vuelve a aceptar respuestas')+'">'+(String(s.estado)==='activa'?'⏸ Cerrar (dejar de recibir)':'▶ Reabrir encuesta')+'</button>'+
             '<button class="btn btn-ghost btn-xs" data-a="edit">✏️ Editar</button>'+
             '<button class="btn btn-ghost btn-xs" data-a="dup">🧬 Duplicar</button>'+
             '<button class="btn btn-ghost btn-xs" data-a="copy" data-link="'+esc(s.link)+'">📋 Copiar link</button>'+
-            '<button class="btn btn-ghost btn-xs" data-a="short">🔗 Link corto</button>'+
+            '<button class="btn btn-ghost btn-xs" data-a="short">🔗 Generar link corto</button>'+
             '<button class="btn btn-ghost btn-xs" data-a="qr">🔳 QR</button>'+
             '<button class="btn btn-ghost btn-xs" data-a="csv">⬇ CSV</button>'+
             (s.respuestasUrl ? '<a class="btn btn-ghost btn-xs" style="text-decoration:none" href="'+esc(s.respuestasUrl)+'" target="_blank" rel="noopener">📄 Sheet</a>' : '')+
@@ -776,7 +779,7 @@
         if (r.pendientes > 0 && r.procesadas > 0){ paso(); return; }
         b.disabled = false;
         b.textContent = '🎙️→📝 Transcribir audios';
-        msg('#iaMsg','ok','Transcripción completa: '+totalHechas+' respuestas procesadas (columna "Transcripciones" del Sheet).');
+        msg('#iaMsg','ok','Transcripción completa: '+totalHechas+' respuestas procesadas. Cada texto quedó en su columna "Transcripción P1", "Transcripción P2"… del Sheet, y sale también en el ⬇ CSV.');
       }).catch(function(){ b.disabled=false; b.textContent='🎙️→📝 Transcribir audios'; msg('#iaMsg','warn','Error de conexión.'); });
     }
     paso();
