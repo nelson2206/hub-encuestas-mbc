@@ -129,6 +129,31 @@
   .foot .mbc-logo{height:19px;margin:0}
   .foot p{margin:0;font-size:12.5px;max-width:44em}
   .hidden{display:none !important}
+
+  /* ===== Pulido v2 (design engineering) ===== */
+  :root{ --ease:cubic-bezier(.23,1,.32,1) }
+  .btn{transition:transform 140ms var(--ease), filter 140ms ease; padding:13px 26px; font-size:15px}
+  .btn:active{transform:scale(.97)}
+  .btn-sm{padding:10px 18px;font-size:14px}
+  .btn-ico{gap:9px}
+  .btn-ico svg{width:20px;height:20px}
+  .btn-stop.btn-ico svg,.btn-ghost.btn-ico svg{width:18px;height:18px}
+  .qnum{width:34px;height:34px;font-size:15px;border-radius:10px}
+  .mode-label{font-size:13.5px}
+  .rec-timer{font-size:22px}
+  .rec-dot{width:12px;height:12px}
+  @media (hover:hover) and (pointer:fine){
+    .qcard{transition:box-shadow 180ms var(--ease), transform 180ms var(--ease)}
+    .qcard:hover{box-shadow:0 6px 24px rgba(0,25,60,.08)}
+  }
+  .qcard{animation:cardIn 320ms var(--ease) backwards}
+  .qcard:nth-child(1){animation-delay:0ms}.qcard:nth-child(2){animation-delay:45ms}
+  .qcard:nth-child(3){animation-delay:90ms}.qcard:nth-child(4){animation-delay:135ms}
+  .qcard:nth-child(5){animation-delay:180ms}.qcard:nth-child(6){animation-delay:225ms}
+  @keyframes cardIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion: reduce){ .qcard{animation:none} .btn{transition:none} }
+  .quota-pill{display:inline-block;margin-top:10px;font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700;color:#FFD9E6;background:rgba(255,0,84,.25);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:6px 14px}
+  .dup-banner{background:var(--warn-bg);color:var(--warn);border-radius:14px;padding:16px 18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -231,6 +256,20 @@
   var params = new URLSearchParams(location.search);
   if (params.get('u')) $('#loginUser').value = params.get('u');
 
+  // Modo vista previa (desde la consola de administración)
+  if (params.get('preview')){
+    var pvData = null;
+    try{ pvData = JSON.parse(sessionStorage.getItem('hub-preview')||'null'); }catch(e){}
+    if (pvData){
+      setTimeout(function(){
+        SURVEY = pvData;
+        PREVIEW = true;
+        CRED = {user:'(vista previa)', pass:''};
+        startSurvey();
+      }, 0);
+    }
+  }
+
   function loginMsg(t){ var m=$('#loginMsg'); m.classList.toggle('show', !!t); m.textContent = t||''; }
 
   function tryLogin(){
@@ -259,9 +298,31 @@
   $('#loginPass').addEventListener('keydown', function(e){ if (e.key==='Enter') tryLogin(); });
 
   // ================== Render de la encuesta ==================
+  var PREVIEW = false;
+
   function startSurvey(){
     $('#heroTitle').textContent = SURVEY.titulo || 'Encuesta MBC';
     if (SURVEY.intro) $('#heroIntro').textContent = SURVEY.intro;
+    // branding por encuesta
+    if (SURVEY.color && /^#[0-9a-fA-F]{6}$/.test(SURVEY.color)){
+      document.documentElement.style.setProperty('--accent', SURVEY.color);
+    }
+    if (SURVEY.logo){
+      var heroLogo = document.querySelector('.hero .mbc-logo');
+      if (heroLogo){
+        var img = document.createElement('img');
+        img.src = SURVEY.logo;
+        img.alt = 'Logo';
+        img.style.cssText = 'height:34px;width:auto;display:block;margin-bottom:22px';
+        heroLogo.replaceWith(img);
+      }
+    }
+    if (SURVEY.restantes !== null && SURVEY.restantes !== undefined){
+      var qp = document.createElement('span');
+      qp.className = 'quota-pill';
+      qp.textContent = '⏳ Quedan ' + SURVEY.restantes + ' respuestas disponibles';
+      document.querySelector('.hero-inner').appendChild(qp);
+    }
     $('#loginView').classList.add('hidden');
     $('#surveyView').classList.remove('hidden');
     var root = $('#qRoot');
@@ -272,8 +333,79 @@
       root.appendChild(buildCard(q, idx));
     });
     wireEvents();
+    restoreDraft();
+    if (PREVIEW){
+      var sb = $('#sendBtn');
+      sb.disabled = true;
+      sb.textContent = 'Vista previa — el envío está deshabilitado';
+    } else {
+      try{
+        if (localStorage.getItem('hubdone-'+SURVEY.id)){
+          var ban = document.createElement('div');
+          ban.className = 'dup-banner';
+          ban.innerHTML = '<span style="flex:1;min-width:200px">Ya registraste una respuesta en esta encuesta desde este dispositivo.</span>';
+          var again = document.createElement('button');
+          again.className = 'btn btn-sm';
+          again.type = 'button';
+          again.textContent = 'Responder otra vez';
+          again.addEventListener('click', function(){ ban.remove(); $('#sendZone').style.display=''; });
+          ban.appendChild(again);
+          root.parentNode.insertBefore(ban, root);
+          $('#sendZone').style.display = 'none';
+        }
+      }catch(e){}
+    }
     refresh();
     window.scrollTo({top:0});
+  }
+
+  // lógica de saltos: una pregunta puede depender de la opción elegida en una cerrada anterior
+  function isVisibleQ(q){
+    if (!q.condicion || !q.condicion.q || !q.condicion.valor) return true;
+    var s = state[q.condicion.q];
+    if (!s || !s.sel) return true;
+    return s.sel.indexOf(q.condicion.valor) >= 0;
+  }
+
+  // guardado parcial (texto y selecciones; audio/archivos no persisten entre visitas)
+  function saveDraft(){
+    if (PREVIEW || !SURVEY) return;
+    try{
+      var d = {};
+      SURVEY.preguntas.forEach(function(q){
+        var s = state[q.id];
+        if (!s) return;
+        if (s.sel) d[q.id] = {sel:s.sel, otro:s.otro};
+        else if (s.text) d[q.id] = {text:s.text};
+      });
+      localStorage.setItem('hubdraft-'+SURVEY.id, JSON.stringify(d));
+    }catch(e){}
+  }
+  function restoreDraft(){
+    if (PREVIEW) return;
+    var d = null;
+    try{ d = JSON.parse(localStorage.getItem('hubdraft-'+SURVEY.id)||'null'); }catch(e){}
+    if (!d) return;
+    SURVEY.preguntas.forEach(function(q){
+      var sv = d[q.id];
+      if (!sv) return;
+      if (sv.sel && state[q.id].sel){
+        state[q.id].sel = sv.sel;
+        state[q.id].otro = sv.otro || '';
+        sv.sel.forEach(function(v){
+          var inp = document.querySelector('input[name="opt-'+q.id+'"][value="'+v.replace(/"/g,'')+'"]');
+          if (inp) inp.checked = true;
+        });
+        var ow = document.getElementById('otro-'+q.id);
+        if (ow) ow.classList.toggle('hidden', sv.sel.indexOf('Otro') < 0);
+        var oi = document.getElementById('otroin-'+q.id);
+        if (oi && sv.otro) oi.value = sv.otro;
+      } else if (sv.text !== undefined && state[q.id].text !== undefined){
+        state[q.id].text = sv.text;
+        var ta = document.getElementById('text-'+q.id);
+        if (ta) ta.value = sv.text;
+      }
+    });
   }
 
   function isClosed(q){ return q.tipo === 'cerrada_unica' || q.tipo === 'cerrada_multiple'; }
@@ -515,15 +647,20 @@
   }
   function refresh(){
     if (!SURVEY) return;
-    var done = 0, total = SURVEY.preguntas.length;
+    var done = 0, total = 0;
     SURVEY.preguntas.forEach(function(q){
+      var vis = isVisibleQ(q);
+      var el = document.getElementById('card-'+q.id);
+      if (el) el.style.display = vis ? '' : 'none';
+      if (!vis) return;
+      total++;
       var ok = isAnswered(q);
       if (ok) done++;
-      var el = document.getElementById('card-'+q.id);
       if (el) el.classList.toggle('done', ok);
     });
     $('#pfill').style.width = (total ? done/total*100 : 0)+'%';
     $('#ptext').textContent = done+' de '+total+' respondidas';
+    saveDraft();
   }
   function showMsg(kind, text){ var m=$('#msg'); m.className='msg show '+kind; m.textContent=text; }
   function hideMsg(){ $('#msg').className='msg'; }
@@ -533,7 +670,7 @@
     document.querySelectorAll('.qcard.missing').forEach(function(el){ el.classList.remove('missing'); });
     SURVEY.preguntas.forEach(function(q){ if (recs[q.id] && recs[q.id].recorder && recs[q.id].recorder.state !== 'inactive') stopRec(q.id); });
 
-    var pending = SURVEY.preguntas.filter(function(q){ return !isAnswered(q); });
+    var pending = SURVEY.preguntas.filter(function(q){ return isVisibleQ(q) && !isAnswered(q); });
     if (pending.length){
       pending.forEach(function(q){ var el=document.getElementById('card-'+q.id); if (el) el.classList.add('missing'); });
       showMsg('warn','Te falta responder '+pending.length+' pregunta'+(pending.length>1?'s':'')+' (marcadas en fucsia).');
@@ -544,6 +681,7 @@
 
     var answers = {}, attachments = [];
     SURVEY.preguntas.forEach(function(q, idx){
+      if (!isVisibleQ(q)) return;
       var s = state[q.id];
       var key = q.id+' · '+q.titulo;
       if (s.sel){
@@ -570,6 +708,11 @@
     api({action:'submit_encuesta', id:SURVEY.id, user:CRED.user, pass:CRED.pass, answers:answers, attachments:attachments})
       .then(function(res){
         if (res && res.ok){
+          if (SURVEY.gracias) $('#thanksCard').querySelector('p').textContent = SURVEY.gracias;
+          try{
+            localStorage.setItem('hubdone-'+SURVEY.id, '1');
+            localStorage.removeItem('hubdraft-'+SURVEY.id);
+          }catch(e){}
           $('#sendZone').style.display = 'none';
           $('#qRoot').style.display = 'none';
           document.querySelector('.progress-wrap').style.display = 'none';
