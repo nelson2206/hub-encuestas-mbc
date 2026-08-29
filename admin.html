@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hub Encuestas MBC · Admin</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<style>
+  :root{
+    --bg:#E3E2DA; --card:#FFFFFF; --ink:#1C2B3A; --heading:#003478; --muted:#5B6B80;
+    --line:#CFCDC2; --accent:#FF0054; --accent-soft:#FFE3EC; --navy:#003478;
+    --panel:#F4F3EE; --field-line:#B9C4D4; --ok:#237A3F; --ok-bg:#E4F4E9;
+    --warn:#8A5A00; --warn-bg:#FBF0DA;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#081426; --card:#0F2440; --ink:#E9EEF6; --heading:#BBD0EE; --muted:#9FB0C7;
+      --line:#243C5E; --accent:#FF4D80; --accent-soft:#3A1128; --navy:#1E4A85;
+      --panel:#0B1D37; --field-line:#31517D; --ok:#6FD08C; --ok-bg:#0E3320;
+      --warn:#EFC26A; --warn-bg:#3A2B0A;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS","Segoe UI",Verdana,sans-serif;font-size:15.5px;line-height:1.5}
+  h1,h2,h3{font-family:Montserrat,"Trebuchet MS",sans-serif;color:var(--heading);margin:0}
+
+  .topbar{background:linear-gradient(150deg,#003478,#00234F);color:#fff;padding:16px 22px}
+  .topbar-inner{max-width:1000px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .mbc-logo{height:20px;width:auto}
+  .topbar .ttl{font-family:Montserrat,sans-serif;font-weight:700;font-size:16px}
+  .topbar .sub{color:#9FC1F2;font-size:12.5px;margin-left:auto}
+
+  .wrap{max-width:1000px;margin:0 auto;padding:24px 20px 70px}
+  .login-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:30px 28px;max-width:400px;margin:50px auto;box-shadow:0 10px 40px rgba(0,25,60,.12)}
+  label{display:block;font-family:Montserrat,sans-serif;font-weight:600;font-size:12.5px;color:var(--heading);margin:12px 0 5px}
+  input[type=text],input[type=password],input[type=date],input[type=number],textarea,select{
+    width:100%;background:var(--card);color:var(--ink);border:1.5px solid var(--field-line);
+    border-radius:9px;padding:9px 12px;font:inherit;
+  }
+  input:focus,textarea:focus,select:focus,button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  textarea{min-height:70px;resize:vertical}
+
+  .btn{appearance:none;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:700;border-radius:10px;padding:10px 18px;font-size:13.5px;border:1.5px solid transparent;background:var(--accent);color:#fff}
+  .btn:hover{filter:brightness(1.07)}
+  .btn[disabled]{opacity:.55;cursor:not-allowed}
+  .btn-ghost{background:none;border-color:var(--field-line);color:var(--heading)}
+  .btn-ghost:hover{border-color:var(--heading)}
+  .btn-navy{background:var(--navy)}
+  .btn-xs{padding:6px 11px;font-size:12px;border-radius:8px}
+
+  .tabs{display:flex;gap:6px;border-bottom:2px solid var(--line);margin:6px 0 22px;flex-wrap:wrap}
+  .tab{appearance:none;border:none;background:none;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:600;font-size:14px;color:var(--muted);padding:10px 14px 12px;border-bottom:3px solid transparent;margin-bottom:-2px}
+  .tab.on{color:var(--heading);border-bottom-color:var(--accent)}
+  .panel{display:none}
+  .panel.on{display:block}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:14px}
+  .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .grow{flex:1;min-width:0}
+  .pillst{font-family:Montserrat,sans-serif;font-size:11.5px;font-weight:700;border-radius:999px;padding:4px 11px}
+  .st-on{background:var(--ok-bg);color:var(--ok)}
+  .st-off{background:var(--warn-bg);color:var(--warn)}
+  .meta{color:var(--muted);font-size:12.5px}
+  .surv-title{font-family:Montserrat,sans-serif;font-weight:700;color:var(--heading);font-size:15.5px}
+  .cnt{font-family:Montserrat,sans-serif;font-weight:800;font-size:22px;color:var(--heading);font-variant-numeric:tabular-nums}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:720px){ .grid2{grid-template-columns:1fr} }
+
+  .qb{background:var(--panel);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+  .qb-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .qb-num{font-family:Montserrat,sans-serif;font-weight:800;color:#fff;background:var(--navy);border-radius:7px;padding:2px 9px;font-size:13px}
+  .chks{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:13.5px}
+  .chks label{display:inline-flex;align-items:center;gap:6px;margin:0;font-weight:500;color:var(--ink);font-family:inherit;font-size:13.5px}
+  .imgprev{max-height:90px;border-radius:8px;border:1px solid var(--line);display:block;margin-top:8px}
+
+  .bar{height:10px;border-radius:99px;background:var(--panel);overflow:hidden;margin-top:6px}
+  .bar div{height:100%;background:var(--accent);border-radius:99px}
+  .spark{display:flex;align-items:flex-end;gap:3px;height:52px;margin-top:10px}
+  .spark div{width:14px;background:var(--navy);border-radius:3px 3px 0 0;min-height:3px}
+
+  .msg{border-radius:10px;padding:11px 15px;display:none;margin-top:12px;font-size:14px}
+  .msg.show{display:block}
+  .msg.warn{background:var(--warn-bg);color:var(--warn)}
+  .msg.ok{background:var(--ok-bg);color:var(--ok)}
+  .hidden{display:none !important}
+  code{background:var(--panel);border-radius:6px;padding:2px 7px;font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <svg class="mbc-logo" viewBox="0 0 3860.17 856.07" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MBC">
+      <path fill="#FFFFFF" d="M418.06 0 626.07 488.07 701.67 492.29 910.14 0 1328.21 0 1328.21 856.07 1100.17 856.07 1100.17 192.01 1048.6 192.48 830.28 684.35 496.03 682.1 280.46 194.49 228.04 192.01 228.04 856.07 0 856.07 0 0 418.06 0Z"/>
+      <path fill="#FFFFFF" d="M3139.84 201 3860.17 201 3860.17 0 3148.64 0C3148.13 0 3147.62 0.01 3147.11 0.02 2906.1 1.66 2724.88 176.94 2724.88 428.03 2724.88 679.12 2905.48 852.72 3144.73 856.01 3145.07 856.01 3145.42 856.02 3145.76 856.03 3145.9 856.03 3146.05 856.03 3146.19 856.03 3147 856.04 3147.81 856.06 3148.63 856.06L3860.16 856.06 3860.16 655.06 3141.03 655.06C3033.15 651.52 2947.27 567.26 2947.27 428.02 2947.27 288.78 3029.79 204.6 3139.84 200.98Z"/>
+      <path fill="#FFFFFF" d="M1485.95 0 2304.74 0C2482.07 0 2588.46 94.17 2588.46 231.14 2588.46 311.86 2550.55 384.01 2463.72 407.24L2463.72 426.81C2560.33 441.49 2614.14 508.75 2614.14 618.81 2614.14 765.56 2516.3 856.06 2334.08 856.06L1485.94 856.06 1485.94 0ZM2292.51 335.09C2345.1 335.09 2373.23 305.74 2373.23 259.27 2373.23 212.8 2345.1 183.45 2292.51 183.45L1706.08 183.45 1706.08 335.1 2292.51 335.1ZM2299.84 672.62C2357.32 672.62 2386.67 646.94 2386.67 595.57 2386.67 544.2 2357.32 518.52 2299.84 518.52L1706.08 518.52 1706.08 672.61 2299.84 672.61Z"/>
+    </svg>
+    <span class="ttl">Hub Encuestas · Admin</span>
+    <span class="sub" id="adminWho"></span>
+  </div>
+</div>
+
+<!-- LOGIN ADMIN -->
+<div id="loginView">
+  <div class="login-card">
+    <h2 style="font-size:19px;margin-bottom:4px">Consola de administración</h2>
+    <p style="color:var(--muted);font-size:13.5px;margin:0 0 12px">Gestiona encuestas, vigencias, enlaces y avance.</p>
+    <label>Usuario administrador</label>
+    <input type="text" id="aUser" autocapitalize="none">
+    <label>Contraseña</label>
+    <input type="password" id="aPass">
+    <div style="margin-top:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn" id="aLoginBtn">Entrar</button>
+      <span class="msg warn" id="aLoginMsg" style="margin:0;padding:8px 12px"></span>
+    </div>
+  </div>
+</div>
+
+<!-- CONSOLA -->
+<div id="consoleView" class="wrap hidden">
+  <div class="tabs">
+    <button class="tab on" data-tab="tList">📋 Encuestas</button>
+    <button class="tab" data-tab="tNew">➕ Nueva encuesta</button>
+    <button class="tab" data-tab="tStats">📊 Avance</button>
+    <button class="tab" data-tab="tCfg">⚙️ Configuración</button>
+  </div>
+
+  <!-- LISTA -->
+  <div class="panel on" id="tList">
+    <div class="row" style="margin-bottom:14px">
+      <button class="btn btn-ghost btn-xs" id="refreshBtn">↻ Actualizar</button>
+      <a id="sheetLink" class="btn btn-ghost btn-xs" target="_blank" rel="noopener" style="text-decoration:none">Abrir base de respuestas (Sheet)</a>
+    </div>
+    <div id="survList"></div>
+    <div class="msg" id="listMsg"></div>
+  </div>
+
+  <!-- BUILDER -->
+  <div class="panel" id="tNew">
+    <div class="card">
+      <h2 style="font-size:17px" id="bTitle">Nueva encuesta</h2>
+      <input type="hidden" id="bId">
+      <div class="grid2">
+        <div>
+          <label>Título</label>
+          <input type="text" id="bTitulo" maxlength="120">
+          <label>Introducción (se muestra en la portada)</label>
+          <textarea id="bIntro" maxlength="600"></textarea>
+        </div>
+        <div>
+          <div class="grid2">
+            <div><label>Usuario de acceso</label><input type="text" id="bUsuario" autocapitalize="none"></div>
+            <div><label>Contraseña</label><input type="text" id="bPassword"></div>
+            <div><label>Vigente hasta (opcional)</label><input type="date" id="bFecha"></div>
+            <div><label>Cupo máx. respuestas (opcional)</label><input type="number" id="bCupo" min="1"></div>
+          </div>
+          <label>Estado</label>
+          <select id="bEstado"><option value="activa">Activa</option><option value="cerrada">Cerrada</option></select>
+        </div>
+      </div>
+    </div>
+    <div id="qList"></div>
+    <div class="row" style="margin:14px 0">
+      <button class="btn btn-navy" id="addQBtn">＋ Añadir pregunta</button>
+      <button class="btn" id="saveBtn">💾 Guardar encuesta</button>
+      <button class="btn btn-ghost" id="clearBtn">Limpiar</button>
+    </div>
+    <div class="msg" id="bMsg"></div>
+  </div>
+
+  <!-- STATS -->
+  <div class="panel" id="tStats">
+    <div id="statsList"></div>
+    <div class="msg" id="stMsg"></div>
+  </div>
+
+  <!-- CONFIG -->
+  <div class="panel" id="tCfg">
+    <div class="card" style="max-width:480px">
+      <h2 style="font-size:16px;margin-bottom:6px">Credenciales del administrador</h2>
+      <p class="meta" style="margin:0 0 8px">Se validan en el servidor. Guárdalas en un lugar seguro.</p>
+      <label>Nuevo usuario admin</label>
+      <input type="text" id="cUser" autocapitalize="none">
+      <label>Nueva contraseña admin</label>
+      <input type="text" id="cPass">
+      <div style="margin-top:14px"><button class="btn" id="cSaveBtn">Guardar credenciales</button></div>
+      <div class="msg" id="cMsg"></div>
+    </div>
+    <div class="card" style="max-width:480px">
+      <h2 style="font-size:16px;margin-bottom:6px">Dónde vive todo</h2>
+      <p class="meta" style="margin:0">Respuestas y configuración: Google Sheet "Hub Encuestas MBC" (una pestaña por encuesta).<br>
+      Audios y archivos: carpeta de Drive "Hub Encuestas - Adjuntos" (subcarpeta por encuesta).<br>
+      Imágenes/PDF de referencia: carpeta "Hub Encuestas - Recursos".<br>
+      Notificación por correo al dueño en cada respuesta.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+(function(){
+  var BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxJ6tlqSr_tGoaRZMNuBRB8Do3ej75u6e2vE7-7cLhGyUkXo0VEXKBM62UGMi65Ui4/exec';
+  var $ = function(s){ return document.querySelector(s); };
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  var ADMIN = {u:'', p:''};
+  function api(payload){
+    payload.action = 'admin';
+    payload.adminUser = ADMIN.u;
+    payload.adminPass = ADMIN.p;
+    return fetch(BACKEND_URL, {method:'POST', body: JSON.stringify(payload)}).then(function(r){ return r.json(); });
+  }
+  function msg(id, kind, text){ var m=$(id); m.className='msg show '+kind; m.textContent=text; if(kind==='ok') setTimeout(function(){ m.className='msg'; }, 5000); }
+
+  // ---------- login ----------
+  function aLogin(){
+    var u=$('#aUser').value.trim(), p=$('#aPass').value.trim();
+    ADMIN = {u:u, p:p};
+    var b=$('#aLoginBtn'); b.disabled=true; b.textContent='Verificando…';
+    api({op:'ping'}).then(function(res){
+      b.disabled=false; b.textContent='Entrar';
+      if (res.ok){
+        try{ sessionStorage.setItem('hub-admin', JSON.stringify(ADMIN)); }catch(e){}
+        showConsole();
+      } else {
+        var m=$('#aLoginMsg'); m.classList.add('show'); m.textContent='Credenciales de administrador incorrectas.';
+      }
+    }).catch(function(){ b.disabled=false; b.textContent='Entrar'; var m=$('#aLoginMsg'); m.classList.add('show'); m.textContent='No se pudo conectar.'; });
+  }
+  $('#aLoginBtn').addEventListener('click', aLogin);
+  $('#aPass').addEventListener('keydown', function(e){ if(e.key==='Enter') aLogin(); });
+  try{
+    var saved = JSON.parse(sessionStorage.getItem('hub-admin')||'null');
+    if (saved && saved.u){ ADMIN=saved; api({op:'ping'}).then(function(r){ if(r.ok) showConsole(); }); }
+  }catch(e){}
+
+  function showConsole(){
+    $('#loginView').classList.add('hidden');
+    $('#consoleView').classList.remove('hidden');
+    $('#adminWho').textContent = ADMIN.u;
+    loadList();
+  }
+
+  // ---------- tabs ----------
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(t){
+    t.addEventListener('click', function(){
+      Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(x){ x.classList.toggle('on', x===t); });
+      Array.prototype.forEach.call(document.querySelectorAll('.panel'), function(p){ p.classList.toggle('on', p.id===t.getAttribute('data-tab')); });
+      if (t.getAttribute('data-tab')==='tStats') loadStats();
+      if (t.getAttribute('data-tab')==='tList') loadList();
+    });
+  });
+
+  // ---------- lista ----------
+  function loadList(){
+    $('#survList').innerHTML = '<p class="meta">Cargando…</p>';
+    api({op:'list'}).then(function(res){
+      if (!res.ok){ msg('#listMsg','warn','No se pudo cargar ('+res.error+')'); return; }
+      $('#sheetLink').href = res.sheetUrl;
+      var host = $('#survList');
+      host.textContent='';
+      if (!res.encuestas.length){ host.innerHTML='<p class="meta">Aún no hay encuestas. Crea la primera en "Nueva encuesta".</p>'; return; }
+      res.encuestas.forEach(function(s){
+        var div = document.createElement('div');
+        div.className='card';
+        var estadoTxt = s.abierta ? 'RECIBIENDO' : (String(s.estado)==='activa' ? 'VENCIDA/CUPO' : 'CERRADA');
+        div.innerHTML =
+          '<div class="row">'+
+            '<div class="grow">'+
+              '<div class="surv-title">'+esc(s.titulo)+'</div>'+
+              '<div class="meta">'+s.num_preguntas+' preguntas · usuario <code>'+esc(s.usuario)+'</code> · clave <code>'+esc(s.password)+'</code>'+
+              (s.fecha_cierre ? ' · vence '+esc(s.fecha_cierre) : '')+(s.cupo ? ' · cupo '+esc(s.cupo) : '')+'</div>'+
+              (s.shortlink ? '<div class="meta">🔗 <a href="'+esc(s.shortlink)+'" target="_blank" rel="noopener">'+esc(s.shortlink)+'</a></div>' : '')+
+            '</div>'+
+            '<div style="text-align:center"><div class="cnt">'+s.respuestas+(s.cupo?'<span class="meta">/'+esc(s.cupo)+'</span>':'')+'</div><div class="meta">respuestas</div></div>'+
+            '<span class="pillst '+(s.abierta?'st-on':'st-off')+'">'+estadoTxt+'</span>'+
+          '</div>'+
+          '<div class="row" style="margin-top:12px" data-id="'+esc(s.id)+'">'+
+            '<button class="btn btn-ghost btn-xs" data-a="toggle">'+(String(s.estado)==='activa'?'⏸ Cerrar':'▶ Activar')+'</button>'+
+            '<button class="btn btn-ghost btn-xs" data-a="edit">✏️ Editar</button>'+
+            '<button class="btn btn-ghost btn-xs" data-a="copy" data-link="'+esc(s.link)+'">📋 Copiar link</button>'+
+            '<button class="btn btn-ghost btn-xs" data-a="short">🔗 Generar link corto</button>'+
+          '</div>';
+        host.appendChild(div);
+      });
+    }).catch(function(){ msg('#listMsg','warn','No se pudo conectar con el backend.'); });
+  }
+  $('#refreshBtn').addEventListener('click', loadList);
+
+  $('#survList').addEventListener('click', function(ev){
+    var b = ev.target.closest('button[data-a]');
+    if (!b) return;
+    var id = b.parentElement.getAttribute('data-id');
+    var a = b.getAttribute('data-a');
+    if (a==='toggle'){
+      b.disabled=true;
+      api({op:'toggle', id:id}).then(function(r){ b.disabled=false; if(r.ok){ msg('#listMsg','ok','Estado cambiado a "'+r.estado+'".'); loadList(); } else msg('#listMsg','warn','Error: '+r.error); });
+    } else if (a==='copy'){
+      var link = b.getAttribute('data-link');
+      navigator.clipboard.writeText(link).then(function(){ msg('#listMsg','ok','Link copiado: '+link); }, function(){ msg('#listMsg','warn',link); });
+    } else if (a==='short'){
+      b.disabled=true; b.textContent='Generando…';
+      api({op:'shorten', id:id}).then(function(r){
+        b.disabled=false; b.textContent='🔗 Generar link corto';
+        if (r.ok){ navigator.clipboard.writeText(r.shortlink).catch(function(){}); msg('#listMsg','ok','Link corto copiado: '+r.shortlink); loadList(); }
+        else msg('#listMsg','warn','Error: '+r.error);
+      });
+    } else if (a==='edit'){
+      api({op:'get', id:id}).then(function(r){
+        if (!r.ok){ msg('#listMsg','warn','Error: '+r.error); return; }
+        fillBuilder(r.encuesta);
+        document.querySelector('[data-tab="tNew"]').click();
+      });
+    }
+  });
+
+  // ---------- builder ----------
+  var Q = [];
+
+  function qTemplate(){ return {id:'', titulo:'', detalle:'', guia:'', nota:'', tipo:'abierta', opciones:[], otro:false, max:'', audio:true, texto:true, archivo:true, imagen:''}; }
+
+  function renderQ(){
+    var host = $('#qList');
+    host.textContent='';
+    Q.forEach(function(q, i){
+      var div = document.createElement('div');
+      div.className='qb';
+      div.setAttribute('data-i', i);
+      var closed = (q.tipo==='cerrada_unica'||q.tipo==='cerrada_multiple');
+      div.innerHTML =
+        '<div class="qb-head"><span class="qb-num">'+(i+1)+'</span>'+
+          '<select data-f="tipo" style="max-width:240px">'+
+            '<option value="abierta"'+(q.tipo==='abierta'?' selected':'')+'>Abierta (audio/texto/archivo)</option>'+
+            '<option value="cerrada_unica"'+(q.tipo==='cerrada_unica'?' selected':'')+'>Cerrada · una opción</option>'+
+            '<option value="cerrada_multiple"'+(q.tipo==='cerrada_multiple'?' selected':'')+'>Cerrada · varias opciones</option>'+
+          '</select>'+
+          '<span style="margin-left:auto;display:flex;gap:6px">'+
+            '<button class="btn btn-ghost btn-xs" data-a="up" type="button">↑</button>'+
+            '<button class="btn btn-ghost btn-xs" data-a="down" type="button">↓</button>'+
+            '<button class="btn btn-ghost btn-xs" data-a="del" type="button">🗑</button>'+
+          '</span></div>'+
+        '<label>Pregunta</label><input type="text" data-f="titulo" value="'+esc(q.titulo)+'" maxlength="200">'+
+        '<label>Detalle / enunciado (opcional)</label><input type="text" data-f="detalle" value="'+esc(q.detalle)+'" maxlength="400">'+
+        '<label>Guía para responder (opcional)</label><input type="text" data-f="guia" value="'+esc(q.guia)+'" maxlength="600">'+
+        (closed ?
+          '<label>Opciones (una por línea)</label><textarea data-f="opciones">'+esc((q.opciones||[]).join('\n'))+'</textarea>'+
+          '<div class="chks">'+
+            '<label><input type="checkbox" data-f="otro"'+(q.otro?' checked':'')+'> Incluir "Otro" con campo libre</label>'+
+            '<label>Máx. selecciones <input type="number" data-f="max" value="'+esc(q.max||'')+'" min="1" style="width:70px"></label>'+
+          '</div>'
+        :
+          '<div class="chks">'+
+            '<label><input type="checkbox" data-f="audio"'+(q.audio!==false?' checked':'')+'> 🎙️ Audio</label>'+
+            '<label><input type="checkbox" data-f="texto"'+(q.texto!==false?' checked':'')+'> ✍️ Texto</label>'+
+            '<label><input type="checkbox" data-f="archivo"'+(q.archivo!==false?' checked':'')+'> 📎 Archivo</label>'+
+          '</div>'
+        )+
+        '<div class="chks" style="align-items:center">'+
+          '<label class="btn btn-ghost btn-xs" style="cursor:pointer">🖼 Imagen o PDF de referencia'+
+            '<input type="file" data-f="imgfile" accept="image/*,.pdf" hidden></label>'+
+          (q.imagen ? '<span class="meta">recurso cargado ✓ <button class="btn btn-ghost btn-xs" data-a="delimg" type="button">quitar</button></span>' : '')+
+        '</div>'+
+        (q.imagen && !/pdf|\/file\/d\//i.test(q.imagen) ? '<img class="imgprev" src="'+esc(q.imagen)+'" alt="referencia">' : '');
+      host.appendChild(div);
+    });
+  }
+
+  function syncQ(i, el){
+    var q = Q[i];
+    var f = el.getAttribute('data-f');
+    if (!f) return;
+    if (f==='opciones') q.opciones = el.value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+    else if (f==='otro'||f==='audio'||f==='texto'||f==='archivo') q[f] = el.checked;
+    else if (f==='max') q.max = el.value ? Number(el.value) : '';
+    else if (f==='tipo'){ q.tipo = el.value; renderQ(); }
+    else q[f] = el.value;
+  }
+
+  $('#qList').addEventListener('input', function(ev){
+    var box = ev.target.closest('.qb'); if (!box) return;
+    if (ev.target.getAttribute('data-f')==='imgfile') return;
+    syncQ(Number(box.getAttribute('data-i')), ev.target);
+  });
+  $('#qList').addEventListener('change', function(ev){
+    var box = ev.target.closest('.qb'); if (!box) return;
+    var i = Number(box.getAttribute('data-i'));
+    if (ev.target.getAttribute('data-f')==='imgfile'){
+      var file = ev.target.files[0];
+      if (!file) return;
+      if (file.size > 4*1024*1024){ msg('#bMsg','warn','La imagen/PDF debe pesar menos de 4 MB.'); return; }
+      var fr = new FileReader();
+      fr.onload = function(){
+        msg('#bMsg','ok','Subiendo recurso…');
+        api({op:'upload_image', name:file.name, mime:file.type, b64:String(fr.result).split(',')[1]}).then(function(r){
+          if (r.ok){ Q[i].imagen = r.url; renderQ(); msg('#bMsg','ok','Recurso cargado.'); }
+          else msg('#bMsg','warn','No se pudo subir ('+r.error+').');
+        });
+      };
+      fr.readAsDataURL(file);
+      return;
+    }
+    syncQ(i, ev.target);
+  });
+  $('#qList').addEventListener('click', function(ev){
+    var b = ev.target.closest('button[data-a]'); if (!b) return;
+    var box = b.closest('.qb'); if (!box) return;
+    var i = Number(box.getAttribute('data-i'));
+    var a = b.getAttribute('data-a');
+    if (a==='del') Q.splice(i,1);
+    else if (a==='up' && i>0){ var t=Q[i-1]; Q[i-1]=Q[i]; Q[i]=t; }
+    else if (a==='down' && i<Q.length-1){ var t2=Q[i+1]; Q[i+1]=Q[i]; Q[i]=t2; }
+    else if (a==='delimg') Q[i].imagen='';
+    else return;
+    renderQ();
+  });
+
+  $('#addQBtn').addEventListener('click', function(){ Q.push(qTemplate()); renderQ(); });
+  $('#clearBtn').addEventListener('click', function(){ fillBuilder(null); });
+
+  function fillBuilder(e){
+    $('#bTitle').textContent = e ? 'Editar encuesta: '+e.titulo : 'Nueva encuesta';
+    $('#bId').value = e ? e.id : '';
+    $('#bTitulo').value = e ? e.titulo : '';
+    $('#bIntro').value = e ? (e.intro||'') : '';
+    $('#bUsuario').value = e ? e.usuario : '';
+    $('#bPassword').value = e ? e.password : '';
+    $('#bFecha').value = e ? (e.fecha_cierre||'') : '';
+    $('#bCupo').value = e ? (e.cupo||'') : '';
+    $('#bEstado').value = e ? (e.estado||'activa') : 'activa';
+    Q = e ? (e.preguntas||[]).map(function(q){ return Object.assign(qTemplate(), q); }) : [qTemplate()];
+    renderQ();
+  }
+  fillBuilder(null);
+
+  $('#saveBtn').addEventListener('click', function(){
+    var pregs = Q.filter(function(q){ return q.titulo.trim(); }).map(function(q, i){
+      var o = { id:'P'+(i+1), titulo:q.titulo.trim(), tipo:q.tipo };
+      if (q.detalle) o.detalle = q.detalle.trim();
+      if (q.guia) o.guia = q.guia.trim();
+      if (q.nota) o.nota = q.nota;
+      if (q.imagen) o.imagen = q.imagen;
+      if (q.tipo==='cerrada_unica'||q.tipo==='cerrada_multiple'){
+        o.opciones = q.opciones||[];
+        if (q.otro) o.otro = true;
+        if (q.max) o.max = q.max;
+      } else {
+        o.audio = q.audio !== false;
+        o.texto = q.texto !== false;
+        o.archivo = q.archivo !== false;
+      }
+      return o;
+    });
+    if (!$('#bTitulo').value.trim() || !$('#bUsuario').value.trim() || !$('#bPassword').value.trim()){
+      msg('#bMsg','warn','Completa título, usuario y contraseña.'); return;
+    }
+    if (!pregs.length){ msg('#bMsg','warn','Añade al menos una pregunta con título.'); return; }
+    var payload = { op:'save', encuesta:{
+      id: $('#bId').value || undefined,
+      titulo: $('#bTitulo').value.trim(),
+      intro: $('#bIntro').value.trim(),
+      usuario: $('#bUsuario').value.trim(),
+      password: $('#bPassword').value.trim(),
+      estado: $('#bEstado').value,
+      fecha_cierre: $('#bFecha').value,
+      cupo: $('#bCupo').value,
+      preguntas: pregs
+    }};
+    var b=$('#saveBtn'); b.disabled=true; b.textContent='Guardando…';
+    api(payload).then(function(r){
+      b.disabled=false; b.textContent='💾 Guardar encuesta';
+      if (r.ok){
+        msg('#bMsg','ok','Encuesta guardada. Link: '+r.link);
+        $('#bId').value = r.id;
+        loadList();
+      } else if (r.error==='credenciales_duplicadas'){
+        msg('#bMsg','warn','Ese usuario+contraseña ya lo usa otra encuesta; cámbialo (el login enruta por esa combinación).');
+      } else {
+        msg('#bMsg','warn','No se pudo guardar ('+r.error+').');
+      }
+    }).catch(function(){ b.disabled=false; b.textContent='💾 Guardar encuesta'; msg('#bMsg','warn','No se pudo conectar.'); });
+  });
+
+  // ---------- stats ----------
+  function loadStats(){
+    $('#statsList').innerHTML = '<p class="meta">Cargando…</p>';
+    api({op:'stats'}).then(function(res){
+      if (!res.ok){ msg('#stMsg','warn','Error: '+res.error); return; }
+      var host = $('#statsList');
+      host.textContent='';
+      if (!res.stats.length){ host.innerHTML='<p class="meta">Sin encuestas aún.</p>'; return; }
+      res.stats.forEach(function(s){
+        var div = document.createElement('div');
+        div.className='card';
+        var pct = s.cupo ? Math.min(100, Math.round(s.total/Number(s.cupo)*100)) : null;
+        var days = Object.keys(s.porDia).sort().slice(-14);
+        var maxD = 1;
+        days.forEach(function(d){ if (s.porDia[d]>maxD) maxD=s.porDia[d]; });
+        var spark = days.map(function(d){
+          var h = Math.max(3, Math.round(s.porDia[d]/maxD*48));
+          return '<div style="height:'+h+'px" title="'+d+': '+s.porDia[d]+'"></div>';
+        }).join('');
+        div.innerHTML =
+          '<div class="row"><div class="grow"><div class="surv-title">'+esc(s.titulo)+'</div>'+
+          '<div class="meta">'+(s.ultimo ? 'Última respuesta: '+new Date(s.ultimo).toLocaleString('es-PE') : 'Sin respuestas aún')+'</div></div>'+
+          '<div style="text-align:center"><div class="cnt">'+s.total+(s.cupo?'<span class="meta">/'+esc(s.cupo)+'</span>':'')+'</div><div class="meta">respuestas</div></div></div>'+
+          (pct!==null ? '<div class="bar"><div style="width:'+pct+'%"></div></div><div class="meta" style="margin-top:4px">'+pct+'% del cupo</div>' : '')+
+          (days.length ? '<div class="spark">'+spark+'</div><div class="meta" style="margin-top:4px">últimos '+days.length+' días con actividad</div>' : '');
+        host.appendChild(div);
+      });
+    }).catch(function(){ msg('#stMsg','warn','No se pudo conectar.'); });
+  }
+
+  // ---------- config ----------
+  $('#cSaveBtn').addEventListener('click', function(){
+    var nu=$('#cUser').value.trim(), np=$('#cPass').value.trim();
+    if (!nu && !np){ msg('#cMsg','warn','Escribe el nuevo usuario y/o contraseña.'); return; }
+    api({op:'set_admin', newUser:nu||undefined, newPass:np||undefined}).then(function(r){
+      if (r.ok){
+        if (nu) ADMIN.u=nu;
+        if (np) ADMIN.p=np;
+        try{ sessionStorage.setItem('hub-admin', JSON.stringify(ADMIN)); }catch(e){}
+        $('#adminWho').textContent = ADMIN.u;
+        msg('#cMsg','ok','Credenciales actualizadas.');
+      } else msg('#cMsg','warn','Error: '+r.error);
+    });
+  });
+})();
+</script>
+</body>
+</html>
