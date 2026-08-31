@@ -155,7 +155,6 @@
   <div class="tabs">
     <button class="tab on" data-tab="tList">📋 Encuestas</button>
     <button class="tab" data-tab="tNew">➕ Nueva encuesta</button>
-    <button class="tab" data-tab="tStats">📊 Avance</button>
     <button class="tab" data-tab="tIA">🧠 Analista IA</button>
     <button class="tab" data-tab="tCfg">⚙️ Configuración</button>
   </div>
@@ -221,12 +220,6 @@
       <button class="btn btn-ghost" id="clearBtn">Limpiar</button>
     </div>
     <div class="msg" id="bMsg"></div>
-  </div>
-
-  <!-- STATS -->
-  <div class="panel" id="tStats">
-    <div id="statsList"></div>
-    <div class="msg" id="stMsg"></div>
   </div>
 
   <!-- ANALISTA IA -->
@@ -350,7 +343,6 @@
     t.addEventListener('click', function(){
       Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(x){ x.classList.toggle('on', x===t); });
       Array.prototype.forEach.call(document.querySelectorAll('.panel'), function(p){ p.classList.toggle('on', p.id===t.getAttribute('data-tab')); });
-      if (t.getAttribute('data-tab')==='tStats') loadStats();
       if (t.getAttribute('data-tab')==='tList') loadList();
       if (t.getAttribute('data-tab')==='tIA') fillIaSelect();
       if (t.getAttribute('data-tab')==='tCfg') refreshGeminiEstado();
@@ -360,13 +352,24 @@
   // ---------- lista ----------
   function loadList(){
     $('#survList').innerHTML = '<p class="meta">Cargando…</p>';
-    api({op:'list'}).then(function(res){
+    Promise.all([api({op:'list'}), api({op:'stats'}).catch(function(){ return {ok:false}; })]).then(function(par){
+      var res = par[0], st = par[1];
       if (!res.ok){ msg('#listMsg','warn','No se pudo cargar ('+res.error+')'); return; }
+      var avance = {};
+      if (st && st.ok) st.stats.forEach(function(x){ avance[x.id] = x; });
       $('#sheetLink').href = res.sheetUrl;
       var host = $('#survList');
       host.textContent='';
       if (!res.encuestas.length){ host.innerHTML='<p class="meta">Aún no hay encuestas. Crea la primera en "Nueva encuesta".</p>'; return; }
       res.encuestas.forEach(function(s){
+        var av = avance[s.id];
+        var pct = (av && s.cupo) ? Math.min(100, Math.round(av.total/Number(s.cupo)*100)) : null;
+        var dias = av ? Object.keys(av.porDia).sort().slice(-14) : [];
+        var maxD = 1;
+        dias.forEach(function(d){ if (av.porDia[d]>maxD) maxD = av.porDia[d]; });
+        var spark = dias.map(function(d){
+          return '<div style="height:'+Math.max(3, Math.round(av.porDia[d]/maxD*48))+'px" title="'+d+': '+av.porDia[d]+'"></div>';
+        }).join('');
         var div = document.createElement('div');
         div.className='card';
         var estadoTxt = s.abierta ? 'RECIBIENDO' : (String(s.estado)==='activa' ? 'VENCIDA/CUPO' : 'CERRADA');
@@ -384,6 +387,9 @@
             '<div style="text-align:center"><div class="cnt">'+s.respuestas+(s.cupo?'<span class="meta">/'+esc(s.cupo)+'</span>':'')+'</div><div class="meta">respuestas</div></div>'+
             '<span class="pillst '+(s.abierta?'st-on':'st-off')+'">'+estadoTxt+'</span>'+
           '</div>'+
+          (av ? '<div class="meta" style="margin-top:8px">'+(av.ultimo ? '🕒 Última respuesta: '+new Date(av.ultimo).toLocaleString('es-PE') : '🕒 Sin respuestas aún')+'</div>' : '')+
+          (pct!==null ? '<div class="bar"><div style="width:'+pct+'%"></div></div><div class="meta" style="margin-top:4px">'+pct+'% del cupo</div>' : '')+
+          (dias.length ? '<div class="spark">'+spark+'</div><div class="meta" style="margin-top:4px">últimos '+dias.length+' días con actividad</div>' : '')+
           '<div class="row" style="margin-top:12px" data-id="'+esc(s.id)+'" data-titulo="'+esc(s.titulo)+'" data-link="'+esc(s.link)+'">'+
             '<button class="btn btn-ghost btn-xs" data-a="toggle" title="'+(String(s.estado)==='activa'?'Deja de aceptar respuestas nuevas; los datos ya recibidos se conservan':'Vuelve a aceptar respuestas')+'">'+(String(s.estado)==='activa'?'⏸ Cerrar (dejar de recibir)':'▶ Reabrir encuesta')+'</button>'+
             '<button class="btn btn-ghost btn-xs" data-a="edit">✏️ Editar</button>'+
@@ -716,36 +722,6 @@
       }
     }).catch(function(){ b.disabled=false; b.textContent='💾 Guardar encuesta'; msg('#bMsg','warn','No se pudo conectar.'); });
   });
-
-  // ---------- stats ----------
-  function loadStats(){
-    $('#statsList').innerHTML = '<p class="meta">Cargando…</p>';
-    api({op:'stats'}).then(function(res){
-      if (!res.ok){ msg('#stMsg','warn','Error: '+res.error); return; }
-      var host = $('#statsList');
-      host.textContent='';
-      if (!res.stats.length){ host.innerHTML='<p class="meta">Sin encuestas aún.</p>'; return; }
-      res.stats.forEach(function(s){
-        var div = document.createElement('div');
-        div.className='card';
-        var pct = s.cupo ? Math.min(100, Math.round(s.total/Number(s.cupo)*100)) : null;
-        var days = Object.keys(s.porDia).sort().slice(-14);
-        var maxD = 1;
-        days.forEach(function(d){ if (s.porDia[d]>maxD) maxD=s.porDia[d]; });
-        var spark = days.map(function(d){
-          var h = Math.max(3, Math.round(s.porDia[d]/maxD*48));
-          return '<div style="height:'+h+'px" title="'+d+': '+s.porDia[d]+'"></div>';
-        }).join('');
-        div.innerHTML =
-          '<div class="row"><div class="grow"><div class="surv-title">'+esc(s.titulo)+'</div>'+
-          '<div class="meta">'+(s.ultimo ? 'Última respuesta: '+new Date(s.ultimo).toLocaleString('es-PE') : 'Sin respuestas aún')+'</div></div>'+
-          '<div style="text-align:center"><div class="cnt">'+s.total+(s.cupo?'<span class="meta">/'+esc(s.cupo)+'</span>':'')+'</div><div class="meta">respuestas</div></div></div>'+
-          (pct!==null ? '<div class="bar"><div style="width:'+pct+'%"></div></div><div class="meta" style="margin-top:4px">'+pct+'% del cupo</div>' : '')+
-          (days.length ? '<div class="spark">'+spark+'</div><div class="meta" style="margin-top:4px">últimos '+days.length+' días con actividad</div>' : '');
-        host.appendChild(div);
-      });
-    }).catch(function(){ msg('#stMsg','warn','No se pudo conectar.'); });
-  }
 
   // ---------- Analista IA ----------
   function fillIaSelect(){
