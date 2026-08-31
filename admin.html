@@ -131,6 +131,7 @@
     </svg>
     <span class="ttl">Hub Encuestas · Admin</span>
     <span class="sub" id="adminWho"></span>
+    <button class="btn btn-ghost btn-xs" id="salirBtn" type="button" style="margin-left:12px">Salir</button>
   </div>
 </div>
 
@@ -156,6 +157,7 @@
     <button class="tab on" data-tab="tList">📋 Encuestas</button>
     <button class="tab" data-tab="tNew">➕ Nueva encuesta</button>
     <button class="tab" data-tab="tIA">🧠 Analista IA</button>
+    <button class="tab" data-tab="tUsers">👥 Usuarios</button>
     <button class="tab" data-tab="tCfg">⚙️ Configuración</button>
   </div>
 
@@ -252,6 +254,40 @@
     </div>
   </div>
 
+  <!-- USUARIOS -->
+  <div class="panel" id="tUsers">
+    <div class="card">
+      <h2 style="font-size:17px;margin-bottom:4px">Quién entra a esta consola</h2>
+      <p class="meta" style="margin:0">Cada persona ve y hace solo lo que su rol y sus encuestas asignadas permiten. <strong>Propietario</strong>: todo. <strong>Editor</strong>: edita, abre y cierra sus encuestas y explota sus datos. <strong>Analista</strong>: solo consulta y explota los datos de sus encuestas.</p>
+      <div id="userList" style="margin-top:14px"></div>
+      <div class="msg" id="uMsg"></div>
+    </div>
+    <div class="card">
+      <h2 style="font-size:16px;margin-bottom:10px" id="uFormTitle">Nuevo usuario</h2>
+      <div class="grid2">
+        <div><label>Usuario</label><input type="text" id="uUsuario" autocapitalize="none" placeholder="nombre.apellido"></div>
+        <div><label>Nombre visible</label><input type="text" id="uNombre" placeholder="Nombre y apellido"></div>
+        <div><label>Correo (opcional)</label><input type="text" id="uCorreo" placeholder="persona@empresa.com"></div>
+        <div><label>Rol</label>
+          <select id="uRol">
+            <option value="editor">Editor</option>
+            <option value="analista">Analista</option>
+            <option value="owner">Propietario</option>
+          </select>
+        </div>
+      </div>
+      <label style="margin-top:12px">Contraseña <span class="meta" id="uClaveHint">(obligatoria para un usuario nuevo)</span></label>
+      <input type="text" id="uClave" placeholder="Se guarda cifrada; anótala para entregarla">
+      <label style="margin-top:12px">Encuestas a las que accede</label>
+      <div id="uAlcance" class="row" style="gap:14px;flex-wrap:wrap"></div>
+      <div class="row" style="margin-top:16px">
+        <button class="btn" id="uSaveBtn">💾 Guardar usuario</button>
+        <button class="btn btn-ghost" id="uClearBtn" type="button">Limpiar</button>
+      </div>
+      <div class="msg" id="uFormMsg"></div>
+    </div>
+  </div>
+
   <!-- CONFIG -->
   <div class="panel" id="tCfg">
     <div class="card" style="max-width:480px">
@@ -300,41 +336,77 @@
   var BACKEND_URL = 'https://script.google.com/macros/s/AKfycbyZ1Y2kmaPRwsjV4g_6bh2DvgD1sO8HuYcEhU7m0O7iMhahBaoWgM333DiDdjfBrdDW/exec';
   var $ = function(s){ return document.querySelector(s); };
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-  var ADMIN = {u:'', p:''};
-  function api(payload){
-    payload.action = 'admin';
-    payload.adminUser = ADMIN.u;
-    payload.adminPass = ADMIN.p;
+  var ADMIN = {token:'', usuario:'', nombre:'', rol:'', alcance:''};
+  function post(payload){
     return fetch(BACKEND_URL, {method:'POST', body: JSON.stringify(payload)}).then(function(r){ return r.json(); });
   }
+  function api(payload){
+    payload.action = 'admin';
+    payload.token = ADMIN.token;
+    return post(payload).then(function(r){
+      if (r && r.error === 'sesion_expirada'){ cerrarSesion('Tu sesión venció. Vuelve a entrar.'); }
+      return r;
+    });
+  }
+  function esOwner(){ return ADMIN.rol === 'owner'; }
+  function puedeEditar(){ return ADMIN.rol === 'owner' || ADMIN.rol === 'editor'; }
   function msg(id, kind, text){ var m=$(id); m.className='msg show '+kind; m.textContent=text; if(kind==='ok') setTimeout(function(){ m.className='msg'; }, 5000); }
 
   // ---------- login ----------
   function aLogin(){
     var u=$('#aUser').value.trim(), p=$('#aPass').value.trim();
-    ADMIN = {u:u, p:p};
     var b=$('#aLoginBtn'); b.disabled=true; b.textContent='Verificando…';
-    api({op:'ping'}).then(function(res){
+    post({action:'login_admin', usuario:u, clave:p}).then(function(res){
       b.disabled=false; b.textContent='Entrar';
       if (res.ok){
+        ADMIN = {token:res.token, usuario:res.usuario, nombre:res.nombre, rol:res.rol, alcance:res.alcance};
         try{ sessionStorage.setItem('hub-admin', JSON.stringify(ADMIN)); }catch(e){}
         showConsole();
       } else {
-        var m=$('#aLoginMsg'); m.classList.add('show'); m.textContent='Credenciales de administrador incorrectas.';
+        var m=$('#aLoginMsg'); m.classList.add('show'); m.textContent='Usuario o contraseña incorrectos.';
       }
     }).catch(function(){ b.disabled=false; b.textContent='Entrar'; var m=$('#aLoginMsg'); m.classList.add('show'); m.textContent='No se pudo conectar.'; });
   }
   $('#aLoginBtn').addEventListener('click', aLogin);
   $('#aPass').addEventListener('keydown', function(e){ if(e.key==='Enter') aLogin(); });
+
+  function cerrarSesion(aviso){
+    ADMIN = {token:'', usuario:'', nombre:'', rol:'', alcance:''};
+    try{ sessionStorage.removeItem('hub-admin'); }catch(e){}
+    $('#consoleView').classList.add('hidden');
+    $('#loginView').classList.remove('hidden');
+    if (aviso){ var m=$('#aLoginMsg'); m.classList.add('show'); m.textContent=aviso; }
+  }
+  $('#salirBtn').addEventListener('click', function(){ cerrarSesion(''); });
+
   try{
     var saved = JSON.parse(sessionStorage.getItem('hub-admin')||'null');
-    if (saved && saved.u){ ADMIN=saved; api({op:'ping'}).then(function(r){ if(r.ok) showConsole(); }); }
+    if (saved && saved.token){
+      ADMIN = saved;
+      api({op:'ping'}).then(function(r){
+        if (r.ok){ ADMIN.rol = r.rol; ADMIN.alcance = r.alcance; showConsole(); }
+      });
+    }
   }catch(e){}
+
+  /** Las pestañas y botones se ocultan por rol; el permiso real lo decide el backend. */
+  function aplicarRol(){
+    var soloOwner = ['tNew','tCfg','tUsers'];
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(t){
+      var destino = t.getAttribute('data-tab');
+      t.classList.toggle('hidden', soloOwner.indexOf(destino) >= 0 && !esOwner());
+    });
+    $('#sheetLink').classList.toggle('hidden', !esOwner());
+    var etiqueta = {owner:'Propietario', editor:'Editor', analista:'Analista'}[ADMIN.rol] || ADMIN.rol;
+    $('#adminWho').textContent = (ADMIN.nombre || ADMIN.usuario) + ' · ' + etiqueta;
+  }
 
   function showConsole(){
     $('#loginView').classList.add('hidden');
     $('#consoleView').classList.remove('hidden');
-    $('#adminWho').textContent = ADMIN.u;
+    aplicarRol();
+    var activa = document.querySelector('.tab.on');
+    if (activa && activa.classList.contains('hidden')) document.querySelector('.tab:not(.hidden)').click();
     loadList();
   }
 
@@ -344,6 +416,7 @@
       Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(x){ x.classList.toggle('on', x===t); });
       Array.prototype.forEach.call(document.querySelectorAll('.panel'), function(p){ p.classList.toggle('on', p.id===t.getAttribute('data-tab')); });
       if (t.getAttribute('data-tab')==='tList') loadList();
+      if (t.getAttribute('data-tab')==='tUsers') loadUsers();
       if (t.getAttribute('data-tab')==='tIA') fillIaSelect();
       if (t.getAttribute('data-tab')==='tCfg') refreshGeminiEstado();
     });
@@ -377,7 +450,8 @@
           '<div class="row">'+
             '<div class="grow">'+
               '<div class="surv-title">'+esc(s.titulo)+'</div>'+
-              '<div class="meta">'+s.num_preguntas+' preguntas · usuario <code>'+esc(s.usuario)+'</code> · clave <code>'+esc(s.password)+'</code>'+
+              '<div class="meta">'+s.num_preguntas+' preguntas'+
+              (s.usuario ? ' · usuario <code>'+esc(s.usuario)+'</code> · clave <code>'+esc(s.password)+'</code>' : '')+
               (s.fecha_cierre ? ' · vence '+esc(s.fecha_cierre) : '')+(s.cupo ? ' · cupo '+esc(s.cupo) : '')+'</div>'+
               '<div class="meta" style="margin-top:6px;word-break:break-all">🌐 <strong>URL completo:</strong> <a href="'+esc(s.link)+'" target="_blank" rel="noopener">'+esc(s.link)+'</a></div>'+
               '<div class="meta" style="word-break:break-all">🔗 <strong>URL corto:</strong> '+
@@ -391,11 +465,11 @@
           (pct!==null ? '<div class="bar"><div style="width:'+pct+'%"></div></div><div class="meta" style="margin-top:4px">'+pct+'% del cupo</div>' : '')+
           (dias.length ? '<div class="spark">'+spark+'</div><div class="meta" style="margin-top:4px">últimos '+dias.length+' días con actividad</div>' : '')+
           '<div class="row" style="margin-top:12px" data-id="'+esc(s.id)+'" data-titulo="'+esc(s.titulo)+'" data-link="'+esc(s.link)+'">'+
-            '<button class="btn btn-ghost btn-xs" data-a="toggle" title="'+(String(s.estado)==='activa'?'Deja de aceptar respuestas nuevas; los datos ya recibidos se conservan':'Vuelve a aceptar respuestas')+'">'+(String(s.estado)==='activa'?'⏸ Cerrar (dejar de recibir)':'▶ Reabrir encuesta')+'</button>'+
-            '<button class="btn btn-ghost btn-xs" data-a="edit">✏️ Editar</button>'+
-            '<button class="btn btn-ghost btn-xs" data-a="dup">🧬 Duplicar</button>'+
+            (puedeEditar() ? '<button class="btn btn-ghost btn-xs" data-a="toggle" title="'+(String(s.estado)==='activa'?'Deja de aceptar respuestas nuevas; los datos ya recibidos se conservan':'Vuelve a aceptar respuestas')+'">'+(String(s.estado)==='activa'?'⏸ Cerrar (dejar de recibir)':'▶ Reabrir encuesta')+'</button>' : '')+
+            (puedeEditar() ? '<button class="btn btn-ghost btn-xs" data-a="edit">✏️ Editar</button>' : '')+
+            (esOwner() ? '<button class="btn btn-ghost btn-xs" data-a="dup">🧬 Duplicar</button>' : '')+
             '<button class="btn btn-ghost btn-xs" data-a="copy" data-link="'+esc(s.link)+'">📋 Copiar link</button>'+
-            '<button class="btn btn-ghost btn-xs" data-a="short">🔗 Generar link corto</button>'+
+            (puedeEditar() ? '<button class="btn btn-ghost btn-xs" data-a="short">🔗 Generar link corto</button>' : '')+
             '<button class="btn btn-ghost btn-xs" data-a="qr">🔳 QR</button>'+
             '<button class="btn btn-ghost btn-xs" data-a="csv">⬇ CSV</button>'+
             (s.respuestasUrl ? '<a class="btn btn-ghost btn-xs" style="text-decoration:none" href="'+esc(s.respuestasUrl)+'" target="_blank" rel="noopener">📄 Sheet</a>' : '')+
@@ -723,6 +797,102 @@
     }).catch(function(){ b.disabled=false; b.textContent='💾 Guardar encuesta'; msg('#bMsg','warn','No se pudo conectar.'); });
   });
 
+  // ---------- usuarios ----------
+  function loadUsers(){
+    $('#userList').innerHTML = '<p class="meta">Cargando…</p>';
+    api({op:'usuarios_list'}).then(function(r){
+      if (!r.ok){ msg('#uMsg','warn','Error: '+r.error); return; }
+      pintarAlcance(r.encuestas, []);
+      var host = $('#userList');
+      var filas = r.usuarios.map(function(u){
+        var etiqueta = {owner:'Propietario', editor:'Editor', analista:'Analista'}[u.rol] || u.rol;
+        var alc = u.alcance === '*' ? 'Todas las encuestas'
+          : (u.alcance ? u.alcance.split(',').map(function(id){
+              var e = r.encuestas.filter(function(x){ return x.id === id.trim(); })[0];
+              return e ? e.titulo : id.trim();
+            }).join(' · ') : 'Sin encuestas asignadas');
+        return '<div class="row" style="border-top:1px solid var(--line);padding:12px 0" data-u="'+esc(u.usuario)+'">'+
+          '<div class="grow"><div style="font-weight:700">'+esc(u.nombre || u.usuario)+' <span class="meta">('+esc(u.usuario)+')</span></div>'+
+          '<div class="meta">'+esc(etiqueta)+' · '+esc(alc)+(u.ultimo_acceso ? ' · último acceso '+esc(u.ultimo_acceso) : ' · nunca ha entrado')+'</div></div>'+
+          '<button class="btn btn-ghost btn-xs" data-ua="edit">✏️ Editar</button>'+
+          '<button class="btn btn-ghost btn-xs" data-ua="del">🗑 Quitar</button>'+
+          '</div>';
+      }).join('');
+      host.innerHTML = filas || '<p class="meta">Aún no hay usuarios.</p>';
+      USUARIOS = r.usuarios;
+      ENCUESTAS_DISP = r.encuestas;
+    }).catch(function(){ msg('#uMsg','warn','No se pudo conectar.'); });
+  }
+  var USUARIOS = [], ENCUESTAS_DISP = [];
+
+  function pintarAlcance(encuestas, marcadas){
+    $('#uAlcance').innerHTML = '<label style="display:flex;gap:7px;align-items:center;font-weight:600"><input type="checkbox" id="uTodas" style="width:auto;margin:0"> Todas las encuestas</label>' +
+      encuestas.map(function(e){
+        return '<label style="display:flex;gap:7px;align-items:center"><input type="checkbox" class="uEnc" value="'+esc(e.id)+'" style="width:auto;margin:0"> '+esc(e.titulo)+'</label>';
+      }).join('');
+    $('#uTodas').checked = marcadas.indexOf('*') >= 0;
+    Array.prototype.forEach.call(document.querySelectorAll('.uEnc'), function(c){ c.checked = marcadas.indexOf(c.value) >= 0; });
+  }
+
+  function alcanceElegido(){
+    if ($('#uTodas') && $('#uTodas').checked) return '*';
+    return Array.prototype.filter.call(document.querySelectorAll('.uEnc'), function(c){ return c.checked; })
+      .map(function(c){ return c.value; }).join(',');
+  }
+
+  $('#userList').addEventListener('click', function(ev){
+    var b = ev.target.closest('button[data-ua]');
+    if (!b) return;
+    var usuario = b.parentElement.getAttribute('data-u');
+    if (b.getAttribute('data-ua') === 'del'){
+      if (!confirm('¿Quitar el acceso de "'+usuario+'"? Podrás volver a crearlo después.')) return;
+      api({op:'usuarios_delete', usuario:usuario}).then(function(r){
+        if (r.ok){ msg('#uMsg','ok','Usuario retirado.'); loadUsers(); }
+        else msg('#uMsg','warn', r.error==='ultimo_propietario' ? 'No puedes quitar al único propietario.' :
+                                 r.error==='no_puedes_borrarte' ? 'No puedes quitarte a ti mismo.' : 'Error: '+r.error);
+      });
+      return;
+    }
+    var u = USUARIOS.filter(function(x){ return x.usuario === usuario; })[0];
+    if (!u) return;
+    $('#uFormTitle').textContent = 'Editar usuario';
+    $('#uUsuario').value = u.usuario;
+    $('#uNombre').value = u.nombre || '';
+    $('#uCorreo').value = u.correo || '';
+    $('#uRol').value = u.rol;
+    $('#uClave').value = '';
+    $('#uClaveHint').textContent = '(déjala vacía para no cambiarla)';
+    pintarAlcance(ENCUESTAS_DISP, u.alcance === '*' ? ['*'] : String(u.alcance||'').split(',').map(function(s){ return s.trim(); }));
+    $('#uUsuario').scrollIntoView({behavior:'smooth', block:'center'});
+  });
+
+  $('#uClearBtn').addEventListener('click', function(){
+    $('#uFormTitle').textContent = 'Nuevo usuario';
+    ['#uUsuario','#uNombre','#uCorreo','#uClave'].forEach(function(s){ $(s).value=''; });
+    $('#uRol').value = 'editor';
+    $('#uClaveHint').textContent = '(obligatoria para un usuario nuevo)';
+    pintarAlcance(ENCUESTAS_DISP, []);
+  });
+
+  $('#uSaveBtn').addEventListener('click', function(){
+    var payload = { usuario: $('#uUsuario').value.trim(), nombre: $('#uNombre').value.trim(),
+      correo: $('#uCorreo').value.trim(), rol: $('#uRol').value, alcance: alcanceElegido(),
+      clave: $('#uClave').value.trim(), estado:'activo' };
+    if (!payload.usuario){ msg('#uFormMsg','warn','Escribe un usuario.'); return; }
+    if (payload.rol !== 'owner' && !payload.alcance){ msg('#uFormMsg','warn','Marca al menos una encuesta para este usuario.'); return; }
+    var b = $('#uSaveBtn'); b.disabled = true; b.textContent = 'Guardando…';
+    api({op:'usuarios_save', usuario: payload}).then(function(r){
+      b.disabled = false; b.textContent = '💾 Guardar usuario';
+      if (r.ok){
+        msg('#uFormMsg','ok', r.creado ? 'Usuario creado. Entrégale su usuario y contraseña.' : 'Usuario actualizado.');
+        $('#uClearBtn').click();
+        loadUsers();
+      } else {
+        msg('#uFormMsg','warn', r.error === 'falta_clave' ? 'Un usuario nuevo necesita contraseña.' : 'Error: '+r.error);
+      }
+    }).catch(function(){ b.disabled=false; b.textContent='💾 Guardar usuario'; msg('#uFormMsg','warn','No se pudo conectar.'); });
+  });
+
   // ---------- Analista IA ----------
   function fillIaSelect(){
     api({op:'list'}).then(function(res){
@@ -836,11 +1006,11 @@
     if (!nu && !np){ msg('#cMsg','warn','Escribe el nuevo usuario y/o contraseña.'); return; }
     api({op:'set_admin', newUser:nu||undefined, newPass:np||undefined}).then(function(r){
       if (r.ok){
-        if (nu) ADMIN.u=nu;
-        if (np) ADMIN.p=np;
+        if (nu) ADMIN.usuario = nu;
         try{ sessionStorage.setItem('hub-admin', JSON.stringify(ADMIN)); }catch(e){}
-        $('#adminWho').textContent = ADMIN.u;
-        msg('#cMsg','ok','Credenciales actualizadas.');
+        aplicarRol();
+        $('#cUser').value=''; $('#cPass').value='';
+        msg('#cMsg','ok','Credenciales actualizadas. Se usarán la próxima vez que entres.');
       } else msg('#cMsg','warn','Error: '+r.error);
     });
   });
