@@ -301,6 +301,14 @@
       <div class="msg" id="cMsg"></div>
     </div>
     <div class="card" style="max-width:480px">
+      <h2 style="font-size:16px;margin-bottom:6px">🎙️ Transcripción de audios (Whisper)</h2>
+      <p class="meta" style="margin:0 0 8px">Crea una clave gratuita en <a href="https://console.groq.com" target="_blank" rel="noopener">console.groq.com</a> → API Keys. No pide tarjeta y empieza con <code>gsk_</code>. Con esta clave los audios se transcriben aunque Gemini no esté disponible. Estado: <strong id="groqEstado">—</strong></p>
+      <label>API key de Groq</label>
+      <input type="password" id="cGroq" placeholder="gsk_…">
+      <div style="margin-top:12px"><button class="btn" id="cGroqBtn">Guardar clave de Groq</button></div>
+      <div class="msg" id="qMsg"></div>
+    </div>
+    <div class="card" style="max-width:480px">
       <h2 style="font-size:16px;margin-bottom:6px">🧠 Analista IA (Gemini)</h2>
       <p class="meta" style="margin:0 0 8px">Pega tu API key gratuita de Google AI Studio (aistudio.google.com/apikey). Se guarda en el servidor, nunca en esta página. Estado: <strong id="geminiEstado">—</strong></p>
       <label>API key de Gemini</label>
@@ -907,7 +915,9 @@
         sel.appendChild(o);
       });
       if (actual) sel.value = actual;
-      if (!res.gemini) msg('#iaMsg','warn','Falta la API key de Gemini: configúrala en ⚙️ Configuración para transcribir, generar informes y chatear.');
+      if (!res.gemini && !res.groq) msg('#iaMsg','warn','Falta configurar las claves en ⚙️ Configuración: Groq para transcribir los audios y Gemini para el informe y el chat.');
+      else if (!res.gemini) msg('#iaMsg','warn','Transcripción lista con Whisper. El informe y el chat necesitan la clave de Gemini en ⚙️ Configuración.');
+      else if (!res.groq) msg('#iaMsg','warn','Sugerencia: configura la clave gratuita de Groq en ⚙️ Configuración para transcribir con Whisper.');
     });
   }
 
@@ -989,8 +999,17 @@
   function refreshGeminiEstado(){
     api({op:'ping'}).then(function(r){
       $('#geminiEstado').textContent = r.gemini ? 'configurada ✓' : 'sin configurar';
+      $('#groqEstado').textContent = r.groq ? 'configurada ✓' : 'sin configurar';
     });
   }
+  $('#cGroqBtn').addEventListener('click', function(){
+    var k = $('#cGroq').value.trim();
+    if (!k){ msg('#qMsg','warn','Pega la clave de Groq.'); return; }
+    api({op:'set_groq', key:k}).then(function(r){
+      if (r.ok){ $('#cGroq').value=''; msg('#qMsg','ok','Clave guardada. Ya puedes transcribir desde 🧠 Analista IA.'); refreshGeminiEstado(); }
+      else msg('#qMsg','warn','Error: '+r.error);
+    });
+  });
   $('#cGeminiBtn').addEventListener('click', function(){
     var k = $('#cGemini').value.trim();
     if (!k){ msg('#gMsg','warn','Pega la API key.'); return; }
