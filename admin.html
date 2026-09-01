@@ -164,8 +164,10 @@
 
   .bar{height:10px;border-radius:99px;background:var(--panel);overflow:hidden;margin-top:6px}
   .bar div{height:100%;background:var(--accent);border-radius:99px}
-  .spark{display:flex;align-items:flex-end;gap:3px;height:52px;margin-top:10px}
-  .spark div{width:14px;background:var(--navy);border-radius:3px 3px 0 0;min-height:3px}
+  .spark{display:flex;align-items:flex-end;gap:4px;height:34px;margin-top:14px}
+  .spark div{width:9px;border-radius:2px;min-height:3px;
+    background:color-mix(in srgb, var(--navy) 42%, transparent)}
+  .spark div:last-child{background:var(--navy)}
 
   .msg{border-radius:10px;padding:11px 15px;display:none;margin-top:12px;font-size:14px}
   .msg.show{display:block}
