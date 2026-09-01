@@ -110,6 +110,17 @@
   .modal-bg.on .modal{transform:scale(1);opacity:1}
   .modal h3{margin-bottom:14px;font-size:16px}
   #qrBox{display:grid;place-content:center;padding:10px;background:#fff;border-radius:12px}
+  .modal.wide{max-width:min(860px,94vw);text-align:left;padding:24px}
+  .resp-list{max-height:min(64vh,560px);overflow-y:auto;display:flex;flex-direction:column;gap:12px;margin-top:6px}
+  .resp{border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .resp-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
+  .resp-n{font-weight:700}
+  .resp dl{margin:0;display:flex;flex-direction:column;gap:8px}
+  .resp dt{font-size:12px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .resp dd{margin:0;font-size:14px;white-space:pre-wrap;word-break:break-word}
+  .resp dd a{word-break:break-all}
+  .tag-tr{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;
+    background:rgba(255,0,84,.12);color:var(--accent);font-weight:600;margin-right:6px}
   .chatbox{display:flex;flex-direction:column;gap:10px;max-height:420px;overflow-y:auto;padding:4px}
   .chatmsg{border-radius:12px;padding:11px 15px;max-width:85%;font-size:14.5px;white-space:pre-wrap}
   .chat-user{background:var(--navy);color:#fff;align-self:flex-end}
@@ -326,6 +337,18 @@
   </div>
 </div>
 
+<div class="modal-bg" id="respModal">
+  <div class="modal wide">
+    <div class="row" style="align-items:baseline">
+      <h3 id="respTitulo" style="flex:1;margin:0">Respuestas</h3>
+      <button class="btn btn-ghost btn-xs" id="respCerrar" type="button">Cerrar</button>
+    </div>
+    <p class="meta" id="respMeta" style="margin:6px 0 0"></p>
+    <div class="resp-list" id="respList"></div>
+    <div class="msg" id="respMsg"></div>
+  </div>
+</div>
+
 <div class="modal-bg" id="qrModal">
   <div class="modal">
     <h3 id="qrTitulo">Código QR</h3>
@@ -478,6 +501,7 @@
             (esOwner() ? '<button class="btn btn-ghost btn-xs" data-a="dup">🧬 Duplicar</button>' : '')+
             '<button class="btn btn-ghost btn-xs" data-a="copy" data-link="'+esc(s.link)+'">📋 Copiar link</button>'+
             (puedeEditar() ? '<button class="btn btn-ghost btn-xs" data-a="short">🔗 Generar link corto</button>' : '')+
+            '<button class="btn btn-ghost btn-xs" data-a="ver">👁 Ver respuestas</button>'+
             '<button class="btn btn-ghost btn-xs" data-a="qr">🔳 QR</button>'+
             '<button class="btn btn-ghost btn-xs" data-a="csv">⬇ Excel</button>'+
             (s.respuestasUrl ? '<a class="btn btn-ghost btn-xs" style="text-decoration:none" href="'+esc(s.respuestasUrl)+'" target="_blank" rel="noopener">📄 Sheet</a>' : '')+
@@ -524,6 +548,8 @@
         document.querySelector('[data-tab="tNew"]').click();
         msg('#bMsg','ok','Plantilla duplicada: asigna un usuario y contraseña nuevos y guarda.');
       });
+    } else if (a==='ver'){
+      verRespuestas(id, b.parentElement.getAttribute('data-titulo'));
     } else if (a==='qr'){
       var link = b.parentElement.getAttribute('data-link');
       var tit = b.parentElement.getAttribute('data-titulo');
@@ -553,6 +579,73 @@
   });
 
   $('#qrCerrar').addEventListener('click', function(){ $('#qrModal').classList.remove('on'); });
+
+  // ---------- ver / borrar respuestas ----------
+  var RESP = {id:'', titulo:''};
+  function esEnlace(v){ return /^https?:\/\//i.test(String(v).trim()); }
+
+  function verRespuestas(id, titulo){
+    RESP = {id:id, titulo:titulo};
+    $('#respTitulo').textContent = titulo;
+    $('#respMeta').textContent = 'Cargando…';
+    $('#respList').textContent = '';
+    $('#respModal').classList.add('on');
+    api({op:'export', id:id}).then(function(r){
+      if (!r.ok){ $('#respMeta').textContent = 'No se pudieron cargar ('+r.error+').'; return; }
+      if (!r.rows.length){ $('#respMeta').textContent = 'Esta encuesta aún no tiene respuestas.'; return; }
+      $('#respMeta').textContent = r.rows.length + (r.rows.length===1 ? ' respuesta recibida' : ' respuestas recibidas') +
+        '. Se muestran de la más reciente a la más antigua.';
+      var host = $('#respList');
+      host.textContent = '';
+      var iMarca = r.headers.indexOf('Marca temporal');
+      r.rows.forEach(function(fila, i){ /* orden natural */ });
+      for (var i = r.rows.length - 1; i >= 0; i--){
+        var fila = r.rows[i];
+        var marca = iMarca >= 0 ? fila[iMarca] : '';
+        var campos = '';
+        r.headers.forEach(function(nombre, j){
+          var v = String(fila[j] || '').trim();
+          if (!v || nombre === 'Marca temporal') return;
+          var esTr = nombre.indexOf('Transcripción') === 0;
+          var valor = v.split('\n').map(function(linea){
+            var t = linea.trim();
+            var m = t.match(/^(P\d+:\s*)?(https?:\/\/\S+)$/i);
+            if (m) return (m[1]||'') + '<a href="'+esc(m[2])+'" target="_blank" rel="noopener">'+esc(m[2])+'</a>';
+            return esc(t);
+          }).join('<br>');
+          campos += '<dt>'+(esTr ? '<span class="tag-tr">transcripción</span>' : '')+esc(nombre)+'</dt><dd>'+valor+'</dd>';
+        });
+        var div = document.createElement('div');
+        div.className = 'resp';
+        div.innerHTML =
+          '<div class="resp-head"><span class="resp-n">Respuesta #'+(i+1)+'</span>'+
+          '<span class="meta grow">'+esc(marca)+'</span>'+
+          (puedeEditar() ? '<button class="btn btn-ghost btn-xs" data-borrar="'+(i+2)+'" data-marca="'+esc(marca)+'">🗑 Borrar</button>' : '')+
+          '</div><dl>'+campos+'</dl>';
+        host.appendChild(div);
+      }
+    }).catch(function(){ $('#respMeta').textContent = 'No se pudo conectar.'; });
+  }
+
+  $('#respList').addEventListener('click', function(ev){
+    var b = ev.target.closest('button[data-borrar]');
+    if (!b) return;
+    var fila = b.getAttribute('data-borrar'), marca = b.getAttribute('data-marca');
+    if (!confirm('¿Borrar esta respuesta?\n\nSe elimina la fila de la base y sus audios van a la papelera de Drive (recuperables 30 días). Esta acción queda registrada en la auditoría.')) return;
+    b.disabled = true; b.textContent = 'Borrando…';
+    api({op:'respuesta_delete', id:RESP.id, fila:Number(fila), marca:marca}).then(function(r){
+      if (r.ok){
+        msg('#respMsg','ok','Respuesta borrada'+(r.adjuntos ? ' junto con '+r.adjuntos+' audio(s).' : '.'));
+        verRespuestas(RESP.id, RESP.titulo);
+        loadList();
+      } else {
+        b.disabled = false; b.textContent = '🗑 Borrar';
+        msg('#respMsg','warn', r.error==='fila_cambiada' ? 'La lista cambió mientras mirabas. Se recargó: vuelve a intentarlo.' : 'Error: '+r.error);
+        if (r.error==='fila_cambiada') verRespuestas(RESP.id, RESP.titulo);
+      }
+    });
+  });
+  $('#respCerrar').addEventListener('click', function(){ $('#respModal').classList.remove('on'); });
   $('#qrModal').addEventListener('click', function(ev){ if (ev.target.id==='qrModal') $('#qrModal').classList.remove('on'); });
   $('#qrDescargar').addEventListener('click', function(){
     var cv = document.querySelector('#qrBox canvas');
@@ -904,6 +997,20 @@
   });
 
   // ---------- Analista IA ----------
+  /** Traduce los errores del motor de IA a algo accionable para quien usa la consola. */
+  function explicaIA(err){
+    var e = String(err || '');
+    if (e.indexOf('PERMISSION_DENIED') >= 0 || e.indexOf('403') >= 0)
+      return 'El informe y el chat no están disponibles: Google bloqueó el acceso de la cuenta al servicio de análisis. ' +
+             'La transcripción de audios sí funciona y el Excel ya incluye los textos. Avisa al administrador del hub.';
+    if (e.indexOf('sin_api_key') >= 0)
+      return 'Falta configurar el motor de análisis. Avisa al administrador del hub.';
+    if (e === 'sin_respuestas') return 'Todavía no hay respuestas que analizar.';
+    if (e === 'sin_permiso') return 'No tienes permiso sobre esa encuesta.';
+    if (e === 'json_invalido') return 'El análisis vino incompleto. Vuelve a intentarlo en un momento.';
+    return 'No se pudo completar (' + e + ').';
+  }
+
   function fillIaSelect(){
     api({op:'list'}).then(function(res){
       if (!res.ok) return;
@@ -950,7 +1057,7 @@
     b.disabled = true; b.textContent = 'Analizando…';
     api({op:'analizar', id:id}).then(function(r){
       b.disabled = false; b.textContent = '📑 Generar informe';
-      if (!r.ok){ msg('#iaMsg','warn','No se pudo analizar ('+r.error+').'); return; }
+      if (!r.ok){ msg('#iaMsg','warn', explicaIA(r.error)); return; }
       var inf = r.informe;
       var html = '<p>'+esc(inf.resumen||'')+'</p>';
       if (inf.temas && inf.temas.length){
@@ -992,7 +1099,7 @@
     chatAdd(qq, true);
     var esperando = chatAdd('Analizando…', false);
     api({op:'chat', id:id, pregunta:qq}).then(function(r){
-      esperando.textContent = r.ok ? r.respuesta : ('No se pudo responder ('+r.error+').');
+      esperando.textContent = r.ok ? r.respuesta : explicaIA(r.error);
     }).catch(function(){ esperando.textContent = 'Error de conexión.'; });
   }
   $('#chatSend').addEventListener('click', chatAsk);
