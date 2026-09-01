@@ -254,8 +254,8 @@
   <!-- LISTA -->
   <div class="panel on" id="tList">
     <div class="row" style="margin-bottom:14px">
-      <button class="btn btn-ghost btn-xs" id="refreshBtn">↻ Actualizar</button>
-      <a id="sheetLink" class="btn btn-ghost btn-xs" target="_blank" rel="noopener" style="text-decoration:none">Abrir base de respuestas (Sheet)</a>
+      <button class="btn btn-ghost btn-xs" id="refreshBtn" data-ico="reloj">Actualizar</button>
+      <a id="sheetLink" class="btn btn-ghost btn-xs" target="_blank" rel="noopener" data-ico="hoja" style="text-decoration:none">Abrir base de respuestas</a>
     </div>
     <div id="survList"></div>
     <div class="msg" id="listMsg"></div>
@@ -481,10 +481,12 @@
     vacio:'M20 7l-8-4-8 4m16 0-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'
   };
   function ico(nombre, tam){
-    var d = ICONS[nombre] || '';
-    return '<svg width="'+(tam||16)+'" height="'+(tam||16)+'" viewBox="0 0 24 24" fill="none" '+
+    var abre = '<svg width="'+(tam||16)+'" height="'+(tam||16)+'" viewBox="0 0 24 24" fill="none" '+
       'stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" '+
-      'aria-hidden="true"><path d="'+d+'"/></svg>';
+      'aria-hidden="true">';
+    // Los puntos suspensivos se dibujan como círculos: un trazo de 0.01 no se ve.
+    if (nombre === 'tres') return abre+'<circle cx="12" cy="5" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none"/></svg>';
+    return abre+'<path d="'+(ICONS[nombre] || '')+'"/></svg>';
   }
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   var ADMIN = {token:'', usuario:'', nombre:'', rol:'', alcance:''};
@@ -549,7 +551,8 @@
     });
     $('#sheetLink').classList.toggle('hidden', !esOwner());
     var etiqueta = {owner:'Propietario', editor:'Editor', analista:'Analista'}[ADMIN.rol] || ADMIN.rol;
-    $('#adminWho').textContent = (ADMIN.nombre || ADMIN.usuario) + ' · ' + etiqueta;
+    var quien = ADMIN.nombre || ADMIN.usuario;
+    $('#adminWho').textContent = (quien === etiqueta) ? (ADMIN.usuario + ' · ' + etiqueta) : (quien + ' · ' + etiqueta);
   }
 
   function showConsole(){
@@ -562,7 +565,7 @@
   }
 
   // ---------- tabs ----------
-  Array.prototype.forEach.call(document.querySelectorAll('.tab[data-ico]'), function(t){
+  Array.prototype.forEach.call(document.querySelectorAll('[data-ico]'), function(t){
     t.innerHTML = ico(t.getAttribute('data-ico')) + '<span>' + t.textContent.trim() + '</span>';
   });
   Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(t){
