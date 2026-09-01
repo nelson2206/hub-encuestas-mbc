@@ -300,6 +300,38 @@
   // ================== Render de la encuesta ==================
   var PREVIEW = false;
 
+  /** Descripción corta del equipo, solo en encuestas identificadas. */
+  function dispositivo(){
+    var ua = navigator.userAgent || '';
+    var movil = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+    var so = /Android/i.test(ua) ? 'Android'
+      : /iPhone|iPad|iPod/i.test(ua) ? 'iOS'
+      : /Windows/i.test(ua) ? 'Windows'
+      : /Mac OS X/i.test(ua) ? 'macOS'
+      : /Linux/i.test(ua) ? 'Linux' : 'otro';
+    var nav = /Edg\//i.test(ua) ? 'Edge'
+      : /OPR\//i.test(ua) ? 'Opera'
+      : /Chrome\//i.test(ua) ? 'Chrome'
+      : /Firefox\//i.test(ua) ? 'Firefox'
+      : /Safari\//i.test(ua) ? 'Safari' : 'otro';
+    return (movil ? 'móvil' : 'escritorio') + ' · ' + nav + ' · ' + so;
+  }
+
+  /** Tarjeta de identificación: solo aparece si la encuesta NO es anónima. */
+  function buildIdentidad(){
+    var card = document.createElement('section');
+    card.className = 'qcard';
+    card.id = 'identidadCard';
+    card.innerHTML =
+      '<h2 class="qtitle">Antes de empezar, ¿quién eres?</h2>' +
+      '<p class="qdetail">Esta encuesta no es anónima: tu nombre queda registrado junto con tus respuestas.</p>' +
+      '<label class="qguide" for="idNombre">Nombre y apellido</label>' +
+      '<input type="text" id="idNombre" autocomplete="name" placeholder="Ej. Ana Ruiz">' +
+      '<label class="qguide" for="idCorreo" style="margin-top:12px">Correo (opcional)</label>' +
+      '<input type="email" id="idCorreo" autocomplete="email" placeholder="ana@empresa.com">';
+    return card;
+  }
+
   function startSurvey(){
     $('#heroTitle').textContent = SURVEY.titulo || 'Encuesta MBC';
     if (SURVEY.intro) $('#heroIntro').textContent = SURVEY.intro;
@@ -323,11 +355,17 @@
       qp.textContent = '⏳ Quedan ' + SURVEY.restantes + ' respuestas disponibles';
       document.querySelector('.hero-inner').appendChild(qp);
     }
+    // Anonimato: la insignia dice siempre la verdad sobre lo que se guarda.
+    var badge = document.querySelector('.hero .anon');
+    if (SURVEY.anonima === false && badge){
+      badge.textContent = '👤 Con identificación — se registra quién responde';
+    }
     $('#loginView').classList.add('hidden');
     $('#surveyView').classList.remove('hidden');
     var root = $('#qRoot');
     root.textContent = '';
     state = {};
+    if (SURVEY.anonima === false) root.appendChild(buildIdentidad());
     SURVEY.preguntas.forEach(function(q, idx){
       state[q.id] = isClosed(q) ? {sel:[], otro:''} : {audio:null, text:'', file:null};
       root.appendChild(buildCard(q, idx));
@@ -703,9 +741,20 @@
       return;
     }
 
+    var identidad = null;
+    if (SURVEY.anonima === false){
+      var nom = ($('#idNombre') && $('#idNombre').value.trim()) || '';
+      if (!nom){
+        showMsg('warn','Esta encuesta pide identificación: escribe tu nombre antes de enviar.');
+        if ($('#idNombre')) $('#idNombre').focus();
+        return;
+      }
+      identidad = { nombre: nom, correo: ($('#idCorreo') && $('#idCorreo').value.trim()) || '', dispositivo: dispositivo() };
+    }
+
     var sendBtn = $('#sendBtn');
     sendBtn.disabled = true; sendBtn.textContent = 'Enviando…';
-    api({action:'submit_encuesta', id:SURVEY.id, user:CRED.user, pass:CRED.pass, answers:answers, attachments:attachments})
+    api({action:'submit_encuesta', id:SURVEY.id, user:CRED.user, pass:CRED.pass, answers:answers, attachments:attachments, identidad:identidad})
       .then(function(res){
         if (res && res.ok){
           if (SURVEY.gracias) $('#thanksCard').querySelector('p').textContent = SURVEY.gracias;
