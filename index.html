@@ -633,6 +633,17 @@
       setStatus(qid, 'Grabando…');
     }
   }
+  /** Los blobs de MediaRecorder no traen duración: forzarla deja usable la barra de avance. */
+  function fijarDuracion(au){
+    if (!au) return;
+    au.addEventListener('loadedmetadata', function once(){
+      au.removeEventListener('loadedmetadata', once);
+      if (au.duration !== Infinity && au.duration > 0.5) return;
+      var volver = function(){ au.removeEventListener('timeupdate', volver); au.currentTime = 0; };
+      au.addEventListener('timeupdate', volver);
+      try{ au.currentTime = 1e6; }catch(e){}
+    });
+  }
   function ocultarAvance(qid){
     var caja = document.getElementById('prev-'+qid);
     var au = document.getElementById('preview-'+qid);
@@ -651,6 +662,7 @@
       var au = document.getElementById('preview-'+qid);
       if (au.src) URL.revokeObjectURL(au.src);
       au.src = URL.createObjectURL(blob);
+      fijarDuracion(au);
       au.onerror = function(){
         ocultarAvance(qid);
         setStatus(qid, 'Este navegador no deja escuchar a mitad de la grabación. Pulsa Detener y podrás escucharla completa antes de enviar.');
@@ -678,6 +690,7 @@
       state[qid].audio = {mime: blob.type, b64: String(fr.result).split(',')[1] || '', secs: r.secs};
       var au = document.getElementById('audio-'+qid);
       au.src = URL.createObjectURL(blob);
+      fijarDuracion(au);
       document.getElementById('play-'+qid).classList.remove('hidden');
       setStatus(qid, 'Audio listo ('+fmtSecs(r.secs)+'). Escúchalo aquí antes de enviar; si no te convence, pulsa Rehacer.');
       refresh();
