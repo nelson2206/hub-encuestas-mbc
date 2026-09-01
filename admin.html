@@ -479,7 +479,7 @@
             '<button class="btn btn-ghost btn-xs" data-a="copy" data-link="'+esc(s.link)+'">📋 Copiar link</button>'+
             (puedeEditar() ? '<button class="btn btn-ghost btn-xs" data-a="short">🔗 Generar link corto</button>' : '')+
             '<button class="btn btn-ghost btn-xs" data-a="qr">🔳 QR</button>'+
-            '<button class="btn btn-ghost btn-xs" data-a="csv">⬇ CSV</button>'+
+            '<button class="btn btn-ghost btn-xs" data-a="csv">⬇ Excel</button>'+
             (s.respuestasUrl ? '<a class="btn btn-ghost btn-xs" style="text-decoration:none" href="'+esc(s.respuestasUrl)+'" target="_blank" rel="noopener">📄 Sheet</a>' : '')+
           '</div>';
         host.appendChild(div);
@@ -533,20 +533,22 @@
       new QRCode(box, {text: link, width: 230, height: 230, correctLevel: QRCode.CorrectLevel.M});
       $('#qrModal').classList.add('on');
     } else if (a==='csv'){
-      b.disabled = true; b.textContent = 'Exportando…';
-      api({op:'export', id:id}).then(function(r){
-        b.disabled = false; b.textContent = '⬇ CSV';
-        if (!r.ok){ msg('#listMsg','warn','Error: '+r.error); return; }
-        if (!r.headers.length){ msg('#listMsg','warn','Esa encuesta aún no tiene respuestas.'); return; }
-        var q = function(v){ return '"' + String(v).replace(/"/g,'""') + '"'; };
-        var csv = '﻿' + r.headers.map(q).join(',') + '\n' +
-          r.rows.map(function(row){ return row.map(q).join(','); }).join('\n');
+      b.disabled = true; b.textContent = 'Generando Excel…';
+      api({op:'export_xlsx', id:id}).then(function(r){
+        b.disabled = false; b.textContent = '⬇ Excel';
+        if (!r.ok){
+          msg('#listMsg','warn', r.error==='sin_respuestas' ? 'Esa encuesta aún no tiene respuestas.' : 'Error: '+r.error);
+          return;
+        }
+        var bin = atob(r.b64);
+        var bytes = new Uint8Array(bin.length);
+        for (var i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
         var a2 = document.createElement('a');
-        a2.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
-        a2.download = 'respuestas-' + id + '.csv';
+        a2.href = URL.createObjectURL(new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+        a2.download = r.nombre;
         document.body.appendChild(a2); a2.click(); a2.remove();
-        msg('#listMsg','ok','CSV descargado ('+r.rows.length+' respuestas). Ábrelo en Excel.');
-      });
+        msg('#listMsg','ok','Excel descargado: '+r.nombre+'. Incluye las transcripciones y los enlaces a los audios.');
+      }).catch(function(){ b.disabled=false; b.textContent='⬇ Excel'; msg('#listMsg','warn','No se pudo generar el Excel.'); });
     }
   });
 
