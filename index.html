@@ -484,6 +484,7 @@
           '<button class="btn btn-rec btn-sm btn-ico" data-act="rec" data-q="'+q.id+'" type="button">'+IC_MIC+'<span>Grabar</span></button>'+
           '<button class="btn btn-ghost btn-sm btn-ico hidden" data-act="pause" data-q="'+q.id+'" type="button">'+IC_PAUSE+'<span>Pausa</span></button>'+
           '<button class="btn btn-stop btn-sm btn-ico hidden" data-act="stop" data-q="'+q.id+'" type="button">'+IC_STOP+'<span>Detener</span></button>'+
+          '<button class="btn btn-ghost btn-sm btn-ico hidden" data-act="oir" data-q="'+q.id+'" type="button">'+IC_PLAY+'<span>Escuchar</span></button>'+
           '<span class="rec-dot hidden" id="dot-'+q.id+'" aria-hidden="true"></span>'+
           '<span class="rec-timer" id="timer-'+q.id+'">0:00</span>'+
         '</div>'+
@@ -491,7 +492,10 @@
           '<audio controls id="audio-'+q.id+'"></audio>'+
           '<button class="btn btn-ghost btn-sm btn-ico" data-act="redo" data-q="'+q.id+'" type="button">'+IC_REDO+'<span>Rehacer</span></button>'+
         '</div>'+
-        '<p class="rec-status" id="status-'+q.id+'" style="margin:8px 0 0">Pulsa Grabar y habla; puedes pausar y continuar.</p>'+
+        '<div class="rec-row hidden" id="prev-'+q.id+'" style="margin-top:10px">'+
+          '<audio controls id="preview-'+q.id+'" style="max-width:100%"></audio>'+
+        '</div>'+
+        '<p class="rec-status" id="status-'+q.id+'" style="margin:8px 0 0">Pulsa Grabar y habla; puedes pausar, escucharte y continuar.</p>'+
       '</div>';
     }
     if (q.texto !== false){
@@ -618,13 +622,43 @@
       try{ r.recorder.pause(); }catch(e){ return; }
       r.paused = true;
       btn(qid,'pause').innerHTML = IC_PLAY+'<span>Reanudar</span>';
-      setStatus(qid, 'En pausa — pulsa Reanudar para seguir grabando.');
+      btn(qid,'oir').classList.remove('hidden');
+      setStatus(qid, 'En pausa — puedes escuchar lo que llevas grabado, reanudar o detener.');
     } else {
       try{ r.recorder.resume(); }catch(e){ return; }
       r.paused = false;
       btn(qid,'pause').innerHTML = IC_PAUSE+'<span>Pausa</span>';
+      btn(qid,'oir').classList.add('hidden');
+      ocultarAvance(qid);
       setStatus(qid, 'Grabando…');
     }
+  }
+  function ocultarAvance(qid){
+    var caja = document.getElementById('prev-'+qid);
+    var au = document.getElementById('preview-'+qid);
+    if (au){ try{ au.pause(); }catch(e){} if (au.src) URL.revokeObjectURL(au.src); au.removeAttribute('src'); }
+    if (caja) caja.classList.add('hidden');
+  }
+  /** Deja escuchar lo grabado sin cortar la grabación: arma un blob con los trozos que ya llegaron. */
+  function oirAvance(qid){
+    var r = recs[qid];
+    if (!r || !r.paused) return;
+    setStatus(qid, 'Preparando lo grabado…');
+    try{ r.recorder.requestData(); }catch(e){}
+    setTimeout(function(){
+      if (!r.chunks.length){ setStatus(qid, 'Todavía no hay audio que escuchar. Sigue grabando un momento.'); return; }
+      var blob = new Blob(r.chunks, {type: r.recorder.mimeType || 'audio/webm'});
+      var au = document.getElementById('preview-'+qid);
+      if (au.src) URL.revokeObjectURL(au.src);
+      au.src = URL.createObjectURL(blob);
+      au.onerror = function(){
+        ocultarAvance(qid);
+        setStatus(qid, 'Este navegador no deja escuchar a mitad de la grabación. Pulsa Detener y podrás escucharla completa antes de enviar.');
+      };
+      document.getElementById('prev-'+qid).classList.remove('hidden');
+      setStatus(qid, 'Escuchando lo grabado hasta ahora ('+fmtSecs(r.secs)+'). Sigue en pausa: puedes reanudar o detener.');
+      au.play().catch(function(){});
+    }, 250);
   }
   function stopRec(qid){
     var r = recs[qid];
@@ -645,7 +679,7 @@
       var au = document.getElementById('audio-'+qid);
       au.src = URL.createObjectURL(blob);
       document.getElementById('play-'+qid).classList.remove('hidden');
-      setStatus(qid, 'Audio listo ('+fmtSecs(r.secs)+'). Escúchalo; si no te convence, pulsa Rehacer.');
+      setStatus(qid, 'Audio listo ('+fmtSecs(r.secs)+'). Escúchalo aquí antes de enviar; si no te convence, pulsa Rehacer.');
       refresh();
     };
     fr.readAsDataURL(blob);
@@ -663,6 +697,8 @@
     btn(qid,'pause').innerHTML = IC_PAUSE+'<span>Pausa</span>';
     btn(qid,'stop').classList.add('hidden');
     document.getElementById('dot-'+qid).classList.add('hidden');
+    btn(qid,'oir').classList.add('hidden');
+    ocultarAvance(qid);
   }
 
   document.addEventListener('click', function(ev){
@@ -672,6 +708,7 @@
     if (act==='rec') startRec(qid);
     else if (act==='pause') pauseRec(qid);
     else if (act==='stop') stopRec(qid);
+    else if (act==='oir') oirAvance(qid);
     else if (act==='redo') redoRec(qid);
     else if (act==='file') document.getElementById('fileinput-'+qid).click();
   });
