@@ -3,18 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Voz de la Fábrica · Hub IA</title>
+<script>
+// Sin ?u= ni ?preview=, esta URL no identifica una encuesta: manda a la consola de administración.
+// No toca el flujo con ?u= (links ya repartidos a encuestados siguen funcionando igual).
+if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html'); }
+</script>
+<title>Encuestas MBC · Hub IA</title>
 <meta name="description" content="Encuestas MBC: responde con tu voz, texto o archivos.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="MBC · Hub IA">
-<meta property="og:title" content="Voz de la Fábrica · Hub IA">
+<meta property="og:title" content="Encuestas MBC · Hub IA">
 <meta property="og:description" content="Encuesta MBC: responde con tu voz, texto o archivos. 5–10 minutos.">
-<meta property="og:url" content="https://nelson2206.github.io/hub-encuestas-mbc/">
-<meta property="og:image" content="https://nelson2206.github.io/hub-encuestas-mbc/og-image.png">
+<meta property="og:url" content="https://encuesta.mbc-latam.com/">
+<meta property="og:image" content="https://encuesta.mbc-latam.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://nelson2206.github.io/hub-encuestas-mbc/og-image.png">
+<meta name="twitter:image" content="https://encuesta.mbc-latam.com/og-image.png">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -166,7 +171,7 @@
       <path fill="#FFFFFF" d="M1485.95 0 2304.74 0C2482.07 0 2588.46 94.17 2588.46 231.14 2588.46 311.86 2550.55 384.01 2463.72 407.24L2463.72 426.81C2560.33 441.49 2614.14 508.75 2614.14 618.81 2614.14 765.56 2516.3 856.06 2334.08 856.06L1485.94 856.06 1485.94 0ZM2292.51 335.09C2345.1 335.09 2373.23 305.74 2373.23 259.27 2373.23 212.8 2345.1 183.45 2292.51 183.45L1706.08 183.45 1706.08 335.1 2292.51 335.1ZM2299.84 672.62C2357.32 672.62 2386.67 646.94 2386.67 595.57 2386.67 544.2 2357.32 518.52 2299.84 518.52L1706.08 518.52 1706.08 672.61 2299.84 672.61Z"/>
     </svg>
     <p class="eyebrow" id="heroEyebrow">Hub IA · Encuestas MBC</p>
-    <h1 id="heroTitle">Voz de la Fábrica</h1>
+    <h1 id="heroTitle">Encuestas MBC</h1>
     <p id="heroIntro">Ingresa con las credenciales que te compartió el equipo MBC para abrir tu encuesta. Podrás responder <strong>con tu voz</strong>, texto o archivos.</p>
     <span class="anon">🔒 Anónima — análisis agregado, no evalúa a personas</span>
   </div>

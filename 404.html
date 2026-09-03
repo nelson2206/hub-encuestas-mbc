@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Redirigiendo…</title>
+<script>
+// GitHub Pages no soporta rutas dinámicas: cualquier /slug que no exista como
+// archivo llega aquí. Lo traducimos a index.html?u=slug (mismo mecanismo que
+// ya usa el login por ?u=, solo que como segmento de URL en vez de query).
+(function () {
+  var seg = location.pathname.replace(/^\/+|\/+$/g, '');
+  var dest = seg ? ('/?u=' + encodeURIComponent(seg)) : '/';
+  location.replace(dest);
+})();
+</script>
+</head>
+<body></body>
+</html>

@@ -594,6 +594,9 @@
       host.textContent='';
       if (!res.encuestas.length){ host.innerHTML='<p class="meta">Aún no hay encuestas. Crea la primera en "Nueva encuesta".</p>'; return; }
       res.encuestas.forEach(function(s){
+        // Link propio del dominio nuevo, armado en el frontend (el link que manda
+        // el backend todavía apunta al dominio de GitHub Pages viejo).
+        var linkPropio = s.usuario ? (location.origin + '/' + encodeURIComponent(s.usuario)) : s.link;
         var av = avance[s.id];
         var pct = (av && s.cupo) ? Math.min(100, Math.round(av.total/Number(s.cupo)*100)) : null;
         var dias = av ? Object.keys(av.porDia).sort().slice(-14) : [];
@@ -615,7 +618,7 @@
                 (s.cupo ? ' · cupo '+esc(s.cupo) : '')+
                 (av && av.ultimo ? ' · última respuesta '+new Date(av.ultimo).toLocaleString('es-PE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '')+
               '</div>'+
-              '<div class="linkline">'+ico('globo',15)+'<a href="'+esc(s.link)+'" target="_blank" rel="noopener">'+esc(s.link)+'</a></div>'+
+              '<div class="linkline">'+ico('globo',15)+'<a href="'+esc(linkPropio)+'" target="_blank" rel="noopener">'+esc(linkPropio)+'</a></div>'+
               '<div class="linkline">'+ico('enlace',15)+
                 (s.shortlink ? '<a href="'+esc(s.shortlink)+'" target="_blank" rel="noopener">'+esc(s.shortlink)+'</a>'
                              : '<span class="lbl">sin link corto todavía</span>')+'</div>'+
@@ -629,10 +632,10 @@
           '</div>'+
           (pct!==null ? '<div class="bar"><div style="width:'+pct+'%"></div></div><div class="meta" style="margin-top:5px">'+pct+'% del cupo</div>' : '')+
           (dias.length > 2 ? '<div class="spark">'+spark+'</div><div class="meta" style="margin-top:4px">últimos '+dias.length+' días con actividad</div>' : '')+
-          '<div class="acts" data-id="'+esc(s.id)+'" data-titulo="'+esc(s.titulo)+'" data-link="'+esc(s.link)+'">'+
+          '<div class="acts" data-id="'+esc(s.id)+'" data-titulo="'+esc(s.titulo)+'" data-link="'+esc(linkPropio)+'">'+
             '<button class="btn btn-xs" data-a="ver">'+ico('ojo')+'Ver respuestas</button>'+
             '<button class="btn btn-ghost btn-xs" data-a="csv">'+ico('descarga')+'Excel</button>'+
-            '<button class="btn btn-ghost btn-xs" data-a="copy" data-link="'+esc(s.link)+'">'+ico('copiar')+'Copiar link</button>'+
+            '<button class="btn btn-ghost btn-xs" data-a="copy" data-link="'+esc(linkPropio)+'">'+ico('copiar')+'Copiar link</button>'+
             '<span class="sep"></span>'+
             '<span class="menu-wrap">'+
               '<button class="btn btn-ghost btn-icon" data-a="menu" aria-haspopup="true" aria-expanded="false" title="Más acciones">'+ico('tres')+'</button>'+
