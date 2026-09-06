@@ -634,9 +634,9 @@
       host.textContent='';
       if (!res.encuestas.length){ host.innerHTML='<p class="meta">Aún no hay encuestas. Crea la primera en "Nueva encuesta".</p>'; return; }
       res.encuestas.forEach(function(s){
-        // Link propio del dominio nuevo, armado en el frontend (el link que manda
-        // el backend todavía apunta al dominio de GitHub Pages viejo).
-        var linkPropio = s.usuario ? (location.origin + '/' + encodeURIComponent(s.usuario)) : s.link;
+        // El backend arma el link con su BASE_URL; en GitHub Pages el sitio vive bajo
+        // /hub-encuestas-mbc/, asi que no sirve construirlo desde location.origin.
+        var linkPropio = s.link;
         var av = avance[s.id];
         var pct = (av && s.cupo) ? Math.min(100, Math.round(av.total/Number(s.cupo)*100)) : null;
         var dias = av ? Object.keys(av.porDia).sort().slice(-14) : [];
