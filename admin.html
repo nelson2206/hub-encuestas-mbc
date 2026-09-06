@@ -338,6 +338,7 @@
       <div class="row" style="margin-top:14px">
         <button class="btn btn-navy" id="iaTransBtn">🎙️→📝 Transcribir audios</button>
         <button class="btn" id="iaInformeBtn">📑 Generar informe</button>
+        <button class="btn btn-ghost hidden" id="iaDescargarBtn" data-ico="descarga">Descargar informe</button>
       </div>
       <div class="msg" id="iaMsg"></div>
     </div>
@@ -1257,8 +1258,64 @@
       }
       $('#iaInforme').innerHTML = html;
       $('#iaInformeCard').classList.remove('hidden');
-      msg('#iaMsg','ok','Informe generado (también guardado en la hoja "_analisis" del Sheet de la encuesta).');
+      INFORME = { datos: inf, encuesta: $('#iaSurvey').options[$('#iaSurvey').selectedIndex].textContent, id: id, fecha: new Date() };
+      $('#iaDescargarBtn').classList.remove('hidden');
+      msg('#iaMsg','ok','Informe generado. Puedes descargarlo con el botón de arriba; también queda guardado en la hoja "_analisis" del Sheet.');
     }).catch(function(){ b.disabled=false; b.innerHTML=ico('informe')+'Generar informe'; msg('#iaMsg','warn','Error de conexión.'); });
+  });
+
+  var INFORME = null;
+  /** Arma el informe como documento de Word (HTML que Word abre y deja editar). */
+  function documentoInforme(){
+    var inf = INFORME.datos;
+    var fecha = INFORME.fecha.toLocaleDateString('es-PE', {day:'numeric', month:'long', year:'numeric'});
+    var b = [];
+    b.push('<h1>' + esc(INFORME.encuesta) + '</h1>');
+    b.push('<p class="sub">Informe de análisis · MBC · ' + esc(fecha) + '</p>');
+    b.push('<h2>Resumen</h2><p>' + esc(inf.resumen||'') + '</p>');
+    if (inf.temas && inf.temas.length){
+      b.push('<h2>Temas recurrentes</h2>');
+      inf.temas.forEach(function(t){
+        b.push('<h3>' + esc(t.tema) + (t.menciones ? ' <span class="men">(' + esc(String(t.menciones)) + ' menciones)</span>' : '') + '</h3>');
+        if (t.detalle) b.push('<p>' + esc(t.detalle) + '</p>');
+        (t.citas||[]).forEach(function(c){ b.push('<blockquote>&ldquo;' + esc(c) + '&rdquo;</blockquote>'); });
+      });
+    }
+    if (inf.porPregunta && inf.porPregunta.length){
+      b.push('<h2>Hallazgos por pregunta</h2>');
+      inf.porPregunta.forEach(function(p){
+        b.push('<h3>' + esc(p.pregunta) + '</h3><p>' + esc(p.hallazgos) + '</p>');
+      });
+    }
+    if (inf.recomendaciones && inf.recomendaciones.length){
+      b.push('<h2>Recomendaciones</h2><ol>');
+      inf.recomendaciones.forEach(function(r){ b.push('<li>' + esc(r) + '</li>'); });
+      b.push('</ol>');
+    }
+    b.push('<p class="pie">Elaborado a partir de las respuestas recibidas en la encuesta. Las citas son textuales.</p>');
+    return '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
+      '<head><meta charset="utf-8"><title>' + esc(INFORME.encuesta) + '</title><style>' +
+      'body{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#141F2E;line-height:1.5}' +
+      'h1{font-family:Montserrat,Calibri,sans-serif;color:#003478;font-size:20pt;margin:0 0 4pt}' +
+      'h2{font-family:Montserrat,Calibri,sans-serif;color:#003478;font-size:14pt;margin:18pt 0 6pt;' +
+      'border-bottom:1pt solid #E3E2DA;padding-bottom:3pt}' +
+      'h3{font-family:Montserrat,Calibri,sans-serif;color:#141F2E;font-size:11.5pt;margin:12pt 0 3pt}' +
+      '.men{color:#FF0054;font-weight:normal}' +
+      '.sub{color:#616E80;font-size:9.5pt;margin:0 0 18pt}' +
+      'blockquote{border-left:3pt solid #FF0054;margin:6pt 0 6pt 12pt;padding-left:10pt;color:#4A5568;font-style:italic}' +
+      '.pie{color:#616E80;font-size:9pt;margin-top:24pt;border-top:1pt solid #E3E2DA;padding-top:8pt}' +
+      '</style></head><body>' + b.join('') + '</body></html>';
+  }
+
+  $('#iaDescargarBtn').addEventListener('click', function(){
+    if (!INFORME){ msg('#iaMsg','warn','Genera el informe antes de descargarlo.'); return; }
+    var doc = documentoInforme();
+    var blob = new Blob(['﻿', doc], {type:'application/msword'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'informe-' + INFORME.id + '.doc';
+    document.body.appendChild(a); a.click(); a.remove();
+    msg('#iaMsg','ok','Informe descargado. Se abre en Word y puedes editarlo o guardarlo como PDF.');
   });
 
   function chatAdd(texto, mia){
