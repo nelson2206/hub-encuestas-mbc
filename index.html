@@ -105,6 +105,11 @@ if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html');
   .rec-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
   .rec-timer{font-family:Montserrat,sans-serif;font-weight:700;font-size:19px;color:var(--heading);font-variant-numeric:tabular-nums;min-width:52px}
   .rec-status{color:var(--muted);font-size:13px}
+  .grabaciones{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+  .grabacion{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--card);
+    border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+  .gnum{font-family:Montserrat,sans-serif;font-weight:700;font-size:12.5px;color:var(--heading);
+    white-space:nowrap}
   audio{max-width:100%;width:280px;height:40px}
   .file-row{display:flex;align-items:center;gap:10px;margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 12px}
   .file-row .fname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13.5px}
@@ -235,7 +240,8 @@ if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html');
   // ================== Configuración ==================
   var BACKEND_URL = 'https://script.google.com/macros/s/AKfycbyZ1Y2kmaPRwsjV4g_6bh2DvgD1sO8HuYcEhU7m0O7iMhahBaoWgM333DiDdjfBrdDW/exec';
   var MAX_FILE_BYTES = 5*1024*1024;
-  var MAX_AUDIO_SEC  = 300;
+  var MAX_AUDIO_SEC  = 600;
+  var MAX_AUDIOS_Q   = 3;
   var MAX_TOTAL_B64  = 26*1024*1024;
 
   var $ = function(s){ return document.querySelector(s); };
@@ -372,7 +378,7 @@ if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html');
     state = {};
     if (SURVEY.anonima === false) root.appendChild(buildIdentidad());
     SURVEY.preguntas.forEach(function(q, idx){
-      state[q.id] = isClosed(q) ? {sel:[], otro:''} : {audio:null, text:'', file:null};
+      state[q.id] = isClosed(q) ? {sel:[], otro:''} : {audios:[], text:'', file:null};
       root.appendChild(buildCard(q, idx));
     });
     wireEvents();
@@ -493,14 +499,11 @@ if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html');
           '<span class="rec-dot hidden" id="dot-'+q.id+'" aria-hidden="true"></span>'+
           '<span class="rec-timer" id="timer-'+q.id+'">0:00</span>'+
         '</div>'+
-        '<div class="rec-row hidden" id="play-'+q.id+'" style="margin-top:10px">'+
-          '<audio controls id="audio-'+q.id+'"></audio>'+
-          '<button class="btn btn-ghost btn-sm btn-ico" data-act="redo" data-q="'+q.id+'" type="button">'+IC_REDO+'<span>Rehacer</span></button>'+
-        '</div>'+
+        '<div class="grabaciones hidden" id="play-'+q.id+'"></div>'+
         '<div class="rec-row hidden" id="prev-'+q.id+'" style="margin-top:10px">'+
           '<audio controls id="preview-'+q.id+'" style="max-width:100%"></audio>'+
         '</div>'+
-        '<p class="rec-status" id="status-'+q.id+'" style="margin:8px 0 0">Pulsa Grabar y habla; puedes pausar, escucharte y continuar.</p>'+
+        '<p class="rec-status" id="status-'+q.id+'" style="margin:8px 0 0">Pulsa Grabar y habla (hasta 10 minutos). Puedes pausar, escucharte y añadir más de un audio.</p>'+
       '</div>';
     }
     if (q.texto !== false){
@@ -692,23 +695,68 @@ if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html');
     if (!blob.size){ setStatus(qid, 'No se capturó audio. Intenta de nuevo.'); return; }
     var fr = new FileReader();
     fr.onload = function(){
-      state[qid].audio = {mime: blob.type, b64: String(fr.result).split(',')[1] || '', secs: r.secs};
-      var au = document.getElementById('audio-'+qid);
-      au.src = URL.createObjectURL(blob);
-      fijarDuracion(au);
-      document.getElementById('play-'+qid).classList.remove('hidden');
-      setStatus(qid, 'Audio listo ('+fmtSecs(r.secs)+'). Escúchalo aquí antes de enviar; si no te convence, pulsa Rehacer.');
+      state[qid].audios.push({ mime: blob.type, b64: String(fr.result).split(',')[1] || '',
+                               secs: r.secs, url: URL.createObjectURL(blob) });
+      pintarGrabaciones(qid);
+      var n = state[qid].audios.length;
+      setStatus(qid, n === 1
+        ? 'Audio listo (' + fmtSecs(r.secs) + '). Escúchalo antes de enviar; puedes rehacerlo o añadir otro.'
+        : 'Llevas ' + n + ' audios en esta pregunta. Se enviarán todos juntos.');
       refresh();
     };
     fr.readAsDataURL(blob);
   }
-  function redoRec(qid){
-    state[qid].audio = null;
-    document.getElementById('play-'+qid).classList.add('hidden');
+  /** Lista de grabaciones de una pregunta: cada una con su reproductor y su papelera. */
+  function pintarGrabaciones(qid){
+    var caja = document.getElementById('play-'+qid);
+    var lista = state[qid].audios || [];
+    caja.textContent = '';
+    if (!lista.length){ caja.classList.add('hidden'); return; }
+    caja.classList.remove('hidden');
+    lista.forEach(function(a, i){
+      var fila = document.createElement('div');
+      fila.className = 'grabacion';
+      var etiqueta = lista.length > 1 ? ('Parte ' + (i+1) + ' · ' + fmtSecs(a.secs)) : ('Tu audio · ' + fmtSecs(a.secs));
+      fila.innerHTML = '<span class="gnum">' + esc(etiqueta) + '</span>';
+      var au = document.createElement('audio');
+      au.controls = true; au.src = a.url;
+      fijarDuracion(au);
+      fila.appendChild(au);
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'btn btn-ghost btn-sm btn-ico';
+      del.innerHTML = IC_REDO + '<span>Rehacer</span>';
+      del.addEventListener('click', function(){ borrarGrabacion(qid, i); });
+      fila.appendChild(del);
+      caja.appendChild(fila);
+    });
+    if (lista.length < MAX_AUDIOS_Q){
+      var mas = document.createElement('button');
+      mas.type = 'button';
+      mas.className = 'btn btn-ghost btn-sm btn-ico';
+      mas.setAttribute('data-act','rec');
+      mas.setAttribute('data-q', qid);
+      mas.innerHTML = IC_MIC + '<span>Grabar otro audio</span>';
+      caja.appendChild(mas);
+    } else {
+      var tope = document.createElement('p');
+      tope.className = 'rec-status';
+      tope.style.margin = '4px 0 0';
+      tope.textContent = 'Llegaste al máximo de ' + MAX_AUDIOS_Q + ' audios en esta pregunta.';
+      caja.appendChild(tope);
+    }
+  }
+  function borrarGrabacion(qid, i){
+    var lista = state[qid].audios || [];
+    var a = lista[i];
+    if (a && a.url) URL.revokeObjectURL(a.url);
+    lista.splice(i, 1);
+    pintarGrabaciones(qid);
     document.getElementById('timer-'+qid).textContent = '0:00';
-    setStatus(qid, 'Audio descartado. Pulsa Grabar para intentarlo de nuevo.');
+    setStatus(qid, lista.length ? 'Audio descartado.' : 'Audio descartado. Pulsa Grabar para intentarlo de nuevo.');
     refresh();
   }
+  function redoRec(qid){ borrarGrabacion(qid, 0); }
   function resetRecButtons(qid){
     btn(qid,'rec').classList.remove('hidden');
     btn(qid,'pause').classList.add('hidden');
@@ -736,7 +784,7 @@ if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html');
     var s = state[q.id];
     if (!s) return false;
     if (s.sel) return s.sel.length > 0;
-    return !!(s.audio || s.text || s.file);
+    return !!((s.audios && s.audios.length) || s.text || s.file);
   }
   function refresh(){
     if (!SURVEY) return;
@@ -784,10 +832,11 @@ if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html');
         return;
       }
       answers[key+' (texto)'] = s.text || '';
-      if (s.audio){
-        var ext = (s.audio.mime||'').indexOf('mp4') >= 0 ? 'm4a' : 'webm';
-        attachments.push({q:idx+1, name:q.id+'-audio.'+ext, mime:s.audio.mime, b64:s.audio.b64});
-      }
+      (s.audios||[]).forEach(function(a, i){
+        var ext = (a.mime||'').indexOf('mp4') >= 0 ? 'm4a' : 'webm';
+        var sufijo = (s.audios.length > 1) ? ('-audio' + (i+1)) : '-audio';
+        attachments.push({q:idx+1, name:q.id+sufijo+'.'+ext, mime:a.mime, b64:a.b64});
+      });
       if (s.file) attachments.push({q:idx+1, name:s.file.name, mime:s.file.mime, b64:s.file.b64});
     });
     var totalB64 = attachments.reduce(function(sum,a){ return sum + (a.b64?a.b64.length:0); }, 0);
