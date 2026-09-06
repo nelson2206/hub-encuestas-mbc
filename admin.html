@@ -265,6 +265,44 @@
 
   <!-- BUILDER -->
   <div class="panel" id="tNew">
+    <div class="card" id="asistenteCard" style="border-color:var(--navy-100)">
+      <div class="row" style="align-items:flex-start">
+        <div class="grow">
+          <h2 style="font-size:17px;margin-bottom:4px">Asistente: describe tu encuesta y la armo</h2>
+          <p class="meta" style="margin:0">Cuéntame qué decisión necesitas tomar y a quién vas a preguntar. Propongo el cuestionario completo y lo cargo abajo para que lo revises y ajustes antes de guardar.</p>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:14px">
+        <div>
+          <label for="aiObjetivo">¿Qué decisión vas a tomar con los resultados?</label>
+          <textarea id="aiObjetivo" maxlength="600" placeholder="Ej. Priorizar dónde invertir para acortar el tiempo de puesta en producción de la fábrica de desarrollo."></textarea>
+        </div>
+        <div>
+          <label for="aiContexto">Contexto, temas a cubrir o preguntas que ya tienes (opcional)</label>
+          <textarea id="aiContexto" maxlength="1500" placeholder="Pega aquí lo que ya tengas: temas, hipótesis o un borrador de preguntas."></textarea>
+        </div>
+      </div>
+      <div class="grid2">
+        <div>
+          <label for="aiPublico">¿A quién va dirigida?</label>
+          <input type="text" id="aiPublico" maxlength="200" placeholder="Ej. desarrolladores, QA y líderes técnicos de la fábrica">
+        </div>
+        <div>
+          <label for="aiCantidad">¿Cuántas preguntas?</label>
+          <input type="number" id="aiCantidad" min="3" max="12" value="6">
+          <p class="meta" style="margin:6px 0 0">Entre 3 y 12. Seis suele ser el punto donde la gente responde completo.</p>
+        </div>
+      </div>
+      <div class="row" style="gap:18px;margin-top:12px">
+        <label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="aiAudio" checked style="width:auto;margin:0"> Permitir responder con voz</label>
+        <label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="aiAnonima" checked style="width:auto;margin:0"> Encuesta anónima</label>
+      </div>
+      <div class="row" style="margin-top:16px">
+        <button class="btn btn-accent" id="aiProponerBtn">Proponer encuesta</button>
+        <span class="meta">Revisas y editas todo antes de guardar. No se publica nada solo.</span>
+      </div>
+      <div class="msg" id="aiMsg"></div>
+    </div>
     <div class="card">
       <h2 style="font-size:17px" id="bTitle">Nueva encuesta</h2>
       <input type="hidden" id="bId">
@@ -553,6 +591,7 @@
       t.classList.toggle('hidden', soloOwner.indexOf(destino) >= 0 && !esOwner());
     });
     $('#sheetLink').classList.toggle('hidden', !esOwner());
+    var ac = $('#asistenteCard'); if (ac) ac.classList.toggle('hidden', !esOwner());
     var etiqueta = {owner:'Propietario', editor:'Editor', analista:'Analista'}[ADMIN.rol] || ADMIN.rol;
     var quien = ADMIN.nombre || ADMIN.usuario;
     $('#adminWho').textContent = (quien === etiqueta) ? (ADMIN.usuario + ' · ' + etiqueta) : (quien + ' · ' + etiqueta);
@@ -829,6 +868,37 @@
 
   // ---------- builder ----------
   var Q = [];
+
+  $('#aiProponerBtn').addEventListener('click', function(){
+    var brief = {
+      objetivo: $('#aiObjetivo').value.trim(),
+      publico: $('#aiPublico').value.trim(),
+      contexto: $('#aiContexto').value.trim(),
+      cantidad: Number($('#aiCantidad').value) || 6,
+      conAudio: $('#aiAudio').checked,
+      anonima: $('#aiAnonima').checked
+    };
+    if (!brief.objetivo){ msg('#aiMsg','warn','Cuéntame primero qué decisión alimenta esta encuesta: de ahí salen las preguntas.'); return; }
+    if (!brief.publico){ msg('#aiMsg','warn','Dime a quién va dirigida; no se pregunta igual a un gerente que a un desarrollador.'); return; }
+    var b = $('#aiProponerBtn');
+    b.disabled = true; b.textContent = 'Armando la encuesta…';
+    api({op:'sugerir_encuesta', brief:brief}).then(function(r){
+      b.disabled = false; b.textContent = 'Proponer encuesta';
+      if (!r.ok){
+        msg('#aiMsg','warn', r.error === 'sin_groq_key'
+          ? 'Falta la clave de Groq en ⚙️ Configuración para que el asistente funcione.'
+          : (r.error === 'json_invalido' ? 'La propuesta vino incompleta. Vuelve a intentarlo.' : explicaIA(r.error)));
+        return;
+      }
+      var e = r.encuesta;
+      fillBuilder({ titulo:e.titulo, intro:e.intro, gracias:e.gracias, anonima:e.anonima,
+                    preguntas:e.preguntas, estado:'activa' });
+      $('#bId').value = '';
+      $('#bTitle').textContent = 'Nueva encuesta (propuesta del asistente)';
+      msg('#aiMsg','ok','Listo: ' + e.preguntas.length + ' preguntas cargadas abajo. Revísalas, ajusta lo que quieras y asigna usuario y contraseña antes de guardar.');
+      $('#bTitulo').scrollIntoView({behavior:'smooth', block:'start'});
+    }).catch(function(){ b.disabled=false; b.textContent='Proponer encuesta'; msg('#aiMsg','warn','No se pudo conectar.'); });
+  });
 
   function qTemplate(){ return {id:'', titulo:'', detalle:'', guia:'', nota:'', tipo:'abierta', opciones:[], otro:false, max:'', audio:true, texto:true, archivo:true, imagen:'', condicion:null}; }
 
