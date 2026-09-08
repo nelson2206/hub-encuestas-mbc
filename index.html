@@ -8,20 +8,21 @@
 // No toca el flujo con ?u= (links ya repartidos a encuestados siguen funcionando igual).
 if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html'); }
 </script>
-<title>Encuestas MBC · Hub IA</title>
+<title>Encuestas MBC · Responde con tu voz</title>
 <meta name="description" content="Encuestas MBC: responde con tu voz, texto o archivos.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="MBC · Hub IA">
-<meta property="og:title" content="Encuestas MBC · Hub IA">
-<meta property="og:description" content="Encuesta MBC: responde con tu voz, texto o archivos. 5–10 minutos.">
+<meta property="og:title" content="Encuestas MBC · Responde con tu voz">
+<meta property="og:description" content="Responde con tu voz, texto o archivos. Anónima, entre 5 y 10 minutos.">
 <meta property="og:url" content="https://nelson2206.github.io/hub-encuestas-mbc/">
-<meta property="og:image" content="https://nelson2206.github.io/hub-encuestas-mbc/og-image.png">
+<meta property="og:image" content="https://nelson2206.github.io/hub-encuestas-mbc/og-image.png?v=3">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://nelson2206.github.io/hub-encuestas-mbc/og-image.png">
+<meta name="twitter:image" content="https://nelson2206.github.io/hub-encuestas-mbc/og-image.png?v=3">
 <link rel="icon" type="image/png" href="favicon.png">
-<link rel="apple-touch-icon" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#003478">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
 <style>
@@ -46,7 +47,11 @@ if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html');
   .hero{background:linear-gradient(150deg,#003478 0%,#00234F 70%,#001A3C 100%);color:#fff;padding:34px 22px 40px;position:relative;overflow:hidden}
   .hero::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.10) 1px,transparent 1.6px);background-size:26px 26px;pointer-events:none}
   .hero-inner{max-width:760px;margin:0 auto;position:relative;z-index:1}
-  .mbc-logo{height:24px;width:auto;display:block;margin-bottom:22px}
+  .lockup{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+  .lockup .mbc-logo{height:22px;width:auto;display:block;margin:0}
+  .lockup .sep{width:1px;height:26px;background:rgba(255,255,255,.28)}
+  .lockup .tool{font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;color:#fff;letter-spacing:.01em}
+  .marca{flex:none}
   .eyebrow{font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#9FC1F2;margin:0 0 10px}
   .hero h1{color:#fff;font-size:clamp(24px,5vw,34px);font-weight:800;line-height:1.15}
   .hero p{max-width:44em;font-size:15.5px;color:#D7E3F5;margin:12px 0 0}
@@ -170,11 +175,11 @@ if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html');
 
 <header class="hero">
   <div class="hero-inner">
-    <svg class="mbc-logo" viewBox="0 0 3860.17 856.07" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MBC">
+    <div class="lockup"><svg class="marca" viewBox="0 0 48 48" width="30" height="30" role="img" aria-label="Encuestas MBC"><rect x="8.55" y="16.80" width="4.1" height="14.40" rx="2.05" fill="#fff"/><rect x="15.25" y="10.80" width="4.1" height="26.40" rx="2.05" fill="#fff"/><rect x="21.95" y="4.80" width="4.1" height="38.40" rx="2.05" fill="#FF0054"/><rect x="28.65" y="12.00" width="4.1" height="24.00" rx="2.05" fill="#fff"/><rect x="35.35" y="15.85" width="4.1" height="16.30" rx="2.05" fill="#fff"/></svg><span class="sep"></span><svg class="mbc-logo" viewBox="0 0 3860.17 856.07" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MBC">
       <path fill="#FFFFFF" d="M418.06 0 626.07 488.07 701.67 492.29 910.14 0 1328.21 0 1328.21 856.07 1100.17 856.07 1100.17 192.01 1048.6 192.48 830.28 684.35 496.03 682.1 280.46 194.49 228.04 192.01 228.04 856.07 0 856.07 0 0 418.06 0Z"/>
       <path fill="#FFFFFF" d="M3139.84 201 3860.17 201 3860.17 0 3148.64 0C3148.13 0 3147.62 0.01 3147.11 0.02 2906.1 1.66 2724.88 176.94 2724.88 428.03 2724.88 679.12 2905.48 852.72 3144.73 856.01 3145.07 856.01 3145.42 856.02 3145.76 856.03 3145.9 856.03 3146.05 856.03 3146.19 856.03 3147 856.04 3147.81 856.06 3148.63 856.06L3860.16 856.06 3860.16 655.06 3141.03 655.06C3033.15 651.52 2947.27 567.26 2947.27 428.02 2947.27 288.78 3029.79 204.6 3139.84 200.98Z"/>
       <path fill="#FFFFFF" d="M1485.95 0 2304.74 0C2482.07 0 2588.46 94.17 2588.46 231.14 2588.46 311.86 2550.55 384.01 2463.72 407.24L2463.72 426.81C2560.33 441.49 2614.14 508.75 2614.14 618.81 2614.14 765.56 2516.3 856.06 2334.08 856.06L1485.94 856.06 1485.94 0ZM2292.51 335.09C2345.1 335.09 2373.23 305.74 2373.23 259.27 2373.23 212.8 2345.1 183.45 2292.51 183.45L1706.08 183.45 1706.08 335.1 2292.51 335.1ZM2299.84 672.62C2357.32 672.62 2386.67 646.94 2386.67 595.57 2386.67 544.2 2357.32 518.52 2299.84 518.52L1706.08 518.52 1706.08 672.61 2299.84 672.61Z"/>
-    </svg>
+    </svg><span class="tool">Encuestas</span></div>
     <p class="eyebrow" id="heroEyebrow">Hub IA · Encuestas MBC</p>
     <h1 id="heroTitle">Encuestas MBC</h1>
     <p id="heroIntro">Ingresa con las credenciales que te compartió el equipo MBC para abrir tu encuesta. Podrás responder <strong>con tu voz</strong>, texto o archivos.</p>
