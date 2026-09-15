@@ -163,6 +163,13 @@
   .opcion-txt{color:var(--muted);font-size:14px;line-height:1.5}
   .opcion-pie{margin-top:4px;font-size:12.5px;color:var(--navy);font-weight:600}
   @media (prefers-reduced-motion:reduce){ .opcion{transition:none} }
+  .demo-cta{margin-top:22px;padding-top:18px;border-top:1px solid rgba(0,52,120,.12);display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+  .demo-banner{background:var(--accent);color:#fff;position:sticky;top:60px;z-index:25}
+  .demo-banner-inner{max-width:1080px;margin:0 auto;padding:9px 20px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:13.5px}
+  .demo-banner-inner .grow{flex:1;min-width:220px}
+  .demo-link{color:#fff;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+  .demo-salir{background:#fff;color:var(--accent)}
+  .demo-salir:hover{background:#FFE7EF}
   .empty{text-align:center;padding:48px 20px;color:var(--muted)}
   .empty svg{color:var(--field-line);margin-bottom:12px}
   .skel{background:linear-gradient(90deg,var(--surface),var(--line-soft),var(--surface));
@@ -247,6 +254,14 @@
   </div>
 </div>
 
+<div id="demoBanner" class="demo-banner hidden">
+  <div class="demo-banner-inner">
+    <span class="grow"><strong>Estás viendo una demo.</strong> Los datos son ficticios y nada de lo que hagas se guarda.</span>
+    <a class="demo-link" href="index.html?demo=1" target="_blank" rel="noopener">Ver cómo lo ve quien responde</a>
+    <button class="btn btn-xs demo-salir" id="demoSalir" type="button">Salir de la demo</button>
+  </div>
+</div>
+
 <!-- LOGIN ADMIN -->
 <div id="loginView">
   <div class="login-card">
@@ -259,6 +274,10 @@
     <div style="margin-top:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn" id="aLoginBtn">Entrar</button>
       <span class="msg warn" id="aLoginMsg" style="margin:0;padding:8px 12px"></span>
+    </div>
+    <div class="demo-cta">
+      <span class="meta">¿Quieres ver cómo funciona antes de entrar?</span>
+      <button class="btn btn-ghost btn-xs" id="demoBtn" type="button">Ver demo con datos de ejemplo</button>
     </div>
   </div>
 </div>
@@ -578,10 +597,12 @@
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   var ADMIN = {token:'', usuario:'', nombre:'', rol:'', alcance:''};
   var VIENE_DE_EDITAR = false;
+  var DEMO_MODE = false;
   function post(payload){
     return fetch(BACKEND_URL, {method:'POST', body: JSON.stringify(payload)}).then(function(r){ return r.json(); });
   }
   function api(payload){
+    if (DEMO_MODE) return demoApi(payload);
     payload.action = 'admin';
     payload.token = ADMIN.token;
     return post(payload).then(function(r){
@@ -589,6 +610,132 @@
       return r;
     });
   }
+  // ======================= Demo con datos ficticios =======================
+  // Intercepta las llamadas al servidor: la consola real se pinta con un caso inventado.
+  function demoFecha(atras, hh, mm){ var d = new Date(); d.setDate(d.getDate()-atras); d.setHours(hh, mm, 12, 0); return d; }
+  function z2(n){ return (n<10?'0':'')+n; }
+  function demoTxt(d){ return d.getFullYear()+'-'+z2(d.getMonth()+1)+'-'+z2(d.getDate())+' '+z2(d.getHours())+':'+z2(d.getMinutes())+':'+z2(d.getSeconds()); }
+  var DEMO_ID = 'demo-cierre';
+  var DEMO_TIT = 'Cierre mensual · ¿Dónde se nos va el tiempo?';
+  var DEMO_HEADERS = ['Marca temporal',
+    'P1 · ¿En qué parte del cierre participas? (selección)',
+    'P2 · ¿Qué tarea del cierre te consume más tiempo y cuántas horas le dedicas? (texto)',
+    'P3 · ¿Dónde se atasca el cierre? (texto)',
+    'P4 · Si pudieras automatizar una sola cosa del cierre, ¿cuál sería? (texto)',
+    'Adjuntos (enlaces Drive)','Transcripciones','Transcripción P2','Transcripción P3','Transcripción P4'];
+  // [días atrás, hora, minuto, rol, P2 texto, P3 texto, P4 texto, adjuntos, estado, tr P2, tr P3, tr P4]
+  var DEMO_FILAS = [
+    [4,9,12,'Contabilidad general','Conciliar las cuentas bancarias con el mayor. Unas 12 horas cada cierre porque bajo los extractos de 4 bancos a mano.','','Que la conciliación bancaria se arme sola y yo solo revise las partidas que no cuadran.','P3: nota de voz (0:58)','P3 ok','','Se atasca cuando tesorería no nos pasa las transferencias del último día. Esperamos hasta el tercer día hábil.',''],
+    [4,11,40,'Cuentas por pagar','','Proveedores que mandan la factura después del corte y hay que provisionar a ojo.','','P2: nota de voz (1:42)\nP4: nota de voz (0:37)','P2 ok - P4 ok','Lo que más tiempo me lleva es registrar las facturas que llegan en PDF por correo. Las paso una por una al sistema, fácil ocho horas a la semana.','','Que lea las facturas del correo y me deje el asiento listo para aprobar.'],
+    [3,10,5,'Tesorería','Armar el flujo de caja proyectado: cruzo tres Excel distintos. Unas 6 horas.','','Una plantilla única que se consolide sola.','P3: nota de voz (1:15)','P3 ok','','Nos frena que cada área manda sus proyecciones en un formato distinto y hay que homologarlas antes de sumar.',''],
+    [3,15,22,'Jefatura o supervisión','','','Alertas automáticas de variaciones raras antes de que yo revise.','P2: nota de voz (2:05)\nP3: nota de voz (1:31)','P2 ok - P3 ok','Revisar los reportes antes de enviarlos a gerencia, porque siempre aparecen diferencias de último minuto. Se me van dos días del cierre.','El cuello está en las aprobaciones: todo pasa por mí y si viajo se detiene.',''],
+    [3,17,48,'Contabilidad general','Provisiones y devengos: calcular cada uno en Excel, unas 10 horas.','Cuando cambia el tipo de cambio hay que recalcular todo.','','P4: nota de voz (0:49)','P4 ok','','','Que las provisiones recurrentes se calculen solas con la regla de siempre.'],
+    [2,9,30,'Cuentas por pagar','Buscar las órdenes de compra para cruzarlas con las facturas, unas 5 horas.','','Cruce automático de la factura contra la orden de compra.','P3: nota de voz (1:08)','P3 ok','','Nos atascamos porque compras no cierra las órdenes a tiempo y no puedo registrar.',''],
+    [1,12,14,'Tesorería','','Esperar confirmaciones de los bancos por operaciones del cierre.','','P2: nota de voz (1:50)\nP4: nota de voz (0:44)','P2 ok - P4 ok','Conciliación de las cuentas corrientes: bajar extractos y marcar partida por partida, más de diez horas.','','Que descargue los extractos y concilie lo obvio sin que yo intervenga.'],
+    [0,10,3,'Jefatura o supervisión','Consolidar el reporte para gerencia, un día completo.','Datos que llegan tarde de las otras áreas.','','P4: nota de voz (0:52)','P4 ok','','','Un tablero que se actualice solo al cerrar.']
+  ];
+  function demoRows(){
+    return DEMO_FILAS.map(function(f){
+      return [demoTxt(demoFecha(f[0],f[1],f[2])), f[3], f[4], f[5], f[6], f[7], f[8], f[9], f[10], f[11]];
+    });
+  }
+  function demoStats(){
+    var porDia = {}, ultimo = null;
+    DEMO_FILAS.forEach(function(f){
+      var d = demoFecha(f[0],f[1],f[2]);
+      var k = d.getFullYear()+'-'+z2(d.getMonth()+1)+'-'+z2(d.getDate());
+      porDia[k] = (porDia[k]||0) + 1;
+      if (!ultimo || d > ultimo) ultimo = d;
+    });
+    return {id:DEMO_ID, titulo:DEMO_TIT, total:DEMO_FILAS.length, cupo:'30', estado:'activa', porDia:porDia, ultimo:ultimo.toISOString()};
+  }
+  function demoEncuesta(){
+    return {id:DEMO_ID, titulo:DEMO_TIT, usuario:'demo_cierre', password:'demo2026', estado:'activa', fecha_cierre:'', cupo:'30',
+      gracias:'Gracias. Lo que nos cuentes se analiza junto con el resto de respuestas.', color:'', logo:'', webhook:'', anonima:true,
+      intro:'Queremos entender qué hace más lento el cierre contable. Toma unos 10 minutos y puedes responder hablando.',
+      preguntas:[
+        {id:'P1', titulo:'¿En qué parte del cierre participas?', detalle:'', guia:'Elige la opción más cercana.', nota:'', tipo:'cerrada_unica', opciones:['Contabilidad general','Cuentas por pagar','Tesorería','Jefatura o supervisión'], otro:false, max:'', audio:false, texto:false, archivo:false, imagen:'', condicion:null},
+        {id:'P2', titulo:'¿Qué tarea del cierre te consume más tiempo y cuántas horas le dedicas?', detalle:'Piensa en lo que repites en cada cierre.', guia:'Ejemplo: conciliar bancos, registrar facturas, preparar reportes.', nota:'', tipo:'abierta', opciones:[], otro:false, max:'', audio:true, texto:true, archivo:true, imagen:'', condicion:null},
+        {id:'P3', titulo:'¿Dónde se atasca el cierre? Cuéntanos una situación concreta del último mes.', detalle:'Qué esperabas, de quién y cuánto tardó.', guia:'', nota:'', tipo:'abierta', opciones:[], otro:false, max:'', audio:true, texto:true, archivo:true, imagen:'', condicion:null},
+        {id:'P4', titulo:'Si pudieras automatizar una sola cosa del cierre, ¿cuál sería?', detalle:'', guia:'Y cómo sabrías que se hizo bien.', nota:'', tipo:'abierta', opciones:[], otro:false, max:'', audio:true, texto:true, archivo:true, imagen:'', condicion:null}
+      ]};
+  }
+  var DEMO_INFORME = {
+    resumen:'Las 8 respuestas coinciden en que el cierre no se demora por una tarea difícil, sino por mucho trabajo manual repetitivo y por esperar información de otras áreas: 5 de las 8 personas lo mencionan. Lo que más horas consume es la conciliación bancaria y el registro de facturas, ambas con reglas claras y candidatas directas a automatizar.',
+    temas:[
+      {tema:'Esperas por información de otras áreas', menciones:5, detalle:'Tesorería, compras, los bancos y el resto de áreas entregan tarde o en formatos distintos, y el cierre se detiene hasta que llega.', citas:['Esperamos hasta el tercer día hábil.','Compras no cierra las órdenes a tiempo y no puedo registrar.']},
+      {tema:'Conciliación bancaria manual', menciones:2, detalle:'Se descargan extractos a mano y se marca partida por partida; ambas personas reportan más de 10 horas por cierre.', citas:['Bajo los extractos de 4 bancos a mano.','Que concilie lo obvio sin que yo intervenga.']},
+      {tema:'Registro de facturas y cruce con órdenes de compra', menciones:2, detalle:'Las facturas que llegan en PDF por correo se digitan una por una y se cruzan a mano contra la orden de compra.', citas:['Las paso una por una al sistema, fácil ocho horas a la semana.']},
+      {tema:'Revisión y aprobación concentradas en jefatura', menciones:2, detalle:'La revisión final y las aprobaciones dependen de una sola persona, y el cierre se frena si no está disponible.', citas:['Todo pasa por mí y si viajo se detiene.']}
+    ],
+    porPregunta:[
+      {pregunta:'¿Qué tarea consume más tiempo?', hallazgos:'La conciliación bancaria y el registro de facturas encabezan las horas: entre 8 y más de 10 horas por persona en cada cierre.'},
+      {pregunta:'¿Dónde se atasca el cierre?', hallazgos:'El atasco dominante es esperar información de otras áreas o de los bancos (5 de 8 respuestas).'},
+      {pregunta:'¿Qué automatizarías?', hallazgos:'Lo que se pide tiene reglas claras: conciliar lo evidente, leer facturas y proponer el asiento, y alertar variaciones antes de la revisión.'}
+    ],
+    recomendaciones:[
+      'Piloto de conciliación bancaria automática: carga de extractos y cruce de las partidas evidentes, dejando a la persona solo las diferencias.',
+      'Lectura de facturas en PDF que proponga el asiento para aprobación, empezando por los proveedores de mayor volumen.',
+      'Acordar con tesorería y compras una fecha de corte y un formato único de entrega de información.',
+      'Alertas de variaciones inusuales antes de la revisión de jefatura, para repartir la carga de aprobación.'
+    ]
+  };
+  function demoChat(q){
+    var t = String(q||'').toLowerCase();
+    if (/tiempo|hora|demora|consume/.test(t)) return 'Lo que más horas consume es la conciliación bancaria: dos personas reportan más de 10 horas por cierre (respuestas #1 y #7). Le sigue el registro manual de facturas en PDF, con unas 8 horas a la semana (respuesta #2).';
+    if (/atasc|esper|cuello|frena|deten/.test(t)) return 'El atasco más repetido es esperar información de otras áreas: aparece en 5 de las 8 respuestas (#1, #3, #6, #7 y #8), sobre todo de tesorería, compras y los bancos.';
+    if (/automat|agente|primero|priori/.test(t)) return 'Los candidatos más claros son la conciliación bancaria y la lectura de facturas en PDF: son tareas repetitivas, con reglas claras y cuyos datos ya existen en extractos y correos (respuestas #1, #2 y #7).';
+    return 'En esta demo el chat responde con ejemplos. Prueba con: ¿qué consume más tiempo?, ¿dónde se atasca el cierre? o ¿qué conviene automatizar primero? En una encuesta real responde solo con lo que dijeron las personas.';
+  }
+  function demoSugerida(b){
+    b = b || {};
+    var n = Math.max(3, Math.min(12, Number(b.cantidad) || 6));
+    var pool = [
+      ['¿Qué tarea de tu día a día te consume más tiempo y cuántas horas le dedicas a la semana?','Piensa en lo que repites cada semana.'],
+      ['Cuéntanos una situación reciente en la que el trabajo se detuvo esperando algo de otra área.','Qué esperabas, de quién y cuánto tardó.'],
+      ['¿Con qué archivos, sistemas o plantillas trabajas y en qué formato te llega la información?','Si puedes, adjunta una plantilla sin datos reales.'],
+      ['¿Qué parte de tu trabajo repites casi igual cada vez?','Las tareas con reglas claras son las más fáciles de automatizar.'],
+      ['Cuando algo sale mal en tu proceso, ¿qué pasa y cuánto cuesta corregirlo?','Reprocesos, horas extra o reclamos.'],
+      ['Si tuvieras un asistente que hiciera una sola cosa por ti, ¿cuál sería y cómo sabrías que lo hizo bien?','El criterio para confiar en el resultado.'],
+      ['¿Qué información te falta hoy para decidir más rápido?','Datos que buscas a mano o que llegan tarde.'],
+      ['¿Qué has intentado ya para mejorar esa tarea y qué no funcionó?','Macros, plantillas, herramientas o acuerdos.'],
+      ['¿Qué te preocuparía de automatizar parte de tu trabajo?','Control, errores o pérdida de visibilidad.'],
+      ['¿Qué indicador usarías para saber que la mejora funcionó?','Horas, errores o plazos.'],
+      ['¿A quién más deberíamos escuchar para entender este proceso?','Áreas o roles con los que coordinas.']
+    ];
+    var preg = [{id:'P1', titulo:'¿Cuál es tu rol principal?', detalle:'', guia:'Elige la opción más cercana.', nota:'', tipo:'cerrada_unica', opciones:['Analista','Especialista','Supervisión','Jefatura'], otro:false, max:'', audio:false, texto:false, archivo:false, imagen:'', condicion:null}];
+    for (var i = 0; preg.length < n && i < pool.length; i++){
+      preg.push({id:'P'+(preg.length+1), titulo:pool[i][0], detalle:'', guia:pool[i][1], nota:'', tipo:'abierta', opciones:[], otro:false, max:'', audio: b.conAudio !== false, texto:true, archivo:true, imagen:'', condicion:null});
+    }
+    return { titulo: 'Diagnóstico: ' + (b.objetivo ? String(b.objetivo).slice(0,60) : 'dónde se nos va el tiempo'),
+      intro: 'Queremos entender, con tus propias palabras, qué hace más lento el trabajo de ' + (b.publico || 'tu equipo') + '. Toma unos 10 minutos y puedes responder hablando.',
+      gracias: 'Gracias. Lo que nos cuentes se analiza junto con el resto de respuestas.', anonima: b.anonima !== false, preguntas: preg };
+  }
+  function demoApi(p){
+    var op = p.op, res;
+    var ejemplo = location.href.replace(/admin\.html.*$/, 'index.html?demo=1');
+    var soloLectura = ['save','toggle','respuesta_delete','usuarios_save','usuarios_delete','set_key','set_groq','set_admin','shorten','upload_image','publicar_adjuntos','export_xlsx'];
+    if (soloLectura.indexOf(op) >= 0) res = {ok:false, error:'deshabilitado en la demo'};
+    else if (op === 'ping') res = {ok:true, gemini:true, groq:true, rol:'owner', alcance:'*', usuario:'demo', nombre:'Demo'};
+    else if (op === 'list') res = {ok:true, sheetUrl:'#', gemini:true, groq:true, rol:'owner', alcance:'*', encuestas:[
+      {id:DEMO_ID, titulo:DEMO_TIT, usuario:'demo_cierre', password:'demo2026', estado:'activa', fecha_cierre:'', cupo:'30', shortlink:'',
+       respuestas:DEMO_FILAS.length, abierta:true, num_preguntas:4, respuestasUrl:'', link: ejemplo}]};
+    else if (op === 'stats') res = {ok:true, stats:[demoStats()]};
+    else if (op === 'get') res = {ok:true, encuesta: demoEncuesta()};
+    else if (op === 'export') res = {ok:true, titulo:DEMO_TIT, headers:DEMO_HEADERS, rows:demoRows()};
+    else if (op === 'transcribir') res = {ok:true, procesadas:DEMO_FILAS.length, pendientes:0};
+    else if (op === 'analizar') res = {ok:true, informe:DEMO_INFORME};
+    else if (op === 'chat') res = {ok:true, respuesta:demoChat(p.pregunta)};
+    else if (op === 'usuarios_list') res = {ok:true, encuestas:[{id:DEMO_ID, titulo:DEMO_TIT}], usuarios:[
+      {usuario:'jefatura.finanzas', nombre:'Jefatura de Finanzas', correo:'', rol:'owner', alcance:'*', estado:'activo', ultimo_acceso: demoTxt(demoFecha(0,9,40)).slice(0,16)},
+      {usuario:'equipo.tesoreria', nombre:'Equipo de Tesorería', correo:'', rol:'editor', alcance:DEMO_ID, estado:'activo', ultimo_acceso: demoTxt(demoFecha(1,16,5)).slice(0,16)},
+      {usuario:'analista.contable', nombre:'Analista contable', correo:'', rol:'analista', alcance:DEMO_ID, estado:'activo', ultimo_acceso:''}]};
+    else if (op === 'sugerir_encuesta') res = {ok:true, encuesta:demoSugerida(p.brief)};
+    else res = {ok:false, error:'deshabilitado en la demo'};
+    var espera = (op === 'analizar' || op === 'sugerir_encuesta' || op === 'chat') ? 1400 : 300;
+    return new Promise(function(ok){ setTimeout(function(){ ok(res); }, espera); });
+  }
+
   function esOwner(){ return ADMIN.rol === 'owner'; }
   function puedeEditar(){ return ADMIN.rol === 'owner' || ADMIN.rol === 'editor'; }
   function msg(id, kind, text){ var m=$(id); m.className='msg show '+kind; m.textContent=text; if(kind==='ok') setTimeout(function(){ m.className='msg'; }, 5000); }
@@ -612,6 +759,8 @@
   $('#aPass').addEventListener('keydown', function(e){ if(e.key==='Enter') aLogin(); });
 
   function cerrarSesion(aviso){
+    DEMO_MODE = false;
+    $('#demoBanner').classList.add('hidden');
     ADMIN = {token:'', usuario:'', nombre:'', rol:'', alcance:''};
     try{ sessionStorage.removeItem('hub-admin'); }catch(e){}
     $('#consoleView').classList.add('hidden');
@@ -619,6 +768,14 @@
     if (aviso){ var m=$('#aLoginMsg'); m.classList.add('show'); m.textContent=aviso; }
   }
   $('#salirBtn').addEventListener('click', function(){ cerrarSesion(''); });
+  $('#demoBtn').addEventListener('click', function(){
+    DEMO_MODE = true;
+    ADMIN = {token:'demo', usuario:'demo', nombre:'Demo', rol:'owner', alcance:'*'};
+    $('#demoBanner').classList.remove('hidden');
+    showConsole();
+    $('#sheetLink').classList.add('hidden');
+  });
+  $('#demoSalir').addEventListener('click', function(){ cerrarSesion(''); });
 
   try{
     var saved = JSON.parse(sessionStorage.getItem('hub-admin')||'null');

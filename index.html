@@ -6,7 +6,7 @@
 <script>
 // Sin ?u= ni ?preview=, esta URL no identifica una encuesta: manda a la consola de administración.
 // No toca el flujo con ?u= (links ya repartidos a encuestados siguen funcionando igual).
-if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html'); }
+if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.html'); }
 </script>
 <title>Encuestas MBC · Responde con tu voz</title>
 <meta name="description" content="Encuestas MBC: responde con tu voz, texto o archivos.">
@@ -200,7 +200,8 @@ if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html');
       <button class="btn" id="loginBtn">Entrar</button>
       <span class="msg warn" id="loginMsg" style="margin:0;padding:9px 13px"></span>
     </div>
-    <p style="margin:18px 0 0;font-size:13px;color:var(--muted)">¿Administras las encuestas? <a href="admin.html" style="color:var(--accent)">Consola de administración</a></p>
+    <p style="margin:18px 0 0;font-size:13.5px;color:var(--muted)">¿Primera vez? <a href="index.html?demo=1" style="color:var(--accent);font-weight:700">Mira una encuesta de ejemplo</a> y prueba cómo se responde.</p>
+    <p style="margin:8px 0 0;font-size:13px;color:var(--muted)">¿Administras las encuestas? <a href="admin.html" style="color:var(--accent)">Consola de administración</a></p>
   </div>
 </section>
 
@@ -269,6 +270,20 @@ if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html');
   var SURVEY = null;
   var state = {};
 
+  // Encuesta de ejemplo: se abre sin credenciales, se puede recorrer y grabar, pero no se envía.
+  var ENCUESTA_DEMO = {
+    id:'demo', anonima:true, color:'', logo:'', restantes:null,
+    titulo:'Cierre mensual · ¿Dónde se nos va el tiempo?',
+    intro:'Esta es una encuesta de ejemplo para que veas cómo se responde. Puedes grabar tu voz, escribir o adjuntar un archivo en cada pregunta. Nada de lo que hagas aquí se envía.',
+    gracias:'Así termina una encuesta real. En esta demo no se guardó nada.',
+    preguntas:[
+      {id:'P1', titulo:'¿En qué parte del cierre participas?', detalle:'', guia:'Elige la opción más cercana.', nota:'', tipo:'cerrada_unica', opciones:['Contabilidad general','Cuentas por pagar','Tesorería','Jefatura o supervisión'], otro:false, max:'', audio:false, texto:false, archivo:false, imagen:'', condicion:null},
+      {id:'P2', titulo:'¿Qué tarea del cierre te consume más tiempo y cuántas horas le dedicas?', detalle:'Piensa en lo que repites en cada cierre.', guia:'Ejemplo: conciliar bancos, registrar facturas, preparar reportes.', nota:'', tipo:'abierta', opciones:[], otro:false, max:'', audio:true, texto:true, archivo:true, imagen:'', condicion:null},
+      {id:'P3', titulo:'¿Dónde se atasca el cierre? Cuéntanos una situación concreta del último mes.', detalle:'Qué esperabas, de quién y cuánto tardó.', guia:'Hablar suele ser más rápido que escribir: prueba el botón Grabar.', nota:'', tipo:'abierta', opciones:[], otro:false, max:'', audio:true, texto:true, archivo:true, imagen:'', condicion:null},
+      {id:'P4', titulo:'Si pudieras automatizar una sola cosa del cierre, ¿cuál sería?', detalle:'', guia:'Y cómo sabrías que se hizo bien.', nota:'', tipo:'abierta', opciones:[], otro:false, max:'', audio:true, texto:true, archivo:true, imagen:'', condicion:null}
+    ]
+  };
+
   var params = new URLSearchParams(location.search);
   if (params.get('u')) $('#loginUser').value = params.get('u');
 
@@ -284,6 +299,14 @@ if (!/[?&](u|preview)=/.test(location.search)) { location.replace('admin.html');
         startSurvey();
       }, 0);
     }
+  }
+  if (params.get('demo')){
+    setTimeout(function(){
+      SURVEY = ENCUESTA_DEMO;
+      PREVIEW = true;
+      CRED = {user:'(ejemplo)', pass:''};
+      startSurvey();
+    }, 0);
   }
 
   function loginMsg(t){ var m=$('#loginMsg'); m.classList.toggle('show', !!t); m.textContent = t||''; }
