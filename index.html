@@ -147,6 +147,24 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
 
   /* ===== Pulido v2 (design engineering) ===== */
   :root{ --ease:cubic-bezier(.23,1,.32,1) }
+  .demo-o{display:flex;align-items:center;gap:12px;margin:22px 0 14px;color:var(--muted);font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+  .demo-o::before,.demo-o::after{content:"";flex:1;height:1px;background:currentColor;opacity:.25}
+  .demo-hero{appearance:none;cursor:pointer;width:100%;display:flex;align-items:center;gap:14px;text-align:left;text-decoration:none;
+    padding:16px 18px;border-radius:14px;border:1.5px solid var(--accent);background:var(--accent-soft);color:inherit;font:inherit;
+    transition:transform 160ms cubic-bezier(.23,1,.32,1), box-shadow 200ms ease}
+  .demo-hero:hover{box-shadow:0 8px 24px -10px rgba(255,0,84,.55)}
+  .demo-hero:active{transform:scale(.98)}
+  .demo-hero:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+  .demo-play{flex:none;position:relative;width:46px;height:46px;border-radius:50%;background:var(--accent);display:grid;place-content:center}
+  .demo-play svg{width:18px;height:18px;margin-left:3px;fill:#fff}
+  .demo-play::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:2px solid var(--accent);opacity:0;animation:demoPulso 2.4s cubic-bezier(.23,1,.32,1) infinite}
+  @keyframes demoPulso{0%{transform:scale(.85);opacity:.7}70%,100%{transform:scale(1.25);opacity:0}}
+  @media (prefers-reduced-motion: reduce){.demo-play::after{animation:none}}
+  .demo-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+  .demo-txt strong{font-family:Montserrat,sans-serif;font-size:16px;font-weight:800;color:var(--accent)}
+  .demo-txt span{font-size:13px;line-height:1.4;opacity:.85}
+  .demo-flecha{flex:none;font-size:20px;color:var(--accent);transition:transform 160ms cubic-bezier(.23,1,.32,1)}
+  .demo-hero:hover .demo-flecha{transform:translateX(3px)}
   .btn{transition:transform 140ms var(--ease), filter 140ms ease; padding:13px 26px; font-size:15px}
   .btn:active{transform:scale(.97)}
   .btn-sm{padding:10px 18px;font-size:14px}
@@ -200,8 +218,13 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
       <button class="btn" id="loginBtn">Entrar</button>
       <span class="msg warn" id="loginMsg" style="margin:0;padding:9px 13px"></span>
     </div>
-    <p style="margin:18px 0 0;font-size:13.5px;color:var(--muted)">¿Primera vez? <a href="index.html?demo=1" style="color:var(--accent);font-weight:700">Mira una encuesta de ejemplo</a> y prueba cómo se responde.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:var(--muted)">¿Administras las encuestas? <a href="admin.html" style="color:var(--accent)">Consola de administración</a></p>
+    <div class="demo-o">o</div>
+    <a class="demo-hero" href="index.html?demo=1">
+      <span class="demo-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg></span>
+      <span class="demo-txt"><strong>Probar una encuesta de ejemplo</strong><span>Mira cómo se responde: graba tu voz, escribe o adjunta. Nada se envía.</span></span>
+      <span class="demo-flecha" aria-hidden="true">&rarr;</span>
+    </a>
+    <p style="margin:18px 0 0;font-size:13px;color:var(--muted)">¿Administras las encuestas? <a href="admin.html" style="color:var(--accent)">Consola de administración</a></p>
   </div>
 </section>
 
