@@ -50,6 +50,7 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
   .lockup{display:flex;align-items:center;gap:12px;margin-bottom:22px}
   .lockup .mbc-logo{height:22px;width:auto;display:block;margin:0}
   .lockup .sep{width:1px;height:26px;background:rgba(255,255,255,.28)}
+  .lockup .cliente-logo{height:24px;width:auto;display:block;background:#fff;border-radius:7px;padding:5px 10px;box-sizing:content-box}
   .lockup .tool{font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;color:#fff;letter-spacing:.01em}
   .marca{flex:none}
   .eyebrow{font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#9FC1F2;margin:0 0 10px}
@@ -401,14 +402,18 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
     if (SURVEY.color && /^#[0-9a-fA-F]{6}$/.test(SURVEY.color)){
       document.documentElement.style.setProperty('--accent', SURVEY.color);
     }
+    // El logo del cliente acompana a la marca MBC, no la reemplaza.
     if (SURVEY.logo){
-      var heroLogo = document.querySelector('.hero .mbc-logo');
-      if (heroLogo){
+      var lockup = document.querySelector('.hero .lockup');
+      if (lockup){
+        var sep = document.createElement('span');
+        sep.className = 'sep';
         var img = document.createElement('img');
+        img.className = 'cliente-logo';
         img.src = SURVEY.logo;
-        img.alt = 'Logo';
-        img.style.cssText = 'height:34px;width:auto;display:block;margin-bottom:22px';
-        heroLogo.replaceWith(img);
+        img.alt = 'Logo del cliente';
+        lockup.appendChild(sep);
+        lockup.appendChild(img);
       }
     }
     if (SURVEY.restantes !== null && SURVEY.restantes !== undefined){
