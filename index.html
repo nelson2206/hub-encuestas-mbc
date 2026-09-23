@@ -50,7 +50,7 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
   .lockup{display:flex;align-items:center;gap:12px;margin-bottom:22px}
   .lockup .mbc-logo{height:22px;width:auto;display:block;margin:0}
   .lockup .sep{width:1px;height:26px;background:rgba(255,255,255,.28)}
-  .lockup .cliente-logo{height:24px;width:auto;display:block;background:#fff;border-radius:7px;padding:5px 10px;box-sizing:content-box}
+  .lockup .cliente-logo{height:40px;width:auto;display:block;background:#fff;border-radius:9px;padding:7px 13px;box-sizing:content-box}
   .lockup .tool{font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;color:#fff;letter-spacing:.01em}
   .marca{flex:none}
   .eyebrow{font-family:Montserrat,sans-serif;font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#9FC1F2;margin:0 0 10px}
@@ -270,6 +270,7 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
   // ================== Configuración ==================
   var BACKEND_URL = 'https://script.google.com/macros/s/AKfycbyZ1Y2kmaPRwsjV4g_6bh2DvgD1sO8HuYcEhU7m0O7iMhahBaoWgM333DiDdjfBrdDW/exec';
   var MAX_FILE_BYTES = 5*1024*1024;
+  var MAX_FILES_Q = 5;   // documentos por pregunta
   var MAX_AUDIO_SEC  = 600;
   var MAX_AUDIOS_Q   = 3;
   var MAX_TOTAL_B64  = 26*1024*1024;
@@ -389,9 +390,7 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
       '<h2 class="qtitle">Antes de empezar, ¿quién eres?</h2>' +
       '<p class="qdetail">Esta encuesta no es anónima: tu nombre queda registrado junto con tus respuestas.</p>' +
       '<label class="qguide" for="idNombre">Nombre y apellido</label>' +
-      '<input type="text" id="idNombre" autocomplete="name" placeholder="Ej. Ana Ruiz">' +
-      '<label class="qguide" for="idCorreo" style="margin-top:12px">Correo (opcional)</label>' +
-      '<input type="email" id="idCorreo" autocomplete="email" placeholder="ana@empresa.com">';
+      '<input type="text" id="idNombre" autocomplete="name" placeholder="Ej. Ana Ruiz">';
     return card;
   }
 
@@ -434,7 +433,7 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
     state = {};
     if (SURVEY.anonima === false) root.appendChild(buildIdentidad());
     SURVEY.preguntas.forEach(function(q, idx){
-      state[q.id] = isClosed(q) ? {sel:[], otro:''} : {audios:[], text:'', file:null};
+      state[q.id] = isClosed(q) ? {sel:[], otro:''} : {audios:[], text:'', files:[]};
       root.appendChild(buildCard(q, idx));
     });
     wireEvents();
@@ -570,9 +569,9 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
     }
     if (q.archivo !== false){
       inner += '<div class="mode">'+
-        '<div class="mode-label">📎 O adjunta un archivo (máx. 5 MB)</div>'+
-        '<button class="btn btn-ghost btn-sm btn-ico" data-act="file" data-q="'+q.id+'" type="button">'+IC_CLIP+'<span>Elegir archivo</span></button>'+
-        '<input type="file" id="fileinput-'+q.id+'" hidden>'+
+        '<div class="mode-label">📎 O adjunta archivos (hasta '+MAX_FILES_Q+', máx. 5 MB cada uno)</div>'+
+        '<button class="btn btn-ghost btn-sm btn-ico" data-act="file" data-q="'+q.id+'" type="button">'+IC_CLIP+'<span>Elegir archivos</span></button>'+
+        '<input type="file" id="fileinput-'+q.id+'" multiple hidden>'+
         '<div id="filerow-'+q.id+'"></div>'+
       '</div>';
     }
@@ -606,16 +605,24 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
       if (ta) ta.addEventListener('input', function(ev){ state[q.id].text = ev.target.value.trim(); refresh(); });
       var fi = document.getElementById('fileinput-'+q.id);
       if (fi) fi.addEventListener('change', function(ev){
-        var f = ev.target.files[0];
+        var elegidos = Array.prototype.slice.call(ev.target.files || []);
         ev.target.value = '';
-        if (!f) return;
-        if (f.size > MAX_FILE_BYTES){ showMsg('warn','"'+f.name+'" pesa '+fmtBytes(f.size)+'; el máximo es 5 MB.'); return; }
-        var fr = new FileReader();
-        fr.onload = function(){
-          state[q.id].file = {name:f.name, mime:f.type||'application/octet-stream', size:f.size, b64:String(fr.result).split(',')[1]||''};
-          renderFile(q.id); refresh();
-        };
-        fr.readAsDataURL(f);
+        if (!elegidos.length) return;
+        var libres = MAX_FILES_Q - state[q.id].files.length;
+        if (libres <= 0){ showMsg('warn','Ya adjuntaste '+MAX_FILES_Q+' archivos en esta pregunta. Quita uno si quieres cambiarlo.'); return; }
+        if (elegidos.length > libres){
+          showMsg('warn','Solo caben '+libres+' archivo'+(libres>1?'s':'')+' más en esta pregunta; se tomaron los primeros.');
+          elegidos = elegidos.slice(0, libres);
+        }
+        elegidos.forEach(function(f){
+          if (f.size > MAX_FILE_BYTES){ showMsg('warn','"'+f.name+'" pesa '+fmtBytes(f.size)+'; el máximo es 5 MB.'); return; }
+          var fr = new FileReader();
+          fr.onload = function(){
+            state[q.id].files.push({name:f.name, mime:f.type||'application/octet-stream', size:f.size, b64:String(fr.result).split(',')[1]||''});
+            renderFile(q.id); refresh();
+          };
+          fr.readAsDataURL(f);
+        });
       });
     });
   }
@@ -624,16 +631,16 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
     var host = document.getElementById('filerow-'+qid);
     if (!host) return;
     host.textContent = '';
-    var f = state[qid].file;
-    if (!f) return;
-    var row = document.createElement('div');
-    row.className = 'file-row';
-    var name = document.createElement('span'); name.className='fname'; name.textContent = f.name;
-    var size = document.createElement('span'); size.className='fsize'; size.textContent = fmtBytes(f.size);
-    var rm = document.createElement('button'); rm.className='btn-link'; rm.type='button'; rm.textContent='Quitar';
-    rm.addEventListener('click', function(){ state[qid].file = null; renderFile(qid); refresh(); });
-    row.appendChild(name); row.appendChild(size); row.appendChild(rm);
-    host.appendChild(row);
+    (state[qid].files || []).forEach(function(f, i){
+      var row = document.createElement('div');
+      row.className = 'file-row';
+      var name = document.createElement('span'); name.className='fname'; name.textContent = f.name;
+      var size = document.createElement('span'); size.className='fsize'; size.textContent = fmtBytes(f.size);
+      var rm = document.createElement('button'); rm.className='btn-link'; rm.type='button'; rm.textContent='Quitar';
+      rm.addEventListener('click', function(){ state[qid].files.splice(i, 1); renderFile(qid); refresh(); });
+      row.appendChild(name); row.appendChild(size); row.appendChild(rm);
+      host.appendChild(row);
+    });
   }
 
   // ================== Grabadora ==================
@@ -840,7 +847,7 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
     var s = state[q.id];
     if (!s) return false;
     if (s.sel) return s.sel.length > 0;
-    return !!((s.audios && s.audios.length) || s.text || s.file);
+    return !!((s.audios && s.audios.length) || s.text || (s.files && s.files.length));
   }
   function refresh(){
     if (!SURVEY) return;
@@ -893,7 +900,7 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
         var sufijo = (s.audios.length > 1) ? ('-audio' + (i+1)) : '-audio';
         attachments.push({q:idx+1, name:q.id+sufijo+'.'+ext, mime:a.mime, b64:a.b64});
       });
-      if (s.file) attachments.push({q:idx+1, name:s.file.name, mime:s.file.mime, b64:s.file.b64});
+      (s.files||[]).forEach(function(f){ attachments.push({q:idx+1, name:f.name, mime:f.mime, b64:f.b64}); });
     });
     var totalB64 = attachments.reduce(function(sum,a){ return sum + (a.b64?a.b64.length:0); }, 0);
     if (totalB64 > MAX_TOTAL_B64){
@@ -909,7 +916,7 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
         if ($('#idNombre')) $('#idNombre').focus();
         return;
       }
-      identidad = { nombre: nom, correo: ($('#idCorreo') && $('#idCorreo').value.trim()) || '', dispositivo: dispositivo() };
+      identidad = { nombre: nom, correo: '', dispositivo: dispositivo() };
     }
 
     var sendBtn = $('#sendBtn');
