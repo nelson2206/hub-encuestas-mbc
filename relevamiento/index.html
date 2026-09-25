@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voz MBC · Relevamiento de procesos</title>
+<meta name="description" content="Cuéntanos con tu voz cómo funcionan los procesos de tu sección.">
+<meta name="robots" content="noindex">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Voz MBC · Relevamiento de procesos">
+<meta property="og:description" content="Cuéntanos con tu voz cómo funcionan los procesos de tu sección.">
+<meta property="og:image" content="https://encuesta.mbc-latam.com/og-image.png?v=3">
+<link rel="icon" type="image/png" href="../favicon.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<meta name="theme-color" content="#003478">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<style>
+  :root{
+    --bg:#E3E2DA; --card:#FFFFFF; --ink:#1C2B3A; --heading:#003478; --muted:#5B6B80;
+    --line:#CFCDC2; --accent:#FF0054; --accent-soft:#FFE3EC; --navy:#003478;
+    --panel:#F4F3EE; --field-line:#B9C4D4; --ok:#237A3F; --ok-bg:#E4F4E9;
+    --warn:#8A5A00; --warn-bg:#FBF0DA; --ease:cubic-bezier(.23,1,.32,1);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#081426; --card:#0F2440; --ink:#E9EEF6; --heading:#BBD0EE; --muted:#9FB0C7;
+      --line:#243C5E; --accent:#FF4D80; --accent-soft:#3A1128; --navy:#1E4A85;
+      --panel:#0B1D37; --field-line:#31517D; --ok:#6FD08C; --ok-bg:#0E3320;
+      --warn:#EFC26A; --warn-bg:#3A2B0A;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS","Segoe UI",Verdana,sans-serif;font-size:16px;line-height:1.5}
+  h1,h2,h3{font-family:Montserrat,"Trebuchet MS",sans-serif;color:var(--heading);margin:0;text-wrap:balance}
+  .hero{background:linear-gradient(150deg,#003478 0%,#00234F 70%,#001A3C 100%);color:#fff;padding:30px 20px 36px;position:relative;overflow:hidden}
+  .hero::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.10) 1px,transparent 1.6px);background-size:26px 26px;pointer-events:none}
+  .hero-inner{max-width:820px;margin:0 auto;position:relative;z-index:1}
+  .lockup{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+  .lockup .mbc-logo{height:22px;width:auto;display:block}
+  .lockup .sep{width:1px;height:26px;background:rgba(255,255,255,.28)}
+  .lockup .tool{font-family:Montserrat,sans-serif;font-weight:700;font-size:15px}
+  .eyebrow{font-family:Montserrat,sans-serif;font-size:13px;font-weight:600;color:#9FC1F2;margin:0 0 8px}
+  .hero h1{color:#fff;font-size:clamp(24px,5vw,32px);font-weight:800;line-height:1.15}
+  .hero p{max-width:46em;font-size:15.5px;color:#D7E3F5;margin:12px 0 0}
+  .wrap{max-width:820px;margin:0 auto;padding:24px 16px 60px;display:flex;flex-direction:column;gap:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px}
+  .card h2{font-size:19px;margin-bottom:6px}
+  .lead{color:var(--muted);margin:0 0 14px;font-size:15px}
+  .aviso{background:var(--panel);border-left:3px solid var(--navy);border-radius:0 10px 10px 0;padding:12px 16px;font-size:14px;color:var(--ink);margin:0}
+  .aviso strong{color:var(--heading)}
+  .paso{display:flex;gap:12px;align-items:baseline}
+  .paso .n{font-family:Montserrat,sans-serif;font-weight:800;font-size:22px;color:var(--accent);min-width:26px}
+  label{display:block;font-family:Montserrat,sans-serif;font-weight:600;font-size:13px;color:var(--heading);margin:12px 0 5px}
+  input[type=text],textarea{width:100%;background:var(--card);color:var(--ink);border:1.5px solid var(--field-line);border-radius:10px;padding:10px 12px;font:inherit}
+  textarea{min-height:110px;resize:vertical}
+  input:focus,textarea:focus,button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .btn{appearance:none;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:700;border-radius:11px;padding:12px 22px;font-size:14.5px;border:1.5px solid transparent;background:var(--accent);color:#fff;transition:transform 140ms var(--ease),filter 140ms ease}
+  .btn:hover{filter:brightness(1.07)} .btn:active{transform:scale(.97)}
+  .btn[disabled]{opacity:.55;cursor:not-allowed;filter:none;transform:none}
+  .btn-ghost{background:none;border-color:var(--field-line);color:var(--heading)}
+  .btn-sm{padding:9px 15px;font-size:13.5px;border-radius:9px}
+  .btn-rec{background:var(--navy)}
+  .btn-ico{display:inline-flex;align-items:center;gap:8px}
+  .btn-link{appearance:none;background:none;border:none;cursor:pointer;color:var(--accent);font:inherit;font-size:13.5px;text-decoration:underline;padding:2px}
+  .pillbox{display:flex;flex-wrap:wrap;gap:8px}
+  .pill{position:relative;cursor:pointer}
+  .pill input{position:absolute;opacity:0;pointer-events:none}
+  .pill span{display:inline-block;border:1.5px solid var(--field-line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 14px;font-size:14px;line-height:1.2}
+  .pill input:checked + span{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:700}
+  .pill input:focus-visible + span{outline:3px solid var(--accent);outline-offset:2px}
+  .proc-rev{border-top:1px solid var(--line);padding:14px 0}
+  .proc-rev:first-of-type{border-top:none}
+  .proc-nombre{font-family:Montserrat,sans-serif;font-weight:700;color:var(--heading);font-size:15.5px}
+  .proc-ruta{color:var(--muted);font-size:13px;margin:2px 0 10px}
+  .tag{display:inline-block;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;margin-left:6px;vertical-align:middle;background:var(--accent-soft);color:var(--accent)}
+  details.proc{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+  details.proc > summary{list-style:none;cursor:pointer;padding:18px 20px;display:flex;align-items:center;gap:14px}
+  details.proc > summary::-webkit-details-marker{display:none}
+  details.proc[open] > summary{border-bottom:1px solid var(--line)}
+  .sum-txt{flex:1;min-width:0}
+  .avance{font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .avance.full{color:var(--ok)}
+  .chev{flex:none;transition:transform 180ms var(--ease);color:var(--muted)}
+  details.proc[open] .chev{transform:rotate(180deg)}
+  .preg{padding:18px 20px;border-top:1px solid var(--line)}
+  .preg:first-child{border-top:none}
+  .preg-t{font-family:Montserrat,sans-serif;font-weight:700;color:var(--heading);font-size:15px;display:flex;gap:10px}
+  .preg-t .qn{flex:none;width:26px;height:26px;border-radius:8px;background:var(--navy);color:#fff;display:grid;place-content:center;font-size:13px}
+  .preg-g{color:var(--muted);font-size:13.5px;margin:4px 0 12px 36px}
+  @media (max-width:560px){ .preg-g{margin-left:0} }
+  .rec-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .rec-timer{font-family:Montserrat,sans-serif;font-weight:700;font-size:18px;color:var(--heading);font-variant-numeric:tabular-nums;min-width:48px}
+  .rec-dot{width:11px;height:11px;border-radius:50%;background:var(--accent);animation:blink 1s ease-in-out infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+  @media (prefers-reduced-motion: reduce){ .rec-dot{animation:none} .chev,.btn{transition:none} }
+  .estado{font-size:13px;color:var(--muted);min-height:1.4em}
+  .estado.ok{color:var(--ok)} .estado.warn{color:var(--warn)}
+  .sis-t{font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700;color:var(--muted);margin:12px 0 8px}
+  .barra{position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 16px}
+  .barra-in{max-width:820px;margin:0 auto;display:flex;align-items:center;gap:14px}
+  .pbar{flex:1;height:8px;border-radius:99px;background:var(--panel);overflow:hidden}
+  .pbar div{height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .25s ease}
+  .ptext{font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700;color:var(--heading);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .msg{border-radius:12px;padding:12px 16px}
+  .msg.warn{background:var(--warn-bg);color:var(--warn)} .msg.ok{background:var(--ok-bg);color:var(--ok)}
+  .foot{background:linear-gradient(150deg,#003478,#00234F);color:#C6D6EC;padding:22px 16px}
+  .foot-inner{max-width:820px;margin:0 auto;font-size:12.5px}
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="lockup"><svg viewBox="0 0 48 48" width="30" height="30" role="img" aria-label="Voz MBC"><rect x="8.55" y="16.80" width="4.1" height="14.40" rx="2.05" fill="#fff"/><rect x="15.25" y="10.80" width="4.1" height="26.40" rx="2.05" fill="#fff"/><rect x="21.95" y="4.80" width="4.1" height="38.40" rx="2.05" fill="#FF0054"/><rect x="28.65" y="12.00" width="4.1" height="24.00" rx="2.05" fill="#fff"/><rect x="35.35" y="15.85" width="4.1" height="16.30" rx="2.05" fill="#fff"/></svg><span class="sep"></span><svg class="mbc-logo" viewBox="0 0 3860.17 856.07" role="img" aria-label="MBC"><path fill="#FFFFFF" d="M418.06 0 626.07 488.07 701.67 492.29 910.14 0 1328.21 0 1328.21 856.07 1100.17 856.07 1100.17 192.01 1048.6 192.48 830.28 684.35 496.03 682.1 280.46 194.49 228.04 192.01 228.04 856.07 0 856.07 0 0 418.06 0Z"/><path fill="#FFFFFF" d="M3139.84 201 3860.17 201 3860.17 0 3148.64 0C3148.13 0 3147.62 0.01 3147.11 0.02 2906.1 1.66 2724.88 176.94 2724.88 428.03 2724.88 679.12 2905.48 852.72 3144.73 856.01 3145.07 856.01 3145.42 856.02 3145.76 856.03 3145.9 856.03 3146.05 856.03 3146.19 856.03 3147 856.04 3147.81 856.06 3148.63 856.06L3860.16 856.06 3860.16 655.06 3141.03 655.06C3033.15 651.52 2947.27 567.26 2947.27 428.02 2947.27 288.78 3029.79 204.6 3139.84 200.98Z"/><path fill="#FFFFFF" d="M1485.95 0 2304.74 0C2482.07 0 2588.46 94.17 2588.46 231.14 2588.46 311.86 2550.55 384.01 2463.72 407.24L2463.72 426.81C2560.33 441.49 2614.14 508.75 2614.14 618.81 2614.14 765.56 2516.3 856.06 2334.08 856.06L1485.94 856.06 1485.94 0ZM2292.51 335.09C2345.1 335.09 2373.23 305.74 2373.23 259.27 2373.23 212.8 2345.1 183.45 2292.51 183.45L1706.08 183.45 1706.08 335.1 2292.51 335.1ZM2299.84 672.62C2357.32 672.62 2386.67 646.94 2386.67 595.57 2386.67 544.2 2357.32 518.52 2299.84 518.52L1706.08 518.52 1706.08 672.61 2299.84 672.61Z"/></svg><span class="tool">Voz</span></div>
+    <p class="eyebrow" id="heroEyebrow">Relevamiento de procesos</p>
+    <h1 id="heroTitle">Cuéntanos cómo funcionan tus procesos</h1>
+    <p id="heroIntro">Cargando tu encuesta…</p>
+  </div>
+</header>
+
+<div class="barra hidden" id="barra">
+  <div class="barra-in">
+    <div class="pbar"><div id="pfill"></div></div>
+    <span class="ptext" id="ptext">0 de 0 respuestas</span>
+  </div>
+</div>
+
+<main class="wrap" id="root">
+  <div class="msg warn hidden" id="errorGeneral" role="alert"></div>
+</main>
+
+<footer class="foot"><div class="foot-inner">Voz MBC · Relevamiento de procesos. El audio se convierte a texto y se descarta; solo se guarda el texto que tú revisas.</div></footer>
+
+<script>
+'use strict';
+(function(){
+  var API = 'https://voz-relevamiento-api.minsait-business-consulting-pe.workers.dev';
+  var TRAMO_SEG = 120;          // el audio se envía en tramos de 2 minutos (16 kHz, mono)
+  var MAX_SEG = 600;            // hasta 10 minutos por grabación
+  var PREGUNTAS = [
+    {id:'q1', t:'¿Para qué existe este proceso? ¿Qué lo inicia y dónde termina?', g:'Cuéntanos el objetivo, qué evento lo dispara y a quién le entregas el resultado (otra área, un cliente, un tercero).'},
+    {id:'q2', t:'¿Cómo se hace, paso a paso?', g:'Describe las actividades principales en orden, quién las hace y qué otras áreas participan.'},
+    {id:'q3', t:'¿Qué sistemas y herramientas usan? ¿Qué se hace a mano?', g:'Menciona el nombre exacto de cada sistema, portal, Excel o aplicativo, y en qué paso se usa. Cuéntanos qué partes son manuales y cuáles automáticas.', sistemas:true},
+    {id:'q4', t:'¿Con qué terceros interactúan?', g:'Proveedores, concesionarios, clientes, entidades del Estado u otros: para qué, y si es por un sistema, correo o de forma presencial.'},
+    {id:'q5', t:'¿Se manejan datos de personas en este proceso?', g:'De quiénes (clientes, trabajadores, proveedores) y qué tipo de datos (identificación, contacto, financieros…). No menciones datos reales de nadie.'},
+    {id:'q6', t:'¿Cómo saben si va bien, qué lo regula y cada cuánto ocurre?', g:'Indicadores que usan, normas o políticas que aplican, y la frecuencia o volumen aproximado.'}
+  ];
+
+  var $ = function(s){ return document.querySelector(s); };
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function fmt(s){ return Math.floor(s/60)+':'+('0'+Math.floor(s%60)).slice(-2); }
+
+  var K = new URLSearchParams(location.search).get('k') || '';
+  var S = null;   // sesión: {campana, encuestado, procesos, revisiones, respuestas, sistemas}
+
+  function api(path, body){
+    var opt = body ? {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(Object.assign({k:K}, body))} : {};
+    return fetch(API + path, opt).then(function(r){
+      return r.json().catch(function(){ return {ok:false, error:'Respuesta inesperada del servidor'}; }).then(function(j){
+        if (!r.ok || !j.ok) throw new Error(j.error || ('Error ' + r.status));
+        return j;
+      });
+    });
+  }
+
+  function errorGeneral(t){ var e = $('#errorGeneral'); e.textContent = t; e.classList.remove('hidden'); }
+
+  // ------------------------------------------------------------ carga
+  if (!K){
+    $('#heroIntro').textContent = 'Este enlace no es válido.';
+    errorGeneral('Abre la encuesta desde el enlace personal que te enviaron por correo.');
+    return;
+  }
+  api('/r/sesion?k=' + encodeURIComponent(K)).then(function(j){
+    S = j;
+    S.revisiones = S.revisiones || {};
+    S.respuestas = S.respuestas || {};
+    pintar();
+  }).catch(function(err){
+    $('#heroIntro').textContent = 'No pudimos abrir tu encuesta.';
+    errorGeneral(err.message + '. Si el problema sigue, escribe al equipo consultor.');
+  });
+
+  function nombreProc(p){ return p.subproceso || p.proceso || p.macroproceso; }
+  function rutaProc(p){ return [p.macroproceso, p.proceso, p.subproceso].filter(Boolean).filter(function(x){ return x !== nombreProc(p); }).join(' › '); }
+
+  // ------------------------------------------------------------ pintado
+  function pintar(){
+    var e = S.encuestado;
+    $('#heroEyebrow').textContent = (S.campana ? S.campana.cliente + ' · ' : '') + e.gerencia + ' · ' + e.seccion;
+    $('#heroTitle').textContent = 'Hola, ' + e.nombre.split(' ')[0] + ': cuéntanos cómo funcionan tus procesos';
+    $('#heroIntro').innerHTML = 'Son dos pasos. Primero revisas la lista de procesos de tu sección; luego nos cuentas, <strong>hablando</strong> o escribiendo, cómo funciona cada uno. Todo se guarda solo: puedes dejarlo y volver con el mismo enlace.';
+
+    var root = $('#root');
+    root.innerHTML = '';
+    var intro = document.createElement('section');
+    intro.className = 'card';
+    intro.innerHTML =
+      '<p class="aviso"><strong>Cómo tratamos lo que nos cuentas.</strong> Tu voz se convierte en texto y el audio se descarta al instante: no se guarda. ' +
+      'Antes de guardar, puedes leer y corregir el texto. La información se usa solo para el inventario de procesos y se borra al cierre del proyecto. ' +
+      'Habla de cargos y áreas, no de personas, y no menciones datos reales de clientes o trabajadores.</p>';
+    root.appendChild(intro);
+
+    // Paso 1: revisión
+    var rev = document.createElement('section');
+    rev.className = 'card';
+    rev.innerHTML = '<div class="paso"><span class="n">1</span><div><h2>Revisa los procesos de tu sección</h2>' +
+      '<p class="lead">Vienen del inventario anterior. Marca si cada uno sigue igual, cambió o ya no se hace, y agrega los que falten.</p></div></div>' +
+      '<div id="listaRev"></div>' +
+      '<div style="margin-top:10px"><button class="btn btn-ghost btn-sm" type="button" id="btnAgregar">+ Agregar un proceso que falta</button></div>' +
+      '<div id="formNuevo" class="hidden" style="margin-top:12px;background:var(--panel);border-radius:12px;padding:14px 16px">' +
+        '<label for="nvProceso">Nombre del proceso *</label><input type="text" id="nvProceso" maxlength="200" placeholder="Ej. Seguimiento de embarques">' +
+        '<label for="nvMacro">¿Dentro de qué proceso mayor está? (opcional)</label><input type="text" id="nvMacro" maxlength="200">' +
+        '<label for="nvDesc">En una frase, ¿de qué se trata? (opcional)</label><input type="text" id="nvDesc" maxlength="300">' +
+        '<div style="display:flex;gap:10px;margin-top:12px;align-items:center;flex-wrap:wrap"><button class="btn btn-sm" type="button" id="btnGuardarNuevo">Agregar</button>' +
+        '<button class="btn-link" type="button" id="btnCancelarNuevo">Cancelar</button><span class="estado" id="estNuevo"></span></div>' +
+      '</div>';
+    root.appendChild(rev);
+
+    // Paso 2: respuestas
+    var resp = document.createElement('section');
+    resp.innerHTML = '<div class="card" style="margin-bottom:14px"><div class="paso"><span class="n">2</span><div><h2>Cuéntanos cómo funciona cada proceso</h2>' +
+      '<p class="lead" style="margin:0">Abre cada proceso y responde las 6 preguntas. Lo más rápido es pulsar <strong>Grabar</strong> y hablar como si se lo explicaras a un colega nuevo; el texto aparece solo y lo puedes corregir. ' +
+      'Si tu respuesta es la misma para varios procesos, basta con decir «igual que el anterior» y lo diferente.</p></div></div></div>' +
+      '<div id="listaProc" style="display:flex;flex-direction:column;gap:12px"></div>';
+    root.appendChild(resp);
+
+    // Envío
+    var fin = document.createElement('section');
+    fin.className = 'card';
+    fin.innerHTML = '<h2>¿Terminaste?</h2><p class="lead">Tus respuestas ya están guardadas. Avísanos que terminaste para preparar la reunión de validación. Puedes volver a editar después.</p>' +
+      '<button class="btn" type="button" id="btnEnviar">Marcar como terminado</button><div class="msg ok hidden" id="msgFin" style="margin-top:12px"></div>';
+    root.appendChild(fin);
+
+    S.procesos.forEach(function(p){ $('#listaRev').appendChild(tarjetaRevision(p)); });
+    pintarProcesos();
+    if (S.encuestado.estado === 'enviado') mostrarFin('Ya marcaste la encuesta como terminada. Si cambias algo, se guarda igual.');
+
+    $('#btnAgregar').addEventListener('click', function(){ $('#formNuevo').classList.remove('hidden'); $('#nvProceso').focus(); });
+    $('#btnCancelarNuevo').addEventListener('click', function(){ $('#formNuevo').classList.add('hidden'); });
+    $('#btnGuardarNuevo').addEventListener('click', agregarProceso);
+    $('#btnEnviar').addEventListener('click', function(){
+      var b = this; b.disabled = true;
+      api('/r/enviar', {}).then(function(){ mostrarFin('¡Gracias! Avisamos al equipo consultor. Te contactarán para una reunión corta de validación.'); })
+        .catch(function(err){ mostrarFin(err.message, true); }).then(function(){ b.disabled = false; });
+    });
+    $('#barra').classList.remove('hidden');
+    actualizarAvance();
+  }
+
+  function mostrarFin(t, error){ var m = $('#msgFin'); m.textContent = t; m.className = 'msg ' + (error ? 'warn' : 'ok'); }
+
+  function tarjetaRevision(p){
+    var d = document.createElement('div');
+    d.className = 'proc-rev';
+    d.id = 'rev-' + p.id;
+    var r = S.revisiones[p.id] || {};
+    var ruta = rutaProc(p);
+    d.innerHTML = '<div class="proc-nombre">' + esc(nombreProc(p)) + (p.nuevo ? '<span class="tag">Agregado por ti</span>' : '') + '</div>' +
+      (ruta || p.codigo ? '<div class="proc-ruta">' + esc([p.codigo, ruta].filter(Boolean).join(' · ')) + '</div>' : '<div style="height:8px"></div>') +
+      (p.nuevo ? '<button class="btn-link" type="button" data-quitar="' + esc(p.id) + '">Quitar este proceso</button>' :
+      '<div class="pillbox" role="radiogroup" aria-label="Estado del proceso">' +
+        [['vigente','Sigue igual'],['cambio','Cambió'],['no_existe','Ya no se hace']].map(function(o){
+          return '<label class="pill"><input type="radio" name="rv-' + esc(p.id) + '" value="' + o[0] + '"' + (r.estado === o[0] ? ' checked' : '') + '><span>' + o[1] + '</span></label>';
+        }).join('') + '</div>' +
+      '<div class="' + (r.estado === 'cambio' || r.estado === 'no_existe' ? '' : 'hidden') + '" id="cm-' + esc(p.id) + '">' +
+        '<label for="cmt-' + esc(p.id) + '">¿Qué cambió o por qué ya no se hace?</label>' +
+        '<input type="text" id="cmt-' + esc(p.id) + '" maxlength="600" value="' + esc(r.comentario || '') + '"></div>' +
+      '<div class="estado" id="rest-' + esc(p.id) + '"></div>');
+    d.addEventListener('change', function(ev){
+      if (ev.target.name === 'rv-' + p.id) guardarRevision(p);
+    });
+    var cm = d.querySelector('#cmt-' + CSS.escape(p.id));
+    if (cm) cm.addEventListener('change', function(){ guardarRevision(p); });
+    var q = d.querySelector('[data-quitar]');
+    if (q) q.addEventListener('click', function(){ quitarProceso(p); });
+    return d;
+  }
+
+  function guardarRevision(p){
+    var sel = document.querySelector('input[name="rv-' + CSS.escape(p.id) + '"]:checked');
+    if (!sel) return;
+    var cm = document.getElementById('cmt-' + p.id);
+    var caja = document.getElementById('cm-' + p.id);
+    caja.classList.toggle('hidden', sel.value === 'vigente');
+    var est = document.getElementById('rest-' + p.id);
+    est.className = 'estado'; est.textContent = 'Guardando…';
+    api('/r/revision', {proceso_id: p.id, estado: sel.value, comentario: cm ? cm.value : ''}).then(function(){
+      S.revisiones[p.id] = {estado: sel.value, comentario: cm ? cm.value : ''};
+      est.className = 'estado ok'; est.textContent = 'Guardado';
+      pintarProcesos();
+    }).catch(function(err){ est.className = 'estado warn'; est.textContent = err.message; });
+  }
+
+  function agregarProceso(){
+    var nombre = $('#nvProceso').value.trim();
+    var est = $('#estNuevo');
+    if (!nombre){ est.className = 'estado warn'; est.textContent = 'Escribe el nombre del proceso.'; return; }
+    est.className = 'estado'; est.textContent = 'Guardando…';
+    api('/r/proceso', {proceso: nombre, macroproceso: $('#nvMacro').value, descripcion: $('#nvDesc').value}).then(function(j){
+      S.procesos.push(j.proceso);
+      S.revisiones[j.proceso.id] = {estado:'vigente', comentario:''};
+      $('#listaRev').appendChild(tarjetaRevision(j.proceso));
+      $('#nvProceso').value = ''; $('#nvMacro').value = ''; $('#nvDesc').value = '';
+      $('#formNuevo').classList.add('hidden');
+      est.textContent = '';
+      pintarProcesos();
+    }).catch(function(err){ est.className = 'estado warn'; est.textContent = err.message; });
+  }
+
+  function quitarProceso(p){
+    if (!confirm('¿Quitar "' + nombreProc(p) + '" y lo que respondiste sobre él?')) return;
+    api('/r/proceso/quitar', {proceso_id: p.id}).then(function(){
+      S.procesos = S.procesos.filter(function(x){ return x.id !== p.id; });
+      delete S.revisiones[p.id]; delete S.respuestas[p.id];
+      var el = document.getElementById('rev-' + p.id); if (el) el.remove();
+      pintarProcesos();
+    }).catch(function(err){ alert(err.message); });
+  }
+
+  // Procesos que se responden: los marcados como vigentes o con cambios, y los nuevos.
+  function procesosActivos(){
+    return S.procesos.filter(function(p){
+      var r = S.revisiones[p.id];
+      return r && (r.estado === 'vigente' || r.estado === 'cambio');
+    });
+  }
+
+  function pintarProcesos(){
+    var lista = $('#listaProc');
+    var activos = procesosActivos();
+    var ids = activos.map(function(p){ return p.id; });
+    // Se quitan las tarjetas de procesos que dejaron de estar activos (salvo si se está grabando en ellas).
+    Array.prototype.slice.call(lista.children).forEach(function(el){
+      if (el.dataset.id && ids.indexOf(el.dataset.id) < 0 && !ocupado(el.dataset.id)) el.remove();
+    });
+    var vacio = $('#procVacio'); if (vacio) vacio.remove();
+    activos.forEach(function(p){
+      var el = document.getElementById('pr-' + p.id) || tarjetaProceso(p);
+      lista.appendChild(el);   // appendChild de un nodo existente solo lo reordena, conserva su estado
+    });
+    if (!activos.length){
+      var c = document.createElement('div');
+      c.className = 'card'; c.id = 'procVacio'; c.style.color = 'var(--muted)';
+      c.textContent = 'Cuando marques en el paso 1 los procesos que siguen vigentes o cambiaron, aparecerán aquí para que nos cuentes cómo funcionan.';
+      lista.appendChild(c);
+    }
+    actualizarAvance();
+  }
+
+  function respuesta(pid, q){ return ((S.respuestas[pid] || {})[q]) || {texto:'', sistemas:[]}; }
+  function respondida(pid, q){ var r = respuesta(pid, q); return !!(r.texto && r.texto.trim()) || (r.sistemas && r.sistemas.length > 0); }
+
+  function tarjetaProceso(p){
+    var d = document.createElement('details');
+    d.className = 'proc';
+    d.id = 'pr-' + p.id;
+    d.dataset.id = p.id;
+    var ruta = rutaProc(p);
+    var html = '<summary><div class="sum-txt"><div class="proc-nombre">' + esc(nombreProc(p)) + '</div>' +
+      (ruta ? '<div class="proc-ruta" style="margin:2px 0 0">' + esc(ruta) + '</div>' : '') + '</div>' +
+      '<span class="avance" id="av-' + esc(p.id) + '"></span>' +
+      '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>';
+    PREGUNTAS.forEach(function(q, i){
+      var r = respuesta(p.id, q.id);
+      var key = p.id + '-' + q.id;
+      html += '<div class="preg">' +
+        '<div class="preg-t"><span class="qn">' + (i+1) + '</span><span>' + esc(q.t) + '</span></div>' +
+        '<p class="preg-g">' + esc(q.g) + '</p>' +
+        '<div class="rec-row">' +
+          '<button class="btn btn-rec btn-sm btn-ico" type="button" data-rec="' + esc(key) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3" fill="currentColor" stroke="none"></rect><path d="M5 10.5a7 7 0 0 0 14 0M12 17.5V21"></path></svg><span>Grabar</span></button>' +
+          '<span class="rec-dot hidden" id="dot-' + esc(key) + '" aria-hidden="true"></span>' +
+          '<span class="rec-timer hidden" id="tm-' + esc(key) + '">0:00</span>' +
+          '<span class="estado" id="st-' + esc(key) + '" aria-live="polite"></span>' +
+        '</div>' +
+        '<textarea id="tx-' + esc(key) + '" maxlength="12000" aria-label="Respuesta a la pregunta ' + (i+1) + '" placeholder="Pulsa Grabar y habla, o escribe aquí…">' + esc(r.texto) + '</textarea>';
+      if (q.sistemas && S.sistemas.length){
+        html += '<div class="sis-t">Marca los sistemas que usan en este proceso</div><div class="pillbox">' +
+          S.sistemas.map(function(s){
+            return '<label class="pill"><input type="checkbox" data-sis="' + esc(key) + '" value="' + esc(s.nombre) + '"' + (r.sistemas.indexOf(s.nombre) >= 0 ? ' checked' : '') + '><span>' + esc(s.nombre) + '</span></label>';
+          }).join('') + '</div>' +
+          '<p class="preg-g" style="margin:8px 0 0">¿Usan algo que no está en la lista (un Excel, un aplicativo del área)? Menciónalo en el texto.</p>';
+      }
+      html += '</div>';
+    });
+    d.innerHTML = html;
+    PREGUNTAS.forEach(function(q){
+      var key = p.id + '-' + q.id;
+      d.querySelector('#tx-' + CSS.escape(key)).addEventListener('input', function(){ programarGuardado(p.id, q.id); });
+      d.querySelector('[data-rec="' + CSS.escape(key) + '"]').addEventListener('click', function(){ alternarGrabacion(p.id, q.id); });
+      Array.prototype.forEach.call(d.querySelectorAll('[data-sis="' + CSS.escape(key) + '"]'), function(c){
+        c.addEventListener('change', function(){ programarGuardado(p.id, q.id, 0); });
+      });
+    });
+    pintarAvanceProc(p.id, d);
+    return d;
+  }
+
+  function pintarAvanceProc(pid, root){
+    var n = PREGUNTAS.filter(function(q){ return respondida(pid, q.id); }).length;
+    var el = (root || document).querySelector('#av-' + CSS.escape(pid));
+    if (el){ el.textContent = n === PREGUNTAS.length ? '✓ Completo' : n + ' de ' + PREGUNTAS.length; el.classList.toggle('full', n === PREGUNTAS.length); }
+  }
+
+  function actualizarAvance(){
+    var activos = procesosActivos();
+    var total = activos.length * PREGUNTAS.length, hechas = 0;
+    activos.forEach(function(p){ PREGUNTAS.forEach(function(q){ if (respondida(p.id, q.id)) hechas++; }); pintarAvanceProc(p.id); });
+    var pendientesRev = S.procesos.filter(function(p){ return !S.revisiones[p.id]; }).length;
+    $('#pfill').style.width = (total ? Math.round(hechas * 100 / total) : 0) + '%';
+    $('#ptext').textContent = pendientesRev ? pendientesRev + ' por revisar en el paso 1 · ' + hechas + ' de ' + total + ' respuestas' : hechas + ' de ' + total + ' respuestas';
+  }
+
+  // ------------------------------------------------------------ guardado
+  var timers = {}, sinGuardar = {};
+  function programarGuardado(pid, qid, espera){
+    var key = pid + '-' + qid;
+    sinGuardar[key] = true;
+    if (!grab[key]) estado(key, 'Sin guardar…');
+    clearTimeout(timers[key]);
+    timers[key] = setTimeout(function(){ guardar(pid, qid); }, espera === undefined ? 1200 : espera);
+  }
+  function guardar(pid, qid){
+    var key = pid + '-' + qid;
+    clearTimeout(timers[key]);
+    var texto = document.getElementById('tx-' + key).value;
+    var sistemas = Array.prototype.map.call(document.querySelectorAll('[data-sis="' + CSS.escape(key) + '"]:checked'), function(c){ return c.value; });
+    return api('/r/respuesta', {proceso_id: pid, pregunta: qid, texto: texto, sistemas: sistemas}).then(function(){
+      delete sinGuardar[key];
+      (S.respuestas[pid] = S.respuestas[pid] || {})[qid] = {texto: texto, sistemas: sistemas};
+      if (!grab[key]) estado(key, 'Guardado', 'ok');
+      actualizarAvance();
+    }).catch(function(err){
+      estado(key, 'No se guardó: ' + err.message + '. Vuelve a escribir para reintentar.', 'warn');
+    });
+  }
+  window.addEventListener('beforeunload', function(ev){
+    if (Object.keys(sinGuardar).length || Object.keys(grab).length){ ev.preventDefault(); ev.returnValue = ''; }
+  });
+
+  // ------------------------------------------------------------ grabación y transcripción
+  var grab = {};   // key -> {pid, qid, rec, stream, chunks, secs, timer, fase}
+  function ocupado(pid){ return Object.keys(grab).some(function(k){ return k.indexOf(pid + '-') === 0; }); }
+
+  function alternarGrabacion(pid, qid){
+    var key = pid + '-' + qid;
+    if (grab[key] && grab[key].fase === 'grabando') return detener(key);
+    if (grab[key]) return;   // transcribiendo
+    iniciar(pid, qid);
+  }
+
+  function botonRec(key){ return document.querySelector('[data-rec="' + CSS.escape(key) + '"]'); }
+  function estado(key, t, cls){ var st = document.getElementById('st-' + key); if (st){ st.className = 'estado' + (cls ? ' ' + cls : ''); st.textContent = t; } }
+
+  function iniciar(pid, qid){
+    var key = pid + '-' + qid;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder){
+      estado(key, 'Tu navegador no permite grabar: escribe tu respuesta.', 'warn'); return;
+    }
+    navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+      var mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+      var rec = mime ? new MediaRecorder(stream, {mimeType: mime}) : new MediaRecorder(stream);
+      var g = grab[key] = {pid: pid, qid: qid, rec: rec, stream: stream, chunks: [], secs: 0, fase: 'grabando'};
+      rec.addEventListener('dataavailable', function(ev){ if (ev.data && ev.data.size) g.chunks.push(ev.data); });
+      rec.addEventListener('stop', function(){ alDetener(key); });
+      rec.start(1000);
+      g.timer = setInterval(function(){
+        g.secs++;
+        document.getElementById('tm-' + key).textContent = fmt(g.secs);
+        if (g.secs >= MAX_SEG) detener(key);
+      }, 1000);
+      var b = botonRec(key);
+      b.querySelector('span').textContent = 'Detener';
+      b.style.background = 'var(--accent)';
+      document.getElementById('dot-' + key).classList.remove('hidden');
+      var tm = document.getElementById('tm-' + key); tm.textContent = '0:00'; tm.classList.remove('hidden');
+      estado(key, 'Grabando… habla con calma. Pulsa Detener al terminar (máx. 10 min).');
+    }).catch(function(){
+      estado(key, 'No se pudo usar el micrófono. Revisa el permiso del navegador o escribe tu respuesta.', 'warn');
+    });
+  }
+
+  function detener(key){
+    var g = grab[key];
+    if (!g) return;
+    clearInterval(g.timer);
+    try { if (g.rec.state !== 'inactive') g.rec.stop(); } catch(e){}
+  }
+
+  function restaurarBoton(key){
+    var b = botonRec(key);
+    if (b){ b.querySelector('span').textContent = 'Grabar'; b.style.background = ''; b.disabled = false; }
+    var dot = document.getElementById('dot-' + key); if (dot) dot.classList.add('hidden');
+    var tm = document.getElementById('tm-' + key); if (tm) tm.classList.add('hidden');
+  }
+
+  function alDetener(key){
+    var g = grab[key];
+    g.stream.getTracks().forEach(function(t){ t.stop(); });
+    g.fase = 'transcribiendo';
+    restaurarBoton(key);
+    botonRec(key).disabled = true;
+    var blob = new Blob(g.chunks, {type: g.rec.mimeType || 'audio/webm'});
+    if (!blob.size || g.secs < 1){ delete grab[key]; restaurarBoton(key); estado(key, 'No se capturó audio. Intenta de nuevo.', 'warn'); return; }
+    estado(key, 'Convirtiendo tu voz en texto…');
+    tramosWav(blob).then(function(tramos){
+      var textos = [];
+      var cadena = Promise.resolve();
+      tramos.forEach(function(wav, i){
+        cadena = cadena.then(function(){
+          if (tramos.length > 1) estado(key, 'Convirtiendo tu voz en texto… (' + (i+1) + ' de ' + tramos.length + ')');
+          return fetch(API + '/r/transcribir?k=' + encodeURIComponent(K), {method:'POST', headers:{'content-type':'audio/wav'}, body: wav})
+            .then(function(r){ return r.json().then(function(j){ if (!r.ok || !j.ok) throw new Error(j.error || 'Error ' + r.status); return j; }); })
+            .then(function(j){ if (j.texto) textos.push(j.texto); });
+        });
+      });
+      return cadena.then(function(){ return textos.join(' '); });
+    }).then(function(texto){
+      delete grab[key];
+      restaurarBoton(key);
+      if (!texto){ estado(key, 'No se entendió el audio. Intenta de nuevo más cerca del micrófono o escribe.', 'warn'); return; }
+      var ta = document.getElementById('tx-' + key);
+      ta.value = (ta.value.trim() ? ta.value.trim() + '\n\n' : '') + texto;
+      return guardar(g.pid, g.qid).then(function(){ estado(key, 'Listo. Revisa el texto y corrige lo que haga falta (se guarda solo).', 'ok'); });
+    }).catch(function(err){
+      delete grab[key];
+      restaurarBoton(key);
+      estado(key, (err && err.message) || 'No se pudo transcribir. Intenta de nuevo o escribe.', 'warn');
+    });
+  }
+
+  // Decodifica lo grabado, lo pasa a 16 kHz mono y lo corta en tramos WAV de 2 minutos.
+  // Así la transcripción funciona igual con Chrome (webm), Safari (mp4) o Firefox (ogg).
+  function tramosWav(blob){
+    return blob.arrayBuffer().then(function(buf){
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      var ctx = new Ctx();
+      return new Promise(function(ok, ko){ ctx.decodeAudioData(buf, ok, ko); }).then(function(audio){
+        ctx.close();
+        var off = new OfflineAudioContext(1, Math.ceil(audio.duration * 16000), 16000);
+        var src = off.createBufferSource();
+        src.buffer = audio; src.connect(off.destination); src.start(0);
+        return off.startRendering();
+      });
+    }).then(function(r){
+      var datos = r.getChannelData(0), tam = TRAMO_SEG * 16000, out = [];
+      for (var i = 0; i < datos.length; i += tam) out.push(wav(datos.subarray(i, Math.min(i + tam, datos.length)), 16000));
+      return out;
+    });
+  }
+  function wav(muestras, hz){
+    var b = new ArrayBuffer(44 + muestras.length * 2), v = new DataView(b);
+    function s(o, t){ for (var i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); }
+    s(0,'RIFF'); v.setUint32(4, 36 + muestras.length * 2, true); s(8,'WAVE'); s(12,'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, hz, true);
+    v.setUint32(28, hz * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); s(36,'data'); v.setUint32(40, muestras.length * 2, true);
+    for (var i = 0, o = 44; i < muestras.length; i++, o += 2){ var x = Math.max(-1, Math.min(1, muestras[i])); v.setInt16(o, x < 0 ? x * 0x8000 : x * 0x7FFF, true); }
+    return new Blob([b], {type:'audio/wav'});
+  }
+})();
+</script>
+</body>
+</html>

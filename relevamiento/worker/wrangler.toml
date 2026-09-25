@@ -1,0 +1,30 @@
+# Voz MBC · Relevamiento de procesos — API (Cloudflare Worker)
+# Desplegar (desde esta carpeta):  npm install && npx wrangler deploy
+# Esquema de la base:              npx wrangler d1 execute voz-relevamiento --remote --file=schema.sql
+# Secretos, NUNCA en este archivo:
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put ADMIN_CODE
+name = "voz-relevamiento-api"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true     # direccion workers.dev: no depende de que Netskope clasifique un subdominio nuevo
+preview_urls = false   # este Worker guarda claves: sin URLs publicas por version
+
+[vars]
+# encuesta.mbc-latam.com = Voz; github.io = respaldo del mismo repo
+ALLOWED_ORIGINS = "https://encuesta.mbc-latam.com,https://nelson2206.github.io"
+
+[ai]
+binding = "AI"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "voz-relevamiento"
+database_id = "094aa0b6-8946-4369-b3f0-c449ea3d1b48"
+
+# La IA pasa por el intermediario de ProcessIQ (que guarda la clave central de Anthropic).
+# Se autentica con el secreto INTERNAL_CODE, el mismo valor cargado en processiq-api.
+[[services]]
+binding = "PROCESSIQ"
+service = "processiq-api"

@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consola de relevamiento · Voz MBC</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="../favicon.png">
+<meta name="theme-color" content="#003478">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#E3E2DA; --card:#FFFFFF; --ink:#1C2B3A; --heading:#003478; --muted:#5B6B80;
+    --line:#CFCDC2; --accent:#FF0054; --accent-soft:#FFE3EC; --navy:#003478;
+    --panel:#F4F3EE; --field-line:#B9C4D4; --ok:#237A3F; --ok-bg:#E4F4E9;
+    --warn:#8A5A00; --warn-bg:#FBF0DA; --inf:#1F5FA8; --inf-bg:#E3EEFB;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#081426; --card:#0F2440; --ink:#E9EEF6; --heading:#BBD0EE; --muted:#9FB0C7;
+      --line:#243C5E; --accent:#FF4D80; --accent-soft:#3A1128; --navy:#1E4A85;
+      --panel:#0B1D37; --field-line:#31517D; --ok:#6FD08C; --ok-bg:#0E3320;
+      --warn:#EFC26A; --warn-bg:#3A2B0A; --inf:#8DB8F0; --inf-bg:#102C50;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS","Segoe UI",Verdana,sans-serif;font-size:15px;line-height:1.45}
+  h1,h2,h3{font-family:Montserrat,sans-serif;color:var(--heading);margin:0}
+  header{background:linear-gradient(150deg,#003478,#00234F);color:#fff;padding:16px 20px}
+  .hin{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{color:#fff;font-size:18px;font-weight:800}
+  header .sub{color:#9FC1F2;font-size:13px}
+  .wrap{max-width:1240px;margin:0 auto;padding:20px 16px 60px;display:flex;flex-direction:column;gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+  .card h2{font-size:16px;margin-bottom:10px}
+  .muted{color:var(--muted);font-size:13.5px}
+  label{display:block;font-family:Montserrat,sans-serif;font-weight:600;font-size:12.5px;color:var(--heading);margin:10px 0 4px}
+  input[type=text],input[type=password],textarea,select{width:100%;background:var(--card);color:var(--ink);border:1.5px solid var(--field-line);border-radius:9px;padding:8px 11px;font:inherit}
+  input:focus,textarea:focus,select:focus,button:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
+  .btn{appearance:none;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:700;border-radius:9px;padding:9px 16px;font-size:13.5px;border:1.5px solid transparent;background:var(--accent);color:#fff}
+  .btn:hover{filter:brightness(1.07)} .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .btn-ghost{background:none;border-color:var(--field-line);color:var(--heading)}
+  .btn-navy{background:var(--navy)}
+  .btn-xs{padding:5px 10px;font-size:12px;border-radius:7px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:800px){ .grid2{grid-template-columns:1fr} }
+  .tabs{display:flex;gap:4px;border-bottom:1.5px solid var(--line);margin-bottom:14px;flex-wrap:wrap}
+  .tab{appearance:none;background:none;border:none;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:700;font-size:13.5px;color:var(--muted);padding:9px 14px;border-bottom:3px solid transparent;margin-bottom:-1.5px}
+  .tab[aria-selected=true]{color:var(--heading);border-bottom-color:var(--accent)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{font-family:Montserrat,sans-serif;font-size:11.5px;text-align:left;color:var(--muted);font-weight:700;padding:7px 8px;border-bottom:1.5px solid var(--line);white-space:nowrap}
+  td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+  .tblwrap{overflow-x:auto}
+  .num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  .chip{display:inline-block;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+  .c-ok{background:var(--ok-bg);color:var(--ok)} .c-warn{background:var(--warn-bg);color:var(--warn)}
+  .c-inf{background:var(--inf-bg);color:var(--inf)} .c-mut{background:var(--panel);color:var(--muted)} .c-acc{background:var(--accent-soft);color:var(--accent)}
+  .grupo{font-family:Montserrat,sans-serif;font-weight:800;color:var(--heading);font-size:14px;padding:14px 0 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .kpis{display:flex;gap:26px;flex-wrap:wrap}
+  .kpi b{display:block;font-family:Montserrat,sans-serif;font-size:24px;color:var(--heading);font-variant-numeric:tabular-nums}
+  .kpi span{font-size:12.5px;color:var(--muted)}
+  .msg{border-radius:10px;padding:10px 14px;font-size:14px}
+  .msg.warn{background:var(--warn-bg);color:var(--warn)} .msg.ok{background:var(--ok-bg);color:var(--ok)}
+  .campo{display:grid;grid-template-columns:200px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+  @media (max-width:700px){ .campo{grid-template-columns:1fr} }
+  .campo .k{font-family:Montserrat,sans-serif;font-weight:700;font-size:12.5px;color:var(--heading)}
+  .campo .v{white-space:pre-wrap}
+  .campo .ev{color:var(--muted);font-size:12.5px;margin-top:3px}
+  .resp{background:var(--panel);border-radius:10px;padding:10px 12px;margin:6px 0;white-space:pre-wrap;font-size:13.5px}
+  .resp b{font-family:Montserrat,sans-serif;font-size:12px;color:var(--heading)}
+  dialog{border:none;border-radius:16px;padding:0;max-width:980px;width:calc(100% - 24px);background:var(--card);color:var(--ink)}
+  dialog::backdrop{background:rgba(0,20,50,.55)}
+  .dlg-h{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--line);padding:14px 18px;display:flex;align-items:center;gap:12px;z-index:1}
+  .dlg-b{padding:14px 18px 22px}
+  .hidden{display:none !important}
+  code{background:var(--panel);border-radius:5px;padding:1px 5px;font-size:12.5px}
+</style>
+</head>
+<body>
+<header><div class="hin"><div><h1>Consola de relevamiento de procesos</h1><div class="sub">Voz MBC · uso interno del equipo consultor</div></div></div></header>
+
+<main class="wrap">
+  <section class="card" id="vLogin" style="max-width:420px">
+    <h2>Acceso</h2>
+    <p class="muted">Ingresa el código de administración del Worker.</p>
+    <label for="inCodigo">Código</label>
+    <input type="password" id="inCodigo" autocomplete="current-password">
+    <div class="row" style="margin-top:14px"><button class="btn" id="btnEntrar">Entrar</button><span class="muted" id="loginMsg"></span></div>
+  </section>
+
+  <section class="card hidden" id="vCampanas">
+    <div class="row" style="justify-content:space-between"><h2>Campañas</h2><button class="btn btn-ghost btn-xs" id="btnSalir">Salir</button></div>
+    <div class="tblwrap"><table><thead><tr><th>Campaña</th><th>Cliente</th><th class="num">Encuestados</th><th class="num">Procesos</th><th>Creada</th><th></th></tr></thead><tbody id="tbCampanas"></tbody></table></div>
+    <details style="margin-top:14px"><summary class="btn btn-ghost btn-xs" style="display:inline-block">+ Nueva campaña</summary>
+      <div class="grid2" style="margin-top:8px">
+        <div><label for="ncNombre">Nombre</label><input type="text" id="ncNombre" placeholder="Ej. Inventario de procesos 2026 · Ola 1"></div>
+        <div><label for="ncCliente">Cliente</label><input type="text" id="ncCliente" placeholder="Ej. Toyota del Perú"></div>
+      </div>
+      <label for="ncGlosario">Glosario para la transcripción (siglas, sistemas, marcas, separados por coma)</label>
+      <input type="text" id="ncGlosario" placeholder="Ej. KINTO, DAM, SUNAT, BL, PDI, levante, SAP">
+      <div class="row" style="margin-top:12px"><button class="btn" id="btnCrear">Crear campaña</button><span class="muted" id="ncMsg"></span></div>
+    </details>
+  </section>
+
+  <section class="hidden" id="vCampana">
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div><h2 id="cTitulo" style="margin:0"></h2><div class="muted" id="cSub"></div></div>
+        <div class="row"><button class="btn btn-ghost btn-xs" id="btnVolver">← Campañas</button><button class="btn btn-ghost btn-xs" id="btnRecargar">Actualizar</button><button class="btn btn-navy btn-xs" id="btnExportar">Exportar inventario (Excel)</button></div>
+      </div>
+      <div class="kpis" style="margin-top:14px" id="kpis"></div>
+    </div>
+    <div class="card">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" data-tab="procesos" aria-selected="true">Procesos</button>
+        <button class="tab" role="tab" data-tab="encuestados" aria-selected="false">Encuestados y enlaces</button>
+        <button class="tab" role="tab" data-tab="carga" aria-selected="false">Carga y configuración</button>
+      </div>
+      <div id="tProcesos"></div>
+      <div id="tEncuestados" class="hidden"></div>
+      <div id="tCarga" class="hidden">
+        <div class="grid2">
+          <div>
+            <h3 style="font-size:14px">1. Plantilla</h3>
+            <p class="muted">Tres hojas: <code>Encuestados</code> (nombre, correo, gerencia, seccion, rol), <code>Procesos</code> (codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion) y <code>Sistemas</code> (nombre, tipo). Gerencia y sección deben escribirse igual en ambas hojas: así cada persona ve los procesos de su sección.</p>
+            <button class="btn btn-ghost btn-xs" id="btnPlantilla">Descargar plantilla</button>
+            <h3 style="font-size:14px;margin-top:18px">2. Cargar Excel</h3>
+            <input type="file" id="inExcel" accept=".xlsx,.xls" style="margin-top:6px">
+            <div id="prevCarga" class="muted" style="margin-top:8px"></div>
+            <div class="row" style="margin-top:8px">
+              <select id="modoCarga" style="width:auto"><option value="agregar">Agregar a lo existente</option><option value="reemplazar">Reemplazar todo (solo si aún no hay respuestas)</option></select>
+              <button class="btn" id="btnImportar" disabled>Importar</button>
+            </div>
+            <div id="msgCarga" style="margin-top:8px"></div>
+          </div>
+          <div>
+            <h3 style="font-size:14px">Glosario de transcripción</h3>
+            <p class="muted">Ayuda al reconocimiento de voz con siglas y nombres propios. Los nombres de la hoja Sistemas se agregan solos.</p>
+            <input type="text" id="inGlosario">
+            <div class="row" style="margin-top:8px"><button class="btn btn-ghost btn-xs" id="btnGlosario">Guardar glosario</button><span class="muted" id="msgGlosario"></span></div>
+            <h3 style="font-size:14px;margin-top:22px;color:var(--accent)">Borrar la campaña</h3>
+            <p class="muted">Elimina de forma definitiva encuestados, respuestas y resultados. Hazlo al cierre del proyecto, después de exportar el inventario. Escribe el nombre exacto de la campaña para confirmar.</p>
+            <input type="text" id="inBorrar" placeholder="Nombre exacto de la campaña">
+            <div class="row" style="margin-top:8px"><button class="btn btn-xs" id="btnBorrar">Borrar definitivamente</button><span class="muted" id="msgBorrar"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg"><div class="dlg-h"><div style="flex:1;min-width:0"><h2 id="dlgT" style="font-size:16px"></h2><div class="muted" id="dlgS"></div></div><button class="btn btn-ghost btn-xs" id="dlgCerrar">Cerrar</button></div><div class="dlg-b" id="dlgB"></div></dialog>
+
+<script>
+'use strict';
+(function(){
+  var API = 'https://voz-relevamiento-api.minsait-business-consulting-pe.workers.dev';
+  var URL_ENCUESTA = location.origin + location.pathname.replace(/admin\.html$/, '');
+  var PREG = {q1:'Objetivo, inicio y fin', q2:'Actividades y participantes', q3:'Sistemas y manualidad', q4:'Terceros', q5:'Datos personales', q6:'Indicadores, normas y frecuencia'};
+  var CAMPOS = [
+    ['tipo_proceso','Tipo de proceso'],['dueno_proceso','Dueño del proceso'],['areas_intervienen','Áreas que intervienen'],
+    ['objetivo','Objetivo'],['actividades','Actividades principales'],['inicio_fin','Evento de inicio y fin'],
+    ['entradas_salidas','Entradas y salidas'],['frecuencia_volumen','Frecuencia y volumen'],['terceros','Terceros involucrados'],
+    ['interaccion_terceros','Interacción con terceros'],['sistemas','Sistemas y herramientas'],['nivel_automatizacion','Nivel de automatización'],
+    ['actividades_manuales','Actividades manuales clave'],['kpis','KPIs'],['regulacion','Regulación aplicable'],
+    ['trata_datos_personales','¿Trata datos personales?'],['titulares_datos','Titulares de los datos'],['categoria_datos','Categoría de datos'],
+    ['criticidad_preliminar','Criticidad preliminar']
+  ];
+  var $ = function(s){ return document.querySelector(s); };
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  var CODIGO = '';
+  try { CODIGO = sessionStorage.getItem('relev-admin') || ''; } catch(e){}
+  var C = null;          // volcado de la campaña abierta
+  var CARGA = null;      // Excel leído, pendiente de importar
+
+  function api(path, body){
+    var opt = {headers:{'x-admin-code': CODIGO}};
+    if (body){ opt.method = 'POST'; opt.headers['content-type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    return fetch(API + path, opt).then(function(r){
+      return r.json().catch(function(){ return {ok:false, error:'Respuesta inesperada'}; }).then(function(j){
+        if (!r.ok || !j.ok){ var e = new Error(j.error || ('Error ' + r.status)); e.status = r.status; throw e; }
+        return j;
+      });
+    });
+  }
+  function ver(id){ ['vLogin','vCampanas','vCampana'].forEach(function(v){ $('#'+v).classList.toggle('hidden', v !== id); }); }
+
+  // ------------------------------------------------------------ acceso
+  function entrar(){
+    CODIGO = $('#inCodigo').value.trim() || CODIGO;
+    $('#loginMsg').textContent = 'Verificando…';
+    api('/a/campanas').then(function(j){
+      try { sessionStorage.setItem('relev-admin', CODIGO); } catch(e){}
+      $('#loginMsg').textContent = '';
+      pintarCampanas(j.campanas);
+      var id = new URLSearchParams(location.search).get('c');
+      if (id) abrir(id); else ver('vCampanas');
+    }).catch(function(err){ ver('vLogin'); $('#loginMsg').textContent = err.message; });
+  }
+  $('#btnEntrar').addEventListener('click', entrar);
+  $('#inCodigo').addEventListener('keydown', function(e){ if (e.key === 'Enter') entrar(); });
+  $('#btnSalir').addEventListener('click', function(){ try { sessionStorage.removeItem('relev-admin'); } catch(e){} CODIGO=''; ver('vLogin'); });
+  if (CODIGO) entrar();
+
+  function pintarCampanas(lista){
+    $('#tbCampanas').innerHTML = lista.length ? lista.map(function(c){
+      return '<tr><td><b>' + esc(c.nombre) + '</b></td><td>' + esc(c.cliente) + '</td><td class="num">' + c.encuestados + '</td><td class="num">' + c.procesos + '</td><td>' + esc(c.creada.slice(0,10)) + '</td>' +
+        '<td><button class="btn btn-xs" data-abrir="' + esc(c.id) + '">Abrir</button></td></tr>';
+    }).join('') : '<tr><td colspan="6" class="muted">Todavía no hay campañas.</td></tr>';
+  }
+  $('#tbCampanas').addEventListener('click', function(e){ var b = e.target.closest('[data-abrir]'); if (b) abrir(b.dataset.abrir); });
+  $('#btnCrear').addEventListener('click', function(){
+    $('#ncMsg').textContent = 'Creando…';
+    api('/a/campana', {nombre: $('#ncNombre').value, cliente: $('#ncCliente').value, glosario: $('#ncGlosario').value})
+      .then(function(j){ $('#ncMsg').textContent = ''; abrir(j.id); }).catch(function(err){ $('#ncMsg').textContent = err.message; });
+  });
+  $('#btnVolver').addEventListener('click', function(){ history.replaceState(null, '', location.pathname); api('/a/campanas').then(function(j){ pintarCampanas(j.campanas); ver('vCampanas'); }); });
+  $('#btnRecargar').addEventListener('click', function(){ abrir(C.campana.id); });
+
+  // ------------------------------------------------------------ campaña
+  function abrir(id){
+    return api('/a/campana?id=' + encodeURIComponent(id)).then(function(j){
+      C = j;
+      history.replaceState(null, '', location.pathname + '?c=' + encodeURIComponent(id));
+      ver('vCampana');
+      $('#cTitulo').textContent = C.campana.nombre;
+      $('#cSub').textContent = C.campana.cliente + ' · creada el ' + C.campana.creada.slice(0,10);
+      $('#inGlosario').value = C.campana.glosario || '';
+      pintarKpis(); pintarProcesos(); pintarEncuestados();
+    }).catch(function(err){ alert(err.message); });
+  }
+
+  function respuestasDe(pid){ return C.respuestas.filter(function(r){ return r.proceso_id === pid && (r.texto || '').trim(); }); }
+  function estructuradoDe(pid){ return C.estructurado.filter(function(x){ return x.proceso_id === pid; })[0]; }
+  function revisionesDe(pid){ return C.revisiones.filter(function(r){ return r.proceso_id === pid; }); }
+  function nombreProc(p){ return p.subproceso || p.proceso || p.macroproceso; }
+  function desactualizado(pid){ var e = estructuradoDe(pid); return !!e && respuestasDe(pid).some(function(r){ return r.actualizado > e.generado; }); }
+
+  function pintarKpis(){
+    var enc = C.encuestados, n = function(e){ return enc.filter(function(x){ return x.estado === e; }).length; };
+    var conResp = C.procesos.filter(function(p){ return respuestasDe(p.id).length; }).length;
+    var nuevos = C.procesos.filter(function(p){ return p.fuente === 'nuevo'; }).length;
+    $('#kpis').innerHTML = [
+      [enc.length, 'encuestados'], [n('enviado'), 'terminaron'], [n('en_curso'), 'en curso'], [n('pendiente'), 'sin empezar'],
+      [C.procesos.length, 'procesos'], [nuevos, 'agregados por usuarios'], [conResp, 'con respuestas'], [C.estructurado.length, 'estructurados con IA']
+    ].map(function(k){ return '<div class="kpi"><b>' + k[0] + '</b><span>' + k[1] + '</span></div>'; }).join('');
+  }
+
+  document.querySelector('.tabs').addEventListener('click', function(e){
+    var t = e.target.closest('.tab'); if (!t) return;
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(x){ x.setAttribute('aria-selected', x === t ? 'true' : 'false'); });
+    $('#tProcesos').classList.toggle('hidden', t.dataset.tab !== 'procesos');
+    $('#tEncuestados').classList.toggle('hidden', t.dataset.tab !== 'encuestados');
+    $('#tCarga').classList.toggle('hidden', t.dataset.tab !== 'carga');
+  });
+
+  function chipVigencia(pid){
+    var rv = revisionesDe(pid);
+    if (!rv.length) return '<span class="chip c-mut">sin revisar</span>';
+    var est = {}; rv.forEach(function(r){ est[r.estado] = (est[r.estado] || 0) + 1; });
+    var t = {vigente:['Sigue igual','c-ok'], cambio:['Cambió','c-warn'], no_existe:['Ya no se hace','c-acc']};
+    return Object.keys(est).map(function(k){ return '<span class="chip ' + t[k][1] + '">' + t[k][0] + (est[k] > 1 ? ' ×' + est[k] : '') + '</span>'; }).join(' ');
+  }
+
+  function pintarProcesos(){
+    var grupos = {};
+    C.procesos.forEach(function(p){ var g = p.gerencia + ' · ' + p.seccion; (grupos[g] = grupos[g] || []).push(p); });
+    var html = '<p class="muted" style="margin-top:0">«Estructurar» manda a la IA las respuestas de todos los encuestados de la sección sobre ese proceso y arma su fila del inventario. Puedes regenerar cuando lleguen más respuestas.</p>';
+    if (!C.procesos.length) html += '<p class="muted">Carga el Excel en la pestaña «Carga y configuración».</p>';
+    Object.keys(grupos).sort().forEach(function(g){
+      var ps = grupos[g];
+      var pend = ps.filter(function(p){ return respuestasDe(p.id).length && (!estructuradoDe(p.id) || desactualizado(p.id)); });
+      html += '<div class="grupo">' + esc(g) + ' <span class="muted" style="font-weight:600">' + ps.length + ' procesos</span>' +
+        (pend.length ? ' <button class="btn btn-navy btn-xs" data-lote="' + esc(g) + '">Estructurar ' + pend.length + ' pendientes</button>' : '') + '</div>';
+      html += '<div class="tblwrap"><table><thead><tr><th>Código</th><th>Proceso</th><th>Vigencia</th><th class="num">Respuestas</th><th>IA</th><th></th></tr></thead><tbody>';
+      ps.forEach(function(p){
+        var e = estructuradoDe(p.id), rs = respuestasDe(p.id);
+        var ia = e ? (desactualizado(p.id) ? '<span class="chip c-warn">desactualizado</span>' : '<span class="chip c-ok">listo</span>') : '<span class="chip c-mut">—</span>';
+        html += '<tr><td>' + esc(p.codigo) + '</td><td><b>' + esc(nombreProc(p)) + '</b>' + (p.fuente === 'nuevo' ? ' <span class="chip c-acc">nuevo</span>' : '') +
+          '<div class="muted">' + esc([p.macroproceso, p.proceso].filter(function(x){ return x && x !== nombreProc(p); }).join(' › ')) + '</div></td>' +
+          '<td>' + chipVigencia(p.id) + '</td><td class="num">' + rs.length + '</td><td id="ia-' + esc(p.id) + '">' + ia + '</td>' +
+          '<td class="row" style="flex-wrap:nowrap"><button class="btn btn-ghost btn-xs" data-ver="' + esc(p.id) + '">Ver</button>' +
+          '<button class="btn btn-xs" data-est="' + esc(p.id) + '"' + (rs.length ? '' : ' disabled') + '>' + (e ? 'Regenerar' : 'Estructurar') + '</button></td></tr>';
+      });
+      html += '</tbody></table></div>';
+    });
+    $('#tProcesos').innerHTML = html;
+  }
+
+  $('#tProcesos').addEventListener('click', function(e){
+    var b;
+    if ((b = e.target.closest('[data-ver]'))) return detalle(b.dataset.ver);
+    if ((b = e.target.closest('[data-est]'))) return estructurar(b.dataset.est, b).catch(function(){});
+    if ((b = e.target.closest('[data-lote]'))){
+      var g = b.dataset.lote;
+      var ps = C.procesos.filter(function(p){ return p.gerencia + ' · ' + p.seccion === g && respuestasDe(p.id).length && (!estructuradoDe(p.id) || desactualizado(p.id)); });
+      b.disabled = true;
+      var i = 0, errores = 0;
+      // Uno por uno: cada llamada tarda y así no se choca con el límite de la API.
+      (function sig(){
+        if (i >= ps.length){ pintarKpis(); pintarProcesos(); if (errores) alert(errores + ' procesos no se pudieron estructurar; reintenta con su botón.'); return; }
+        b.textContent = 'Estructurando ' + (i+1) + ' de ' + ps.length + '…';
+        estructurar(ps[i].id, null).then(function(){ i++; sig(); }, function(){ errores++; i++; sig(); });
+      })();
+    }
+  });
+
+  function estructurar(pid, boton){
+    var celda = document.getElementById('ia-' + pid);
+    if (boton) boton.disabled = true;
+    if (celda) celda.innerHTML = '<span class="chip c-inf">procesando…</span>';
+    return api('/a/estructurar', {proceso_id: pid}).then(function(j){
+      C.estructurado = C.estructurado.filter(function(x){ return x.proceso_id !== pid; });
+      C.estructurado.push({proceso_id: pid, datos: j.datos, modelo: j.modelo, generado: j.generado});
+      if (celda) celda.innerHTML = '<span class="chip c-ok">listo</span>';
+      if (boton){ boton.disabled = false; boton.textContent = 'Regenerar'; }
+      pintarKpis();
+    }).catch(function(err){
+      if (celda) celda.innerHTML = '<span class="chip c-warn" title="' + esc(err.message) + '">error</span>';
+      if (boton){ boton.disabled = false; alert(err.message); }
+      throw err;
+    });
+  }
+
+  function detalle(pid){
+    var p = C.procesos.filter(function(x){ return x.id === pid; })[0];
+    var e = estructuradoDe(pid);
+    $('#dlgT').textContent = (p.codigo ? p.codigo + ' · ' : '') + nombreProc(p);
+    $('#dlgS').textContent = p.gerencia + ' · ' + p.seccion + (p.fuente === 'nuevo' ? ' · agregado por un encuestado' : '');
+    var h = '';
+    if (e){
+      var d = e.datos;
+      h += '<h3 style="font-size:14px">Fila del inventario <span class="muted" style="font-weight:600">· ' + esc(e.modelo) + ' · ' + esc(e.generado.slice(0,16).replace('T',' ')) + '</span></h3>';
+      if (desactualizado(pid)) h += '<p class="msg warn">Llegaron respuestas después de esta versión: regenera para incluirlas.</p>';
+      h += '<p>' + esc(d.resumen) + '</p>';
+      h += '<div class="row" style="margin:6px 0 10px"><span class="chip c-ok">dicho</span><span class="chip c-inf">inferido: validar</span><span class="chip c-mut">vacío: preguntar</span></div>';
+      CAMPOS.forEach(function(c){
+        var f = d.campos[c[0]] || {valor:'', estado:'vacio', evidencia:''};
+        var cls = f.estado === 'dicho' ? 'c-ok' : f.estado === 'inferido' ? 'c-inf' : 'c-mut';
+        h += '<div class="campo"><div class="k">' + esc(c[1]) + '<div><span class="chip ' + cls + '">' + esc(f.estado) + '</span></div></div><div><div class="v">' + (f.valor ? esc(f.valor) : '<span class="muted">—</span>') + '</div>' +
+          (f.evidencia ? '<div class="ev">' + esc(f.evidencia) + '</div>' : '') + '</div></div>';
+      });
+      if (d.contradicciones && d.contradicciones.length) h += '<h3 style="font-size:14px;margin-top:16px">Contradicciones</h3><ul>' + d.contradicciones.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
+      h += '<h3 style="font-size:14px;margin-top:16px">Preguntas para la reunión de validación</h3><ol>' + (d.preguntas_validacion || []).map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>';
+    } else {
+      h += '<p class="msg warn">Todavía no se estructuró con IA.</p>';
+    }
+    h += '<h3 style="font-size:14px;margin-top:18px">Lo que contaron</h3>';
+    var hay = false;
+    C.encuestados.filter(function(x){ return x.gerencia === p.gerencia && x.seccion === p.seccion; }).forEach(function(en){
+      var rv = C.revisiones.filter(function(r){ return r.proceso_id === pid && r.encuestado_id === en.id; })[0];
+      var rs = C.respuestas.filter(function(r){ return r.proceso_id === pid && r.encuestado_id === en.id && ((r.texto||'').trim() || r.sistemas.length); });
+      if (!rv && !rs.length) return;
+      hay = true;
+      h += '<div style="margin-top:10px"><b>' + esc(en.nombre) + '</b> <span class="muted">' + esc(en.rol) + '</span>' + (rv ? ' · vigencia: ' + esc(rv.estado) + (rv.comentario ? ' — ' + esc(rv.comentario) : '') : '') + '</div>';
+      rs.sort(function(a,b){ return a.pregunta.localeCompare(b.pregunta); }).forEach(function(r){
+        h += '<div class="resp"><b>' + esc(PREG[r.pregunta]) + '</b>\n' + esc(r.texto) + (r.sistemas.length ? '\nSistemas marcados: ' + esc(r.sistemas.join(', ')) : '') + '</div>';
+      });
+    });
+    if (!hay) h += '<p class="muted">Nadie respondió todavía sobre este proceso.</p>';
+    $('#dlgB').innerHTML = h;
+    $('#dlg').showModal();
+  }
+  $('#dlgCerrar').addEventListener('click', function(){ $('#dlg').close(); });
+
+  function enlace(en){ return URL_ENCUESTA + '?k=' + en.token; }
+  function pintarEncuestados(){
+    var h = '<div class="row" style="margin-bottom:10px"><button class="btn btn-ghost btn-xs" id="btnEnlacesXls">Descargar enlaces (Excel)</button>' +
+      '<span class="muted">Cada enlace es personal: da acceso a las respuestas de esa persona. Envíalo solo a ella.</span></div>';
+    h += '<div class="tblwrap"><table><thead><tr><th>Nombre</th><th>Gerencia · sección</th><th>Rol</th><th>Estado</th><th class="num">Respuestas</th><th>Última actividad</th><th></th></tr></thead><tbody>';
+    C.encuestados.forEach(function(en){
+      var n = C.respuestas.filter(function(r){ return r.encuestado_id === en.id && (r.texto || '').trim(); }).length;
+      var cls = en.estado === 'enviado' ? 'c-ok' : en.estado === 'en_curso' ? 'c-inf' : 'c-mut';
+      var lbl = en.estado === 'enviado' ? 'terminó' : en.estado === 'en_curso' ? 'en curso' : 'sin empezar';
+      h += '<tr><td><b>' + esc(en.nombre) + '</b><div class="muted">' + esc(en.correo) + '</div></td><td>' + esc(en.gerencia + ' · ' + en.seccion) + '</td><td>' + esc(en.rol) + '</td>' +
+        '<td><span class="chip ' + cls + '">' + lbl + '</span></td><td class="num">' + n + '</td><td>' + esc((en.actualizado || '').slice(0,16).replace('T',' ')) + '</td>' +
+        '<td><button class="btn btn-ghost btn-xs" data-copiar="' + esc(en.token) + '">Copiar enlace</button></td></tr>';
+    });
+    if (!C.encuestados.length) h += '<tr><td colspan="7" class="muted">Sin encuestados: carga el Excel.</td></tr>';
+    h += '</tbody></table></div>';
+    $('#tEncuestados').innerHTML = h;
+    $('#btnEnlacesXls').addEventListener('click', function(){
+      var ws = XLSX.utils.json_to_sheet(C.encuestados.map(function(en){ return {Nombre: en.nombre, Correo: en.correo, Gerencia: en.gerencia, 'Sección': en.seccion, Rol: en.rol, Enlace: enlace(en)}; }));
+      ws['!cols'] = [{wch:28},{wch:30},{wch:18},{wch:22},{wch:10},{wch:80}];
+      var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Enlaces');
+      XLSX.writeFile(wb, 'Enlaces encuesta - ' + C.campana.nombre + '.xlsx');
+    });
+  }
+  $('#tEncuestados').addEventListener('click', function(e){
+    var b = e.target.closest('[data-copiar]'); if (!b) return;
+    var en = C.encuestados.filter(function(x){ return x.token === b.dataset.copiar; })[0];
+    navigator.clipboard.writeText(enlace(en)).then(function(){ b.textContent = 'Copiado ✓'; setTimeout(function(){ b.textContent = 'Copiar enlace'; }, 1500); });
+  });
+
+  // ------------------------------------------------------------ carga Excel
+  $('#btnPlantilla').addEventListener('click', function(){
+    var wb = XLSX.utils.book_new();
+    var enc = XLSX.utils.aoa_to_sheet([['nombre','correo','gerencia','seccion','rol'],['Ejemplo Apellido','ejemplo@empresa.com','Logística','Importaciones','líder']]);
+    var pro = XLSX.utils.aoa_to_sheet([['codigo','gerencia','seccion','macroproceso','proceso','subproceso','descripcion'],['LOG.02.03','Logística','Importaciones','Abastecimiento de vehículos','Importación de vehículos','Desaduanaje','(opcional) descripción del inventario anterior']]);
+    var sis = XLSX.utils.aoa_to_sheet([['nombre','tipo'],['SAP S/4HANA','ERP'],['Portal SUNAT','Portal de tercero']]);
+    enc['!cols'] = [{wch:26},{wch:28},{wch:18},{wch:22},{wch:10}];
+    pro['!cols'] = [{wch:12},{wch:18},{wch:22},{wch:28},{wch:28},{wch:28},{wch:40}];
+    XLSX.utils.book_append_sheet(wb, enc, 'Encuestados'); XLSX.utils.book_append_sheet(wb, pro, 'Procesos'); XLSX.utils.book_append_sheet(wb, sis, 'Sistemas');
+    XLSX.writeFile(wb, 'Plantilla carga relevamiento.xlsx');
+  });
+
+  // Encabezados en minúscula y sin tildes: "Sección" y "seccion" valen igual.
+  function hoja(wb, nombre){
+    var n = wb.SheetNames.filter(function(s){ return s.trim().toLowerCase() === nombre.toLowerCase(); })[0];
+    if (!n) return [];
+    return XLSX.utils.sheet_to_json(wb.Sheets[n], {defval:''}).map(function(r){
+      var o = {}; Object.keys(r).forEach(function(k){ o[k.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')] = String(r[k]).trim(); }); return o;
+    });
+  }
+  $('#inExcel').addEventListener('change', function(ev){
+    var f = ev.target.files[0]; if (!f) return;
+    f.arrayBuffer().then(function(buf){
+      var wb = XLSX.read(buf, {type:'array'});
+      CARGA = {encuestados: hoja(wb, 'Encuestados'), procesos: hoja(wb, 'Procesos'), sistemas: hoja(wb, 'Sistemas')};
+      // Secciones sin procesos o sin encuestados suelen ser un error de escritura entre hojas.
+      // En modo "agregar" también cuenta lo que ya está cargado en la campaña.
+      var sEnc = {}, sPro = {};
+      var yaEnc = $('#modoCarga').value === 'agregar' ? C.encuestados : [];
+      var yaPro = $('#modoCarga').value === 'agregar' ? C.procesos : [];
+      CARGA.encuestados.concat(yaEnc).forEach(function(e){ sEnc[e.gerencia + ' · ' + e.seccion] = 1; });
+      CARGA.procesos.concat(yaPro).forEach(function(p){ sPro[p.gerencia + ' · ' + p.seccion] = 1; });
+      var sinProc = Object.keys(sEnc).filter(function(k){ return !sPro[k]; });
+      var sinEnc = Object.keys(sPro).filter(function(k){ return !sEnc[k]; });
+      $('#prevCarga').innerHTML = 'Leídos: <b>' + CARGA.encuestados.length + '</b> encuestados, <b>' + CARGA.procesos.length + '</b> procesos, <b>' + CARGA.sistemas.length + '</b> sistemas.' +
+        (sinProc.length ? '<div class="msg warn" style="margin-top:6px">Secciones con encuestados pero sin procesos (verán una lista vacía y solo podrán agregar): ' + esc(sinProc.join('; ')) + '</div>' : '') +
+        (sinEnc.length ? '<div class="msg warn" style="margin-top:6px">Secciones con procesos pero sin encuestados: ' + esc(sinEnc.join('; ')) + '</div>' : '');
+      $('#btnImportar').disabled = false;
+    }).catch(function(){ $('#prevCarga').textContent = 'No se pudo leer el archivo.'; });
+  });
+  $('#btnImportar').addEventListener('click', function(){
+    if (!CARGA) return;
+    var b = this; b.disabled = true;
+    $('#msgCarga').innerHTML = '<span class="muted">Importando…</span>';
+    api('/a/importar', Object.assign({campana_id: C.campana.id, modo: $('#modoCarga').value}, CARGA)).then(function(j){
+      $('#msgCarga').innerHTML = '<div class="msg ok">Importados: ' + j.encuestados + ' encuestados, ' + j.procesos + ' procesos, ' + j.sistemas + ' sistemas.</div>';
+      CARGA = null; $('#inExcel').value = '';
+      abrir(C.campana.id);
+    }).catch(function(err){ $('#msgCarga').innerHTML = '<div class="msg warn">' + esc(err.message) + '</div>'; b.disabled = false; });
+  });
+  $('#btnGlosario').addEventListener('click', function(){
+    api('/a/campana/glosario', {campana_id: C.campana.id, glosario: $('#inGlosario').value}).then(function(){ $('#msgGlosario').textContent = 'Guardado'; })
+      .catch(function(err){ $('#msgGlosario').textContent = err.message; });
+  });
+  $('#btnBorrar').addEventListener('click', function(){
+    if (!confirm('Se borrará TODO lo de la campaña "' + C.campana.nombre + '". No se puede deshacer. ¿Continuar?')) return;
+    api('/a/borrar-campana', {campana_id: C.campana.id, confirmar: $('#inBorrar').value}).then(function(){
+      alert('Campaña borrada.'); location.href = location.pathname;
+    }).catch(function(err){ $('#msgBorrar').textContent = err.message; });
+  });
+
+  // ------------------------------------------------------------ exportar
+  $('#btnExportar').addEventListener('click', function(){
+    var wb = XLSX.utils.book_new();
+    var inv = [], est = [], preg = [];
+    C.procesos.forEach(function(p){
+      var e = estructuradoDe(p.id), d = e ? e.datos : null;
+      var base = {'Código': p.codigo, Gerencia: p.gerencia, 'Sección': p.seccion, Macroproceso: p.macroproceso, Proceso: p.proceso, Subproceso: p.subproceso,
+        Fuente: p.fuente === 'nuevo' ? 'Nuevo (encuesta)' : 'Inventario anterior'};
+      var fila = Object.assign({}, base, {Vigencia: d ? d.vigencia : (revisionesDe(p.id).map(function(r){ return r.estado; }).join(', ') || 'sin revisar')});
+      var filaE = Object.assign({}, base);
+      CAMPOS.forEach(function(c){
+        var f = d && d.campos[c[0]];
+        fila[c[1]] = f ? f.valor : '';
+        filaE[c[1]] = f ? f.estado : 'sin estructurar';
+      });
+      fila['Resumen'] = d ? d.resumen : '';
+      fila['Contradicciones'] = d ? (d.contradicciones || []).join(' | ') : '';
+      fila['Respuestas recibidas'] = respuestasDe(p.id).length;
+      fila['Estructurado'] = e ? e.generado.slice(0,16).replace('T',' ') + (desactualizado(p.id) ? ' (desactualizado)' : '') : '';
+      inv.push(fila); est.push(filaE);
+      if (d) (d.preguntas_validacion || []).forEach(function(q, i){ preg.push({'Código': p.codigo, Gerencia: p.gerencia, 'Sección': p.seccion, Proceso: p.subproceso || p.proceso, '#': i+1, Pregunta: q}); });
+    });
+    var resp = C.respuestas.filter(function(r){ return (r.texto || '').trim() || r.sistemas.length; }).map(function(r){
+      var p = C.procesos.filter(function(x){ return x.id === r.proceso_id; })[0] || {};
+      var en = C.encuestados.filter(function(x){ return x.id === r.encuestado_id; })[0] || {};
+      return {'Código': p.codigo, Proceso: p.subproceso || p.proceso, Encuestado: en.nombre, Rol: en.rol, Pregunta: PREG[r.pregunta], Respuesta: r.texto, 'Sistemas marcados': r.sistemas.join(', '), Fecha: r.actualizado.slice(0,16).replace('T',' ')};
+    });
+    var add = function(rows, nombre, ancho){ var ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{'(sin datos)':''}]); if (ancho) ws['!cols'] = ancho; XLSX.utils.book_append_sheet(wb, ws, nombre); };
+    add(inv, 'Inventario', Object.keys(inv[0] || {}).map(function(){ return {wch:26}; }));
+    add(est, 'Estado de campos', Object.keys(est[0] || {}).map(function(){ return {wch:18}; }));
+    add(preg, 'Preguntas validación', [{wch:12},{wch:16},{wch:20},{wch:34},{wch:4},{wch:90}]);
+    add(resp, 'Respuestas', [{wch:12},{wch:30},{wch:24},{wch:10},{wch:26},{wch:90},{wch:30},{wch:16}]);
+    XLSX.writeFile(wb, 'Inventario de procesos - ' + C.campana.nombre + ' - ' + new Date().toISOString().slice(0,10) + '.xlsx');
+  });
+})();
+</script>
+</body>
+</html>
