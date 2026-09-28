@@ -1,5 +1,6 @@
 -- Voz MBC · Relevamiento de procesos — base D1 (voz-relevamiento)
--- Aplicar: npx wrangler d1 execute voz-relevamiento --remote --file=schema.sql
+-- Base nueva: npx wrangler d1 execute voz-relevamiento --remote --file=schema.sql
+-- Base creada antes del 2026-09-28: aplicar en su lugar migracion-002.sql
 -- El audio NUNCA se guarda: solo el texto que el encuestado revisa y confirma.
 
 CREATE TABLE IF NOT EXISTS campanas (
@@ -7,8 +8,12 @@ CREATE TABLE IF NOT EXISTS campanas (
   nombre TEXT NOT NULL,
   cliente TEXT NOT NULL,
   glosario TEXT NOT NULL DEFAULT '',   -- términos para mejorar la transcripción (siglas, sistemas, marcas)
-  creada TEXT NOT NULL
+  creada TEXT NOT NULL,
+  codigo_publico TEXT,                 -- código del enlace abierto (?c=)
+  abierta INTEGER NOT NULL DEFAULT 0,  -- 1 = el enlace abierto acepta registros
+  dominio TEXT NOT NULL DEFAULT ''     -- dominio de correo exigido al registrarse (opcional)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS ux_camp_codigo ON campanas(codigo_publico);
 
 CREATE TABLE IF NOT EXISTS encuestados (
   id TEXT PRIMARY KEY,
@@ -20,9 +25,11 @@ CREATE TABLE IF NOT EXISTS encuestados (
   seccion TEXT NOT NULL,
   rol TEXT NOT NULL DEFAULT '',        -- líder / soporte
   estado TEXT NOT NULL DEFAULT 'pendiente',  -- pendiente / en_curso / enviado
-  actualizado TEXT
+  actualizado TEXT,
+  origen TEXT NOT NULL DEFAULT 'carga'       -- carga (Excel) / abierto (se registró solo)
 );
 CREATE INDEX IF NOT EXISTS ix_enc_campana ON encuestados(campana_id);
+CREATE INDEX IF NOT EXISTS ix_enc_correo ON encuestados(campana_id, correo);
 
 CREATE TABLE IF NOT EXISTS procesos (
   id TEXT PRIMARY KEY,
@@ -34,7 +41,7 @@ CREATE TABLE IF NOT EXISTS procesos (
   proceso TEXT NOT NULL DEFAULT '',
   subproceso TEXT NOT NULL DEFAULT '',
   descripcion TEXT NOT NULL DEFAULT '',
-  fuente TEXT NOT NULL DEFAULT 'inventario',   -- inventario / nuevo
+  fuente TEXT NOT NULL DEFAULT 'inventario',   -- inventario / nuevo (encuestado) / consultor
   creado_por TEXT,                              -- encuestado que lo agregó (si es nuevo)
   orden INTEGER NOT NULL DEFAULT 0
 );
@@ -44,11 +51,20 @@ CREATE INDEX IF NOT EXISTS ix_proc_campana ON procesos(campana_id, gerencia, sec
 CREATE TABLE IF NOT EXISTS revisiones (
   encuestado_id TEXT NOT NULL,
   proceso_id TEXT NOT NULL,
-  estado TEXT NOT NULL,          -- vigente / cambio / no_existe
+  estado TEXT NOT NULL,          -- vigente / cambio / no_participo / no_existe
   comentario TEXT NOT NULL DEFAULT '',
   actualizado TEXT NOT NULL,
   PRIMARY KEY (encuestado_id, proceso_id)
 );
+
+-- Procesos que una persona eligió con el buscador (pueden ser de cualquier gerencia).
+CREATE TABLE IF NOT EXISTS asignaciones (
+  encuestado_id TEXT NOT NULL,
+  proceso_id TEXT NOT NULL,
+  creado TEXT NOT NULL,
+  PRIMARY KEY (encuestado_id, proceso_id)
+);
+CREATE INDEX IF NOT EXISTS ix_asig_proceso ON asignaciones(proceso_id);
 
 CREATE TABLE IF NOT EXISTS respuestas (
   encuestado_id TEXT NOT NULL,

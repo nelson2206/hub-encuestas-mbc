@@ -27,7 +27,7 @@
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS","Segoe UI",Verdana,sans-serif;font-size:15px;line-height:1.45}
-  h1,h2,h3{font-family:Montserrat,sans-serif;color:var(--heading);margin:0}
+  h1,h2,h3,h4{font-family:Montserrat,sans-serif;color:var(--heading);margin:0}
   header{background:linear-gradient(150deg,#003478,#00234F);color:#fff;padding:16px 20px}
   .hin{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
   header h1{color:#fff;font-size:18px;font-weight:800}
@@ -37,13 +37,15 @@
   .card h2{font-size:16px;margin-bottom:10px}
   .muted{color:var(--muted);font-size:13.5px}
   label{display:block;font-family:Montserrat,sans-serif;font-weight:600;font-size:12.5px;color:var(--heading);margin:10px 0 4px}
-  input[type=text],input[type=password],textarea,select{width:100%;background:var(--card);color:var(--ink);border:1.5px solid var(--field-line);border-radius:9px;padding:8px 11px;font:inherit}
+  input[type=text],input[type=password],input[type=search],textarea,select{width:100%;background:var(--card);color:var(--ink);border:1.5px solid var(--field-line);border-radius:9px;padding:8px 11px;font:inherit}
+  textarea{min-height:70px;resize:vertical}
   input:focus,textarea:focus,select:focus,button:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
   .btn{appearance:none;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:700;border-radius:9px;padding:9px 16px;font-size:13.5px;border:1.5px solid transparent;background:var(--accent);color:#fff}
   .btn:hover{filter:brightness(1.07)} .btn[disabled]{opacity:.5;cursor:not-allowed}
   .btn-ghost{background:none;border-color:var(--field-line);color:var(--heading)}
   .btn-navy{background:var(--navy)}
   .btn-xs{padding:5px 10px;font-size:12px;border-radius:7px}
+  .btn-link{appearance:none;background:none;border:none;cursor:pointer;color:var(--accent);font:inherit;font-size:13px;text-decoration:underline;padding:2px}
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media (max-width:800px){ .grid2{grid-template-columns:1fr} }
@@ -53,17 +55,48 @@
   table{width:100%;border-collapse:collapse;font-size:13.5px}
   th{font-family:Montserrat,sans-serif;font-size:11.5px;text-align:left;color:var(--muted);font-weight:700;padding:7px 8px;border-bottom:1.5px solid var(--line);white-space:nowrap}
   td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr.fila-ger td{background:var(--panel);font-weight:700}
   .tblwrap{overflow-x:auto}
   .num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
   .chip{display:inline-block;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
   .c-ok{background:var(--ok-bg);color:var(--ok)} .c-warn{background:var(--warn-bg);color:var(--warn)}
   .c-inf{background:var(--inf-bg);color:var(--inf)} .c-mut{background:var(--panel);color:var(--muted)} .c-acc{background:var(--accent-soft);color:var(--accent)}
-  .grupo{font-family:Montserrat,sans-serif;font-weight:800;color:var(--heading);font-size:14px;padding:14px 0 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .kpis{display:flex;gap:26px;flex-wrap:wrap}
   .kpi b{display:block;font-family:Montserrat,sans-serif;font-size:24px;color:var(--heading);font-variant-numeric:tabular-nums}
   .kpi span{font-size:12.5px;color:var(--muted)}
   .msg{border-radius:10px;padding:10px 14px;font-size:14px}
   .msg.warn{background:var(--warn-bg);color:var(--warn)} .msg.ok{background:var(--ok-bg);color:var(--ok)}
+  /* Mapa de procesos */
+  .filtros{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end}
+  @media (max-width:800px){ .filtros{grid-template-columns:1fr} }
+  .filtros label{margin-top:0}
+  .cob{margin:16px 0 4px}
+  .cob-bar{display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--panel)}
+  .cob-bar.mini{height:7px;width:150px;display:inline-flex;vertical-align:middle}
+  .seg-respondido{background:var(--ok)} .seg-en_curso{background:var(--inf)} .seg-sin_cobertura{background:var(--field-line)} .seg-no_vigente{background:var(--muted)}
+  .leyenda{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:8px}
+  .leyenda b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .leyenda i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
+  .definicion{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+  .ger{border-top:2px solid var(--heading);padding-top:12px;margin-top:24px}
+  .ger-h{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .ger-h h3{font-size:17px}
+  .sec{margin-top:14px;padding-left:14px;border-left:1px solid var(--line)}
+  .sec-h{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
+  .sec-h h4{font-size:14px}
+  .macro-t{font-size:12px;color:var(--muted);margin:10px 0 6px;font-family:Montserrat,sans-serif;font-weight:600}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+  .tile{appearance:none;text-align:left;cursor:pointer;background:var(--card);border:1.5px solid var(--line);border-left-width:5px;border-radius:8px;padding:9px 11px;font:inherit;color:inherit;display:flex;flex-direction:column;gap:4px;min-height:62px}
+  .tile:hover{box-shadow:0 4px 14px rgba(0,25,60,.12)}
+  .tile-n{font-weight:700;font-size:13.5px;line-height:1.3;color:var(--heading);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .tile-m{font-size:12px;color:var(--muted)}
+  .tile-m .nuevo{color:var(--accent);font-weight:700}
+  .st-respondido{border-left-color:var(--ok)}
+  .st-en_curso{border-left-color:var(--inf)}
+  .st-sin_cobertura{border-style:dashed;border-left-style:solid;border-left-color:var(--field-line)}
+  .st-no_vigente{border-left-color:var(--muted);opacity:.7}
+  .st-no_vigente .tile-n{text-decoration:line-through}
+  /* Ficha */
   .campo{display:grid;grid-template-columns:200px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
   @media (max-width:700px){ .campo{grid-template-columns:1fr} }
   .campo .k{font-family:Montserrat,sans-serif;font-weight:700;font-size:12.5px;color:var(--heading)}
@@ -77,6 +110,7 @@
   .dlg-b{padding:14px 18px 22px}
   .hidden{display:none !important}
   code{background:var(--panel);border-radius:5px;padding:1px 5px;font-size:12.5px}
+  .enlace{font-family:Consolas,monospace;font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;word-break:break-all;flex:1;min-width:240px}
 </style>
 </head>
 <body>
@@ -96,7 +130,7 @@
     <div class="tblwrap"><table><thead><tr><th>Campaña</th><th>Cliente</th><th class="num">Encuestados</th><th class="num">Procesos</th><th>Creada</th><th></th></tr></thead><tbody id="tbCampanas"></tbody></table></div>
     <details style="margin-top:14px"><summary class="btn btn-ghost btn-xs" style="display:inline-block">+ Nueva campaña</summary>
       <div class="grid2" style="margin-top:8px">
-        <div><label for="ncNombre">Nombre</label><input type="text" id="ncNombre" placeholder="Ej. Inventario de procesos 2026 · Ola 1"></div>
+        <div><label for="ncNombre">Nombre</label><input type="text" id="ncNombre" placeholder="Ej. Inventario de procesos 2026"></div>
         <div><label for="ncCliente">Cliente</label><input type="text" id="ncCliente" placeholder="Ej. Toyota del Perú"></div>
       </div>
       <label for="ncGlosario">Glosario para la transcripción (siglas, sistemas, marcas, separados por coma)</label>
@@ -115,12 +149,29 @@
     </div>
     <div class="card">
       <div class="tabs" role="tablist">
-        <button class="tab" role="tab" data-tab="procesos" aria-selected="true">Procesos</button>
-        <button class="tab" role="tab" data-tab="encuestados" aria-selected="false">Encuestados y enlaces</button>
+        <button class="tab" role="tab" data-tab="mapa" aria-selected="true">Mapa de procesos</button>
+        <button class="tab" role="tab" data-tab="barrido" aria-selected="false">Plan de barrido</button>
+        <button class="tab" role="tab" data-tab="encuestados" aria-selected="false">Personas y enlaces</button>
         <button class="tab" role="tab" data-tab="carga" aria-selected="false">Carga y configuración</button>
       </div>
-      <div id="tProcesos"></div>
+
+      <div id="tMapa">
+        <div class="filtros">
+          <div><label for="fTexto">Buscar en el mapa</label><input type="search" id="fTexto" placeholder="Nombre, código, macroproceso…"></div>
+          <div><label for="fGer">Gerencia</label><select id="fGer"></select></div>
+          <div><label for="fEst">Estado</label><select id="fEst">
+            <option value="">Todos</option><option value="sin_cobertura">Sin cobertura</option><option value="en_curso">En curso</option>
+            <option value="respondido">Respondidos</option><option value="no_vigente">Ya no se hacen</option><option value="nuevo">Agregados en la encuesta</option>
+            <option value="ia_pend">Pendientes de estructurar con IA</option></select></div>
+          <div><button class="btn btn-ghost" id="btnNuevoProc" type="button">+ Agregar proceso</button></div>
+        </div>
+        <div class="cob" id="cobertura"></div>
+        <div id="mapa"></div>
+      </div>
+
+      <div id="tBarrido" class="hidden"></div>
       <div id="tEncuestados" class="hidden"></div>
+
       <div id="tCarga" class="hidden">
         <div class="grid2">
           <div>
@@ -142,7 +193,7 @@
             <input type="text" id="inGlosario">
             <div class="row" style="margin-top:8px"><button class="btn btn-ghost btn-xs" id="btnGlosario">Guardar glosario</button><span class="muted" id="msgGlosario"></span></div>
             <h3 style="font-size:14px;margin-top:22px;color:var(--accent)">Borrar la campaña</h3>
-            <p class="muted">Elimina de forma definitiva encuestados, respuestas y resultados. Hazlo al cierre del proyecto, después de exportar el inventario. Escribe el nombre exacto de la campaña para confirmar.</p>
+            <p class="muted">Elimina de forma definitiva personas, respuestas y resultados. Hazlo al cierre del proyecto, después de exportar el inventario. Escribe el nombre exacto de la campaña para confirmar.</p>
             <input type="text" id="inBorrar" placeholder="Nombre exacto de la campaña">
             <div class="row" style="margin-top:8px"><button class="btn btn-xs" id="btnBorrar">Borrar definitivamente</button><span class="muted" id="msgBorrar"></span></div>
           </div>
@@ -153,6 +204,7 @@
 </main>
 
 <dialog id="dlg"><div class="dlg-h"><div style="flex:1;min-width:0"><h2 id="dlgT" style="font-size:16px"></h2><div class="muted" id="dlgS"></div></div><button class="btn btn-ghost btn-xs" id="dlgCerrar">Cerrar</button></div><div class="dlg-b" id="dlgB"></div></dialog>
+<datalist id="dlGer"></datalist><datalist id="dlSec"></datalist><datalist id="dlMacro"></datalist>
 
 <script>
 'use strict';
@@ -169,11 +221,19 @@
     ['trata_datos_personales','¿Trata datos personales?'],['titulares_datos','Titulares de los datos'],['categoria_datos','Categoría de datos'],
     ['criticidad_preliminar','Criticidad preliminar']
   ];
+  var ESTADO_TXT = {respondido:'Respondido', en_curso:'En curso', sin_cobertura:'Sin cobertura', no_vigente:'Ya no se hace'};
+  var ESTADO_ORDEN = ['respondido', 'en_curso', 'sin_cobertura', 'no_vigente'];
+  var RELACION_TXT = {vigente:'participa', cambio:'participa, dice que cambió', no_participo:'existe, no participa', no_existe:'dice que ya no se hace'};
+  var FUENTE_TXT = {inventario:'Inventario anterior', nuevo:'Agregado en la encuesta', consultor:'Agregado por el consultor'};
+
   var $ = function(s){ return document.querySelector(s); };
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function sinTildes(s){ return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function fecha(s){ return String(s || '').slice(0,16).replace('T',' '); }
   var CODIGO = '';
   try { CODIGO = sessionStorage.getItem('relev-admin') || ''; } catch(e){}
   var C = null;          // volcado de la campaña abierta
+  var IX = null;         // índices por proceso para calcular la cobertura
   var CARGA = null;      // Excel leído, pendiente de importar
 
   function api(path, body){
@@ -187,6 +247,14 @@
     });
   }
   function ver(id){ ['vLogin','vCampanas','vCampana'].forEach(function(v){ $('#'+v).classList.toggle('hidden', v !== id); }); }
+  function copiar(texto, boton){
+    navigator.clipboard.writeText(texto).then(function(){
+      if (!boton) return;
+      var antes = boton.textContent;
+      boton.textContent = 'Copiado ✓';
+      setTimeout(function(){ boton.textContent = antes; }, 1600);
+    });
+  }
 
   // ------------------------------------------------------------ acceso
   function entrar(){
@@ -224,116 +292,229 @@
   function abrir(id){
     return api('/a/campana?id=' + encodeURIComponent(id)).then(function(j){
       C = j;
+      C.asignaciones = C.asignaciones || [];
+      indexar();
       history.replaceState(null, '', location.pathname + '?c=' + encodeURIComponent(id));
       ver('vCampana');
       $('#cTitulo').textContent = C.campana.nombre;
       $('#cSub').textContent = C.campana.cliente + ' · creada el ' + C.campana.creada.slice(0,10);
       $('#inGlosario').value = C.campana.glosario || '';
-      pintarKpis(); pintarProcesos(); pintarEncuestados();
+      llenarFiltros();
+      pintarTodo();
     }).catch(function(err){ alert(err.message); });
   }
+  function pintarTodo(){ pintarKpis(); pintarMapa(); pintarBarrido(); pintarEncuestados(); }
 
-  function respuestasDe(pid){ return C.respuestas.filter(function(r){ return r.proceso_id === pid && (r.texto || '').trim(); }); }
-  function estructuradoDe(pid){ return C.estructurado.filter(function(x){ return x.proceso_id === pid; })[0]; }
-  function revisionesDe(pid){ return C.revisiones.filter(function(r){ return r.proceso_id === pid; }); }
+  // Índices por proceso: quién lo tomó, quién respondió y qué dijo cada uno.
+  function indexar(){
+    IX = {rev:{}, resp:{}, est:{}, enc:{}};
+    C.encuestados.forEach(function(e){ IX.enc[e.id] = e; });
+    C.revisiones.forEach(function(r){ (IX.rev[r.proceso_id] = IX.rev[r.proceso_id] || []).push(r); });
+    C.respuestas.forEach(function(r){
+      if (!((r.texto || '').trim() || r.sistemas.length)) return;
+      var m = IX.resp[r.proceso_id] = IX.resp[r.proceso_id] || {};
+      (m[r.encuestado_id] = m[r.encuestado_id] || []).push(r);
+    });
+    C.estructurado.forEach(function(x){ IX.est[x.proceso_id] = x; });
+  }
+
+  function respuestasDe(pid){ var m = IX.resp[pid] || {}, out = []; Object.keys(m).forEach(function(k){ out = out.concat(m[k]); }); return out; }
+  function estructuradoDe(pid){ return IX.est[pid]; }
   function nombreProc(p){ return p.subproceso || p.proceso || p.macroproceso; }
   function desactualizado(pid){ var e = estructuradoDe(pid); return !!e && respuestasDe(pid).some(function(r){ return r.actualizado > e.generado; }); }
+  function pendienteIA(pid){ return respuestasDe(pid).length > 0 && (!estructuradoDe(pid) || desactualizado(pid)); }
+
+  // Cobertura de un proceso. Respondido: alguien respondió las 6 preguntas. En curso: alguien lo
+  // tomó o empezó a responder. Ya no se hace: solo hay marcas de "ya no se hace". Sin cobertura: nadie lo tomó.
+  function cobertura(pid){
+    var revs = IX.rev[pid] || [], resp = IX.resp[pid] || {};
+    var personas = {};
+    revs.forEach(function(r){ if (r.estado === 'vigente' || r.estado === 'cambio') personas[r.encuestado_id] = 1; });
+    Object.keys(resp).forEach(function(eid){ personas[eid] = 1; });
+    var completos = Object.keys(resp).filter(function(eid){
+      var q = {}; resp[eid].forEach(function(r){ q[r.pregunta] = 1; }); return Object.keys(q).length >= 6;
+    }).length;
+    var noExiste = revs.filter(function(r){ return r.estado === 'no_existe'; }).length;
+    var n = Object.keys(personas).length;
+    var estado = completos ? 'respondido' : n ? 'en_curso' : noExiste ? 'no_vigente' : 'sin_cobertura';
+    return {estado: estado, personas: n, completos: completos, noExiste: noExiste,
+      confirmado: revs.filter(function(r){ return r.estado === 'no_participo'; }).length};
+  }
+  function contar(procs){
+    var c = {respondido:0, en_curso:0, sin_cobertura:0, no_vigente:0};
+    procs.forEach(function(p){ c[cobertura(p.id).estado]++; });
+    return c;
+  }
+  function pct(a, b){ return b ? Math.round(100 * a / b) + '%' : '—'; }
 
   function pintarKpis(){
     var enc = C.encuestados, n = function(e){ return enc.filter(function(x){ return x.estado === e; }).length; };
-    var conResp = C.procesos.filter(function(p){ return respuestasDe(p.id).length; }).length;
-    var nuevos = C.procesos.filter(function(p){ return p.fuente === 'nuevo'; }).length;
+    var cuenta = contar(C.procesos);
     $('#kpis').innerHTML = [
-      [enc.length, 'encuestados'], [n('enviado'), 'terminaron'], [n('en_curso'), 'en curso'], [n('pendiente'), 'sin empezar'],
-      [C.procesos.length, 'procesos'], [nuevos, 'agregados por usuarios'], [conResp, 'con respuestas'], [C.estructurado.length, 'estructurados con IA']
+      [C.procesos.length, 'procesos en el mapa'], [cuenta.respondido, 'respondidos'], [cuenta.en_curso, 'en curso'], [cuenta.sin_cobertura, 'sin cobertura'],
+      [enc.length, 'personas'], [n('enviado'), 'terminaron'], [n('pendiente'), 'sin empezar'], [C.estructurado.length, 'estructurados con IA']
     ].map(function(k){ return '<div class="kpi"><b>' + k[0] + '</b><span>' + k[1] + '</span></div>'; }).join('');
   }
 
   document.querySelector('.tabs').addEventListener('click', function(e){
     var t = e.target.closest('.tab'); if (!t) return;
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(x){ x.setAttribute('aria-selected', x === t ? 'true' : 'false'); });
-    $('#tProcesos').classList.toggle('hidden', t.dataset.tab !== 'procesos');
-    $('#tEncuestados').classList.toggle('hidden', t.dataset.tab !== 'encuestados');
-    $('#tCarga').classList.toggle('hidden', t.dataset.tab !== 'carga');
+    [['mapa','#tMapa'], ['barrido','#tBarrido'], ['encuestados','#tEncuestados'], ['carga','#tCarga']].forEach(function(k){
+      $(k[1]).classList.toggle('hidden', t.dataset.tab !== k[0]);
+    });
   });
 
-  function chipVigencia(pid){
-    var rv = revisionesDe(pid);
-    if (!rv.length) return '<span class="chip c-mut">sin revisar</span>';
-    var est = {}; rv.forEach(function(r){ est[r.estado] = (est[r.estado] || 0) + 1; });
-    var t = {vigente:['Sigue igual','c-ok'], cambio:['Cambió','c-warn'], no_existe:['Ya no se hace','c-acc']};
-    return Object.keys(est).map(function(k){ return '<span class="chip ' + t[k][1] + '">' + t[k][0] + (est[k] > 1 ? ' ×' + est[k] : '') + '</span>'; }).join(' ');
+  // ------------------------------------------------------------ mapa de procesos
+  function llenarFiltros(){
+    var s = {};
+    C.procesos.forEach(function(p){ s[p.gerencia] = 1; });
+    C.encuestados.forEach(function(e){ s[e.gerencia] = 1; });
+    var sel = $('#fGer'), antes = sel.value;
+    sel.innerHTML = '<option value="">Todas</option>' + Object.keys(s).sort(function(a, b){ return a.localeCompare(b, 'es'); }).map(function(g){ return '<option>' + esc(g) + '</option>'; }).join('');
+    if (antes && s[antes]) sel.value = antes;
+    var ger = {}, sec = {}, mac = {};
+    C.procesos.forEach(function(p){ ger[p.gerencia] = 1; sec[p.seccion] = 1; if (p.macroproceso) mac[p.macroproceso] = 1; });
+    $('#dlGer').innerHTML = Object.keys(ger).map(function(x){ return '<option value="' + esc(x) + '">'; }).join('');
+    $('#dlSec').innerHTML = Object.keys(sec).map(function(x){ return '<option value="' + esc(x) + '">'; }).join('');
+    $('#dlMacro').innerHTML = Object.keys(mac).map(function(x){ return '<option value="' + esc(x) + '">'; }).join('');
+  }
+  $('#fTexto').addEventListener('input', pintarMapa);
+  $('#fGer').addEventListener('change', pintarMapa);
+  $('#fEst').addEventListener('change', pintarMapa);
+
+  function barraCob(cuenta, total, mini){
+    return '<span class="cob-bar' + (mini ? ' mini' : '') + '" role="img" aria-label="' +
+      ESTADO_ORDEN.map(function(k){ return cuenta[k] + ' ' + ESTADO_TXT[k].toLowerCase(); }).join(', ') + '">' +
+      ESTADO_ORDEN.map(function(k){ return cuenta[k] ? '<span class="seg-' + k + '" style="width:' + (100 * cuenta[k] / total) + '%"></span>' : ''; }).join('') + '</span>';
   }
 
-  function pintarProcesos(){
-    var grupos = {};
-    C.procesos.forEach(function(p){ var g = p.gerencia + ' · ' + p.seccion; (grupos[g] = grupos[g] || []).push(p); });
-    var html = '<p class="muted" style="margin-top:0">«Estructurar» manda a la IA las respuestas de todos los encuestados de la sección sobre ese proceso y arma su fila del inventario. Puedes regenerar cuando lleguen más respuestas.</p>';
-    if (!C.procesos.length) html += '<p class="muted">Carga el Excel en la pestaña «Carga y configuración».</p>';
-    Object.keys(grupos).sort().forEach(function(g){
-      var ps = grupos[g];
-      var pend = ps.filter(function(p){ return respuestasDe(p.id).length && (!estructuradoDe(p.id) || desactualizado(p.id)); });
-      html += '<div class="grupo">' + esc(g) + ' <span class="muted" style="font-weight:600">' + ps.length + ' procesos</span>' +
-        (pend.length ? ' <button class="btn btn-navy btn-xs" data-lote="' + esc(g) + '">Estructurar ' + pend.length + ' pendientes</button>' : '') + '</div>';
-      html += '<div class="tblwrap"><table><thead><tr><th>Código</th><th>Proceso</th><th>Vigencia</th><th class="num">Respuestas</th><th>IA</th><th></th></tr></thead><tbody>';
-      ps.forEach(function(p){
-        var e = estructuradoDe(p.id), rs = respuestasDe(p.id);
-        var ia = e ? (desactualizado(p.id) ? '<span class="chip c-warn">desactualizado</span>' : '<span class="chip c-ok">listo</span>') : '<span class="chip c-mut">—</span>';
-        html += '<tr><td>' + esc(p.codigo) + '</td><td><b>' + esc(nombreProc(p)) + '</b>' + (p.fuente === 'nuevo' ? ' <span class="chip c-acc">nuevo</span>' : '') +
-          '<div class="muted">' + esc([p.macroproceso, p.proceso].filter(function(x){ return x && x !== nombreProc(p); }).join(' › ')) + '</div></td>' +
-          '<td>' + chipVigencia(p.id) + '</td><td class="num">' + rs.length + '</td><td id="ia-' + esc(p.id) + '">' + ia + '</td>' +
-          '<td class="row" style="flex-wrap:nowrap"><button class="btn btn-ghost btn-xs" data-ver="' + esc(p.id) + '">Ver</button>' +
-          '<button class="btn btn-xs" data-est="' + esc(p.id) + '"' + (rs.length ? '' : ' disabled') + '>' + (e ? 'Regenerar' : 'Estructurar') + '</button></td></tr>';
-      });
-      html += '</tbody></table></div>';
+  function pintarMapa(){
+    // Resumen de toda la campaña (sin filtros): la foto completa de la empresa.
+    var total = C.procesos.length, cuenta = contar(C.procesos);
+    var vivos = total - cuenta.no_vigente;
+    $('#cobertura').innerHTML = total ? barraCob(cuenta, total) +
+      '<div class="leyenda">' + ESTADO_ORDEN.map(function(k){ return '<span><i class="seg-' + k + '"></i>' + ESTADO_TXT[k] + ': <b>' + cuenta[k] + '</b></span>'; }).join('') +
+      '<span>Cobertura: <b>' + pct(cuenta.respondido, vivos) + '</b> (' + cuenta.respondido + ' de ' + vivos + ' procesos vigentes respondidos)</span></div>' +
+      '<p class="definicion">Respondido: al menos una persona respondió las 6 preguntas. En curso: alguien lo eligió o empezó a responder. Sin cobertura: nadie lo ha tomado. Ya no se hace: solo hay marcas de que no existe.</p>' : '';
+
+    var texto = sinTildes($('#fTexto').value.trim()), fG = $('#fGer').value, fE = $('#fEst').value;
+    var lista = C.procesos.filter(function(p){
+      if (fG && p.gerencia !== fG) return false;
+      if (texto && sinTildes([p.codigo, p.macroproceso, p.proceso, p.subproceso, p.seccion].join(' ')).indexOf(texto) < 0) return false;
+      if (fE === 'nuevo') return p.fuente === 'nuevo';
+      if (fE === 'ia_pend') return pendienteIA(p.id);
+      if (fE) return cobertura(p.id).estado === fE;
+      return true;
     });
-    $('#tProcesos').innerHTML = html;
+    if (!C.procesos.length){ $('#mapa').innerHTML = '<p class="muted" style="margin-top:14px">El mapa está vacío. Carga el inventario en «Carga y configuración» o agrega procesos con el botón.</p>'; return; }
+    if (!lista.length){ $('#mapa').innerHTML = '<p class="muted" style="margin-top:14px">Ningún proceso coincide con el filtro.</p>'; return; }
+
+    var arbol = {};
+    lista.forEach(function(p){
+      var g = arbol[p.gerencia] = arbol[p.gerencia] || {};
+      var s = g[p.seccion] = g[p.seccion] || {};
+      (s[p.macroproceso || ''] = s[p.macroproceso || ''] || []).push(p);
+    });
+    var orden = function(a, b){ return a.localeCompare(b, 'es'); };
+    var html = '';
+    Object.keys(arbol).sort(orden).forEach(function(g){
+      var procsG = C.procesos.filter(function(p){ return p.gerencia === g; });
+      var cg = contar(procsG), vivosG = procsG.length - cg.no_vigente;
+      html += '<section class="ger"><div class="ger-h"><h3>' + esc(g) + '</h3>' + barraCob(cg, procsG.length, true) +
+        '<span class="muted">' + cg.respondido + ' de ' + vivosG + ' vigentes respondidos · ' + cg.sin_cobertura + ' sin cobertura</span></div>';
+      Object.keys(arbol[g]).sort(orden).forEach(function(s){
+        var procsS = procsG.filter(function(p){ return p.seccion === s; });
+        var cs = contar(procsS);
+        var pend = procsS.filter(function(p){ return pendienteIA(p.id); }).length;
+        html += '<div class="sec"><div class="sec-h"><h4>' + esc(s) + '</h4><span class="muted">' + procsS.length + ' procesos · ' + cs.respondido + ' respondidos · ' + cs.en_curso + ' en curso · ' + cs.sin_cobertura + ' sin cobertura</span>' +
+          (pend ? '<button class="btn btn-navy btn-xs" data-lote="' + esc(g) + '|' + esc(s) + '">Estructurar ' + pend + ' con IA</button>' : '') +
+          '<button class="btn-link" data-agregar="' + esc(g) + '|' + esc(s) + '">+ Agregar aquí</button></div>';
+        var macros = arbol[g][s];
+        Object.keys(macros).sort(orden).forEach(function(m){
+          html += '<div class="macro-t">' + esc(m || 'Sin macroproceso') + '</div><div class="tiles">';
+          macros[m].forEach(function(p){
+            var cb = cobertura(p.id), e = estructuradoDe(p.id);
+            var meta = [];
+            if (p.codigo) meta.push(esc(p.codigo));
+            meta.push(cb.personas ? cb.personas + (cb.personas === 1 ? ' persona' : ' personas') : (cb.confirmado ? 'existe, nadie lo toma' : 'nadie aún'));
+            if (e) meta.push(desactualizado(p.id) ? 'IA desactualizada' : 'IA ✓');
+            if (p.fuente === 'nuevo') meta.push('<span class="nuevo">Nuevo</span>');
+            var sub = p.subproceso && p.proceso && p.proceso !== nombreProc(p) ? p.proceso + ' › ' : '';
+            html += '<button type="button" class="tile st-' + cb.estado + '" data-p="' + esc(p.id) + '" title="' + esc(sub + nombreProc(p) + ' · ' + ESTADO_TXT[cb.estado]) + '">' +
+              '<span class="tile-n">' + esc(nombreProc(p)) + '</span><span class="tile-m">' + meta.join(' · ') + '</span></button>';
+          });
+          html += '</div>';
+        });
+        html += '</div>';
+      });
+      html += '</section>';
+    });
+    $('#mapa').innerHTML = html;
   }
 
-  $('#tProcesos').addEventListener('click', function(e){
+  $('#mapa').addEventListener('click', function(e){
     var b;
-    if ((b = e.target.closest('[data-ver]'))) return detalle(b.dataset.ver);
-    if ((b = e.target.closest('[data-est]'))) return estructurar(b.dataset.est, b).catch(function(){});
+    if ((b = e.target.closest('[data-p]'))) return detalle(b.dataset.p);
+    if ((b = e.target.closest('[data-agregar]'))){ var gs = b.dataset.agregar.split('|'); return editarProceso(null, gs[0], gs[1]); }
     if ((b = e.target.closest('[data-lote]'))){
-      var g = b.dataset.lote;
-      var ps = C.procesos.filter(function(p){ return p.gerencia + ' · ' + p.seccion === g && respuestasDe(p.id).length && (!estructuradoDe(p.id) || desactualizado(p.id)); });
+      var gs2 = b.dataset.lote.split('|');
+      var ps = C.procesos.filter(function(p){ return p.gerencia === gs2[0] && p.seccion === gs2[1] && pendienteIA(p.id); });
       b.disabled = true;
       var i = 0, errores = 0;
       // Uno por uno: cada llamada tarda y así no se choca con el límite de la API.
       (function sig(){
-        if (i >= ps.length){ pintarKpis(); pintarProcesos(); if (errores) alert(errores + ' procesos no se pudieron estructurar; reintenta con su botón.'); return; }
+        if (i >= ps.length){ pintarTodo(); if (errores) alert(errores + ' procesos no se pudieron estructurar; reintenta desde su ficha.'); return; }
         b.textContent = 'Estructurando ' + (i+1) + ' de ' + ps.length + '…';
-        estructurar(ps[i].id, null).then(function(){ i++; sig(); }, function(){ errores++; i++; sig(); });
+        estructurar(ps[i].id).then(function(){ i++; sig(); }, function(){ errores++; i++; sig(); });
       })();
     }
   });
+  $('#btnNuevoProc').addEventListener('click', function(){ editarProceso(null, $('#fGer').value, ''); });
 
-  function estructurar(pid, boton){
-    var celda = document.getElementById('ia-' + pid);
-    if (boton) boton.disabled = true;
-    if (celda) celda.innerHTML = '<span class="chip c-inf">procesando…</span>';
+  function estructurar(pid){
     return api('/a/estructurar', {proceso_id: pid}).then(function(j){
       C.estructurado = C.estructurado.filter(function(x){ return x.proceso_id !== pid; });
-      C.estructurado.push({proceso_id: pid, datos: j.datos, modelo: j.modelo, generado: j.generado});
-      if (celda) celda.innerHTML = '<span class="chip c-ok">listo</span>';
-      if (boton){ boton.disabled = false; boton.textContent = 'Regenerar'; }
-      pintarKpis();
-    }).catch(function(err){
-      if (celda) celda.innerHTML = '<span class="chip c-warn" title="' + esc(err.message) + '">error</span>';
-      if (boton){ boton.disabled = false; alert(err.message); }
-      throw err;
+      var nuevo = {proceso_id: pid, datos: j.datos, modelo: j.modelo, generado: j.generado};
+      C.estructurado.push(nuevo);
+      IX.est[pid] = nuevo;
     });
   }
 
+  // ------------------------------------------------------------ ficha de un proceso
   function detalle(pid){
     var p = C.procesos.filter(function(x){ return x.id === pid; })[0];
-    var e = estructuradoDe(pid);
+    if (!p) return;
+    var e = estructuradoDe(pid), cb = cobertura(pid), rs = respuestasDe(pid);
     $('#dlgT').textContent = (p.codigo ? p.codigo + ' · ' : '') + nombreProc(p);
-    $('#dlgS').textContent = p.gerencia + ' · ' + p.seccion + (p.fuente === 'nuevo' ? ' · agregado por un encuestado' : '');
-    var h = '';
+    $('#dlgS').textContent = [p.gerencia, p.seccion, p.macroproceso, p.proceso !== nombreProc(p) ? p.proceso : ''].filter(Boolean).join(' › ') + ' · ' + (FUENTE_TXT[p.fuente] || p.fuente);
+    var h = '<div class="row" style="margin-bottom:12px"><span class="chip ' + {respondido:'c-ok', en_curso:'c-inf', sin_cobertura:'c-mut', no_vigente:'c-mut'}[cb.estado] + '">' + ESTADO_TXT[cb.estado] + '</span>' +
+      '<button class="btn btn-xs" id="dEstr"' + (rs.length ? '' : ' disabled title="Todavía nadie respondió"') + '>' + (e ? 'Regenerar con IA' : 'Estructurar con IA') + '</button>' +
+      '<button class="btn btn-ghost btn-xs" id="dEditar">Editar</button>' +
+      '<button class="btn btn-ghost btn-xs" id="dBorrar"' + (rs.length ? ' disabled title="Tiene respuestas: no se puede borrar"' : '') + '>Borrar</button>' +
+      '<span class="muted" id="dMsg"></span></div>';
+    if (p.descripcion) h += '<p class="muted" style="margin-top:0">' + esc(p.descripcion) + '</p>';
+
+    var ids = {};
+    (IX.rev[pid] || []).forEach(function(r){ ids[r.encuestado_id] = 1; });
+    Object.keys(IX.resp[pid] || {}).forEach(function(k){ ids[k] = 1; });
+    h += '<h3 style="font-size:14px;margin-top:6px">Personas</h3>';
+    if (!Object.keys(ids).length) h += '<p class="muted">Nadie lo ha tomado todavía. Envía el enlace de la gerencia (pestaña «Plan de barrido») o pide a alguien de la sección que lo elija.</p>';
+    else {
+      h += '<div class="tblwrap"><table><thead><tr><th>Persona</th><th>Área</th><th>Relación con el proceso</th><th class="num">Preguntas respondidas</th></tr></thead><tbody>';
+      Object.keys(ids).forEach(function(eid){
+        var en = IX.enc[eid] || {};
+        var rv = (IX.rev[pid] || []).filter(function(r){ return r.encuestado_id === eid; })[0];
+        var q = {}; ((IX.resp[pid] || {})[eid] || []).forEach(function(r){ q[r.pregunta] = 1; });
+        h += '<tr><td>' + esc(en.nombre) + '<div class="muted">' + esc(en.rol || '') + '</div></td><td>' + esc(en.gerencia + ' · ' + en.seccion) + '</td>' +
+          '<td>' + esc(rv ? RELACION_TXT[rv.estado] || rv.estado : 'respondió') + (rv && rv.comentario ? '<div class="muted">' + esc(rv.comentario) + '</div>' : '') + '</td>' +
+          '<td class="num">' + Object.keys(q).length + ' de 6</td></tr>';
+      });
+      h += '</tbody></table></div>';
+    }
+
     if (e){
       var d = e.datos;
-      h += '<h3 style="font-size:14px">Fila del inventario <span class="muted" style="font-weight:600">· ' + esc(e.modelo) + ' · ' + esc(e.generado.slice(0,16).replace('T',' ')) + '</span></h3>';
+      h += '<h3 style="font-size:14px;margin-top:18px">Fila del inventario <span class="muted" style="font-weight:600">· ' + esc(e.modelo) + ' · ' + esc(fecha(e.generado)) + '</span></h3>';
       if (desactualizado(pid)) h += '<p class="msg warn">Llegaron respuestas después de esta versión: regenera para incluirlas.</p>';
       h += '<p>' + esc(d.resumen) + '</p>';
       h += '<div class="row" style="margin:6px 0 10px"><span class="chip c-ok">dicho</span><span class="chip c-inf">inferido: validar</span><span class="chip c-mut">vacío: preguntar</span></div>';
@@ -345,46 +526,180 @@
       });
       if (d.contradicciones && d.contradicciones.length) h += '<h3 style="font-size:14px;margin-top:16px">Contradicciones</h3><ul>' + d.contradicciones.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
       h += '<h3 style="font-size:14px;margin-top:16px">Preguntas para la reunión de validación</h3><ol>' + (d.preguntas_validacion || []).map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>';
-    } else {
-      h += '<p class="msg warn">Todavía no se estructuró con IA.</p>';
     }
-    h += '<h3 style="font-size:14px;margin-top:18px">Lo que contaron</h3>';
-    var hay = false;
-    C.encuestados.filter(function(x){ return x.gerencia === p.gerencia && x.seccion === p.seccion; }).forEach(function(en){
-      var rv = C.revisiones.filter(function(r){ return r.proceso_id === pid && r.encuestado_id === en.id; })[0];
-      var rs = C.respuestas.filter(function(r){ return r.proceso_id === pid && r.encuestado_id === en.id && ((r.texto||'').trim() || r.sistemas.length); });
-      if (!rv && !rs.length) return;
-      hay = true;
-      h += '<div style="margin-top:10px"><b>' + esc(en.nombre) + '</b> <span class="muted">' + esc(en.rol) + '</span>' + (rv ? ' · vigencia: ' + esc(rv.estado) + (rv.comentario ? ' — ' + esc(rv.comentario) : '') : '') + '</div>';
-      rs.sort(function(a,b){ return a.pregunta.localeCompare(b.pregunta); }).forEach(function(r){
-        h += '<div class="resp"><b>' + esc(PREG[r.pregunta]) + '</b>\n' + esc(r.texto) + (r.sistemas.length ? '\nSistemas marcados: ' + esc(r.sistemas.join(', ')) : '') + '</div>';
+
+    if (rs.length){
+      h += '<h3 style="font-size:14px;margin-top:18px">Lo que contaron</h3>';
+      Object.keys(IX.resp[pid]).forEach(function(eid){
+        var en = IX.enc[eid] || {};
+        h += '<div style="margin-top:10px"><b>' + esc(en.nombre) + '</b> <span class="muted">' + esc([en.rol, en.gerencia + ' · ' + en.seccion].filter(Boolean).join(' · ')) + '</span></div>';
+        IX.resp[pid][eid].slice().sort(function(a,b){ return a.pregunta.localeCompare(b.pregunta); }).forEach(function(r){
+          h += '<div class="resp"><b>' + esc(PREG[r.pregunta]) + '</b>\n' + esc(r.texto) + (r.sistemas.length ? '\nSistemas marcados: ' + esc(r.sistemas.join(', ')) : '') + '</div>';
+        });
       });
-    });
-    if (!hay) h += '<p class="muted">Nadie respondió todavía sobre este proceso.</p>';
+    }
     $('#dlgB').innerHTML = h;
-    $('#dlg').showModal();
+    if (!$('#dlg').open) $('#dlg').showModal();
+    $('#dEstr').addEventListener('click', function(){
+      var b = this; b.disabled = true; $('#dMsg').textContent = 'La IA está leyendo las respuestas (suele tardar menos de un minuto)…';
+      estructurar(pid).then(function(){ pintarTodo(); detalle(pid); }).catch(function(err){ b.disabled = false; $('#dMsg').textContent = err.message; });
+    });
+    $('#dEditar').addEventListener('click', function(){ editarProceso(p); });
+    $('#dBorrar').addEventListener('click', function(){
+      if (!confirm('¿Borrar «' + nombreProc(p) + '» del mapa? También se quitará de la lista de quienes lo eligieron.')) return;
+      api('/a/proceso/borrar', {proceso_id: pid}).then(function(){ $('#dlg').close(); abrir(C.campana.id); })
+        .catch(function(err){ $('#dMsg').textContent = err.message; });
+    });
   }
   $('#dlgCerrar').addEventListener('click', function(){ $('#dlg').close(); });
 
+  // Alta o edición de un proceso del mapa.
+  function editarProceso(p, gerencia, seccion){
+    var x = p || {gerencia: gerencia || '', seccion: seccion || ''};
+    $('#dlgT').textContent = p ? 'Editar proceso' : 'Agregar proceso al mapa';
+    $('#dlgS').textContent = p ? nombreProc(p) : 'Queda disponible en el buscador de la encuesta y en el mapa.';
+    var campo = function(id, et, val, extra){ return '<div><label for="' + id + '">' + et + '</label><input type="text" id="' + id + '" value="' + esc(val || '') + '"' + (extra || '') + '></div>'; };
+    $('#dlgB').innerHTML = '<div class="grid2">' +
+      campo('eGer', 'Gerencia *', x.gerencia, ' list="dlGer"') + campo('eSec', 'Sección *', x.seccion, ' list="dlSec"') +
+      campo('eMac', 'Macroproceso', x.macroproceso, ' list="dlMacro"') + campo('eCod', 'Código', x.codigo) +
+      campo('ePro', 'Proceso', x.proceso) + campo('eSub', 'Subproceso', x.subproceso) + '</div>' +
+      '<label for="eDesc">Descripción</label><textarea id="eDesc">' + esc(x.descripcion || '') + '</textarea>' +
+      '<p class="muted">Llena el proceso o el subproceso (o ambos). El nombre que ven las personas es el subproceso si existe; si no, el proceso.</p>' +
+      '<div class="row" style="margin-top:12px"><button class="btn" id="eGuardar">Guardar</button><span class="muted" id="eMsg"></span></div>';
+    if (!$('#dlg').open) $('#dlg').showModal();
+    $('#eGuardar').addEventListener('click', function(){
+      var b = this; b.disabled = true; $('#eMsg').textContent = 'Guardando…';
+      api('/a/proceso', {campana_id: C.campana.id, id: p ? p.id : undefined, gerencia: $('#eGer').value, seccion: $('#eSec').value, macroproceso: $('#eMac').value,
+        codigo: $('#eCod').value, proceso: $('#ePro').value, subproceso: $('#eSub').value, descripcion: $('#eDesc').value})
+        .then(function(j){ return abrir(C.campana.id).then(function(){ detalle(j.id); }); })
+        .catch(function(err){ b.disabled = false; $('#eMsg').textContent = err.message; });
+    });
+  }
+
+  // ------------------------------------------------------------ plan de barrido
+  function enlaceAbierto(g){ return URL_ENCUESTA + '?c=' + encodeURIComponent(C.campana.codigo_publico || '') + (g ? '&g=' + encodeURIComponent(g) : ''); }
+  function invitacion(g){
+    return 'Asunto: Relevamiento de procesos ' + C.campana.cliente + (g ? ' · ' + g : '') + '\n\n' +
+      'Hola:\n\nComo parte del inventario de procesos de ' + C.campana.cliente + ', te pedimos contarnos cómo funcionan los procesos en los que participas.\n\n' +
+      '1. Entra a este enlace: ' + enlaceAbierto(g) + '\n' +
+      '2. Escribe unas letras del nombre de tu proceso y elígelo de la lista. Si no aparece, puedes agregarlo.\n' +
+      '3. Responde las preguntas hablando o por escrito. Todo se guarda solo y puedes volver cuando quieras.\n\n' +
+      'Tus respuestas se usan solo para el inventario de procesos. Después te buscaremos para una reunión corta de validación.\n\nGracias,\nEquipo consultor';
+  }
+
+  // Siguiente paso en cada sección para que todos sus procesos queden cubiertos.
+  function accion(s){
+    if (!s.procesos && !s.noVigentes && s.personas) return 'Hay personas pero ningún proceso en el mapa: revisar si falta esta área en el inventario.';
+    if (s.sinCobertura && !s.personas) return 'Nadie cargado: enviar el enlace de la gerencia o pedir un líder y un soporte.';
+    if (s.sinEmpezar) return 'Recordar a ' + s.sinEmpezar + (s.sinEmpezar === 1 ? ' persona que no empezó.' : ' personas que no empezaron.');
+    if (s.sinCobertura) return s.sinCobertura + ' sin cobertura: pedir a alguien que los tome o confirmar si existen.';
+    if (s.enCurso) return 'Esperar a que terminen ' + s.enCurso + ' en curso.';
+    if (s.respondidos) return 'Lista para estructurar y validar.';
+    return '';
+  }
+
+  function resumenSecciones(){
+    var m = {};
+    var obtener = function(g, s){
+      var k = g + '\u0000' + s;
+      return m[k] = m[k] || {gerencia: g, seccion: s, procesos: 0, respondidos: 0, enCurso: 0, sinCobertura: 0, noVigentes: 0, personas: 0, sinEmpezar: 0, terminaron: 0, correosPend: []};
+    };
+    C.procesos.forEach(function(p){
+      var s = obtener(p.gerencia, p.seccion), cb = cobertura(p.id).estado;
+      if (cb === 'no_vigente'){ s.noVigentes++; return; }
+      s.procesos++;
+      if (cb === 'respondido') s.respondidos++; else if (cb === 'en_curso') s.enCurso++; else s.sinCobertura++;
+    });
+    C.encuestados.forEach(function(e){
+      var s = obtener(e.gerencia, e.seccion);
+      s.personas++;
+      if (e.estado === 'pendiente'){ s.sinEmpezar++; if (e.correo) s.correosPend.push(e.correo); }
+      if (e.estado === 'enviado') s.terminaron++;
+    });
+    return Object.keys(m).map(function(k){ return m[k]; }).sort(function(a, b){ return a.gerencia.localeCompare(b.gerencia, 'es') || a.seccion.localeCompare(b.seccion, 'es'); });
+  }
+
+  function pintarBarrido(){
+    var c = C.campana, activo = !!c.abierta && !!c.codigo_publico;
+    var h = '<div class="card" style="margin-bottom:16px;background:var(--panel)">' +
+      '<h2>Enlace abierto de la campaña</h2>' +
+      '<p class="muted" style="margin-top:0">Quien lo recibe busca su proceso escribiendo unas letras, lo elige, se identifica y responde. Sirve para llegar a quienes no están en tu lista de personas; a las personas cargadas puedes mandarles su enlace personal (pestaña «Personas y enlaces»).</p>' +
+      '<div class="row"><span class="chip ' + (activo ? 'c-ok' : 'c-mut') + '">' + (activo ? 'Activo' : 'Desactivado') + '</span>' +
+      (activo ? '<span class="enlace">' + esc(enlaceAbierto('')) + '</span><button class="btn btn-ghost btn-xs" data-copiar-enlace="">Copiar enlace</button><button class="btn btn-ghost btn-xs" data-copiar-inv="">Copiar invitación</button>' : '') + '</div>' +
+      '<div class="row" style="margin-top:10px">' +
+        '<button class="btn btn-xs' + (activo ? ' btn-ghost' : '') + '" id="bToggle">' + (activo ? 'Desactivar' : 'Activar enlace abierto') + '</button>' +
+        (c.codigo_publico ? '<button class="btn btn-ghost btn-xs" id="bRenovar">Renovar enlace</button>' : '') +
+        '<label for="bDominio" style="margin:0 0 0 8px">Dominio de correo exigido (opcional)</label>' +
+        '<input type="text" id="bDominio" value="' + esc(c.dominio || '') + '" placeholder="ej. empresa.com.pe" style="width:200px">' +
+        '<button class="btn btn-ghost btn-xs" id="bDominioG">Guardar</button><span class="muted" id="bMsg"></span></div></div>';
+
+    var filas = resumenSecciones();
+    h += '<p class="muted" style="margin:0 0 10px">Para barrer toda la empresa, cada sección tiene que terminar con todos sus procesos vigentes respondidos. «Qué hacer» indica el siguiente paso. El enlace de cada gerencia hace que el buscador muestre primero sus procesos.</p>';
+    h += '<div class="tblwrap"><table><thead><tr><th>Gerencia / sección</th><th class="num">Procesos vigentes</th><th class="num">Respondidos</th><th class="num">En curso</th><th class="num">Sin cobertura</th>' +
+      '<th class="num">Personas</th><th class="num">Sin empezar</th><th class="num">Terminaron</th><th>Qué hacer</th><th></th></tr></thead><tbody>';
+    var gActual = null;
+    filas.forEach(function(s){
+      if (s.gerencia !== gActual){
+        gActual = s.gerencia;
+        var de = filas.filter(function(x){ return x.gerencia === gActual; });
+        var sum = function(k){ return de.reduce(function(a, x){ return a + x[k]; }, 0); };
+        h += '<tr class="fila-ger"><td>' + esc(gActual) + '</td><td class="num">' + sum('procesos') + '</td><td class="num">' + sum('respondidos') + ' <span class="muted">(' + pct(sum('respondidos'), sum('procesos')) + ')</span></td>' +
+          '<td class="num">' + sum('enCurso') + '</td><td class="num">' + sum('sinCobertura') + '</td><td class="num">' + sum('personas') + '</td><td class="num">' + sum('sinEmpezar') + '</td><td class="num">' + sum('terminaron') + '</td><td></td>' +
+          '<td><div class="row" style="flex-wrap:nowrap">' + (activo ? '<button class="btn btn-ghost btn-xs" data-copiar-enlace="' + esc(gActual) + '">Enlace de la gerencia</button><button class="btn btn-ghost btn-xs" data-copiar-inv="' + esc(gActual) + '">Invitación</button>' : '') + '</div></td></tr>';
+      }
+      h += '<tr><td style="padding-left:22px">' + esc(s.seccion) + (s.noVigentes ? '<div class="muted">' + s.noVigentes + ' marcados como que ya no se hacen</div>' : '') + '</td>' +
+        '<td class="num">' + s.procesos + '</td><td class="num">' + s.respondidos + '</td><td class="num">' + s.enCurso + '</td><td class="num">' + s.sinCobertura + '</td>' +
+        '<td class="num">' + s.personas + '</td><td class="num">' + s.sinEmpezar + '</td><td class="num">' + s.terminaron + '</td><td>' + esc(accion(s)) + '</td>' +
+        '<td>' + (s.correosPend.length ? '<button class="btn btn-ghost btn-xs" data-correos="' + esc(s.correosPend.join('; ')) + '">Copiar correos sin empezar</button>' : '') + '</td></tr>';
+    });
+    if (!filas.length) h += '<tr><td colspan="10" class="muted">Carga el inventario y las personas para ver el plan.</td></tr>';
+    h += '</tbody></table></div>';
+    if (!activo) h += '<p class="muted">Activa el enlace abierto para copiar los enlaces e invitaciones por gerencia.</p>';
+    $('#tBarrido').innerHTML = h;
+
+    $('#bToggle').addEventListener('click', function(){ cambiarEnlace({abierta: !activo}); });
+    if ($('#bRenovar')) $('#bRenovar').addEventListener('click', function(){
+      if (confirm('Se generará un enlace nuevo y el actual dejará de funcionar. Quienes ya se registraron siguen entrando con su enlace personal. ¿Continuar?')) cambiarEnlace({regenerar: true});
+    });
+    $('#bDominioG').addEventListener('click', function(){ cambiarEnlace({dominio: $('#bDominio').value}); });
+  }
+  function cambiarEnlace(cambios){
+    $('#bMsg').textContent = 'Guardando…';
+    api('/a/enlace', Object.assign({campana_id: C.campana.id}, cambios)).then(function(j){
+      C.campana.codigo_publico = j.codigo_publico; C.campana.abierta = j.abierta; C.campana.dominio = j.dominio;
+      pintarBarrido();
+    }).catch(function(err){ $('#bMsg').textContent = err.message; });
+  }
+  $('#tBarrido').addEventListener('click', function(e){
+    var b;
+    if ((b = e.target.closest('[data-copiar-enlace]'))) return copiar(enlaceAbierto(b.dataset.copiarEnlace), b);
+    if ((b = e.target.closest('[data-copiar-inv]'))) return copiar(invitacion(b.dataset.copiarInv), b);
+    if ((b = e.target.closest('[data-correos]'))) return copiar(b.dataset.correos, b);
+  });
+
+  // ------------------------------------------------------------ personas y enlaces
   function enlace(en){ return URL_ENCUESTA + '?k=' + en.token; }
   function pintarEncuestados(){
-    var h = '<div class="row" style="margin-bottom:10px"><button class="btn btn-ghost btn-xs" id="btnEnlacesXls">Descargar enlaces (Excel)</button>' +
+    var activosPor = {};
+    C.revisiones.forEach(function(r){ if (r.estado === 'vigente' || r.estado === 'cambio') activosPor[r.encuestado_id] = (activosPor[r.encuestado_id] || 0) + 1; });
+    var h = '<div class="row" style="margin-bottom:10px"><button class="btn btn-ghost btn-xs" id="btnEnlacesXls">Descargar enlaces personales (Excel)</button>' +
       '<span class="muted">Cada enlace es personal: da acceso a las respuestas de esa persona. Envíalo solo a ella.</span></div>';
-    h += '<div class="tblwrap"><table><thead><tr><th>Nombre</th><th>Gerencia · sección</th><th>Rol</th><th>Estado</th><th class="num">Respuestas</th><th>Última actividad</th><th></th></tr></thead><tbody>';
+    h += '<div class="tblwrap"><table><thead><tr><th>Nombre</th><th>Gerencia · sección</th><th>Rol o cargo</th><th>Origen</th><th>Estado</th><th class="num">Procesos</th><th class="num">Respuestas</th><th>Última actividad</th><th></th></tr></thead><tbody>';
     C.encuestados.forEach(function(en){
       var n = C.respuestas.filter(function(r){ return r.encuestado_id === en.id && (r.texto || '').trim(); }).length;
       var cls = en.estado === 'enviado' ? 'c-ok' : en.estado === 'en_curso' ? 'c-inf' : 'c-mut';
       var lbl = en.estado === 'enviado' ? 'terminó' : en.estado === 'en_curso' ? 'en curso' : 'sin empezar';
       h += '<tr><td><b>' + esc(en.nombre) + '</b><div class="muted">' + esc(en.correo) + '</div></td><td>' + esc(en.gerencia + ' · ' + en.seccion) + '</td><td>' + esc(en.rol) + '</td>' +
-        '<td><span class="chip ' + cls + '">' + lbl + '</span></td><td class="num">' + n + '</td><td>' + esc((en.actualizado || '').slice(0,16).replace('T',' ')) + '</td>' +
+        '<td>' + (en.origen === 'abierto' ? 'Enlace abierto' : 'Carga') + '</td>' +
+        '<td><span class="chip ' + cls + '">' + lbl + '</span></td><td class="num">' + (activosPor[en.id] || 0) + '</td><td class="num">' + n + '</td><td>' + esc(fecha(en.actualizado)) + '</td>' +
         '<td><button class="btn btn-ghost btn-xs" data-copiar="' + esc(en.token) + '">Copiar enlace</button></td></tr>';
     });
-    if (!C.encuestados.length) h += '<tr><td colspan="7" class="muted">Sin encuestados: carga el Excel.</td></tr>';
+    if (!C.encuestados.length) h += '<tr><td colspan="9" class="muted">Todavía no hay personas: carga el Excel o activa el enlace abierto.</td></tr>';
     h += '</tbody></table></div>';
     $('#tEncuestados').innerHTML = h;
     $('#btnEnlacesXls').addEventListener('click', function(){
-      var ws = XLSX.utils.json_to_sheet(C.encuestados.map(function(en){ return {Nombre: en.nombre, Correo: en.correo, Gerencia: en.gerencia, 'Sección': en.seccion, Rol: en.rol, Enlace: enlace(en)}; }));
-      ws['!cols'] = [{wch:28},{wch:30},{wch:18},{wch:22},{wch:10},{wch:80}];
+      var ws = XLSX.utils.json_to_sheet(C.encuestados.map(function(en){ return {Nombre: en.nombre, Correo: en.correo, Gerencia: en.gerencia, 'Sección': en.seccion, Rol: en.rol, Origen: en.origen === 'abierto' ? 'Enlace abierto' : 'Carga', Enlace: enlace(en)}; }));
+      ws['!cols'] = [{wch:28},{wch:30},{wch:18},{wch:22},{wch:14},{wch:14},{wch:80}];
       var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Enlaces');
       XLSX.writeFile(wb, 'Enlaces encuesta - ' + C.campana.nombre + '.xlsx');
     });
@@ -392,7 +707,7 @@
   $('#tEncuestados').addEventListener('click', function(e){
     var b = e.target.closest('[data-copiar]'); if (!b) return;
     var en = C.encuestados.filter(function(x){ return x.token === b.dataset.copiar; })[0];
-    navigator.clipboard.writeText(enlace(en)).then(function(){ b.textContent = 'Copiado ✓'; setTimeout(function(){ b.textContent = 'Copiar enlace'; }, 1500); });
+    copiar(enlace(en), b);
   });
 
   // ------------------------------------------------------------ carga Excel
@@ -420,7 +735,7 @@
     f.arrayBuffer().then(function(buf){
       var wb = XLSX.read(buf, {type:'array'});
       CARGA = {encuestados: hoja(wb, 'Encuestados'), procesos: hoja(wb, 'Procesos'), sistemas: hoja(wb, 'Sistemas')};
-      // Secciones sin procesos o sin encuestados suelen ser un error de escritura entre hojas.
+      // Secciones sin procesos o sin personas suelen ser un error de escritura entre hojas.
       // En modo "agregar" también cuenta lo que ya está cargado en la campaña.
       var sEnc = {}, sPro = {};
       var yaEnc = $('#modoCarga').value === 'agregar' ? C.encuestados : [];
@@ -429,9 +744,9 @@
       CARGA.procesos.concat(yaPro).forEach(function(p){ sPro[p.gerencia + ' · ' + p.seccion] = 1; });
       var sinProc = Object.keys(sEnc).filter(function(k){ return !sPro[k]; });
       var sinEnc = Object.keys(sPro).filter(function(k){ return !sEnc[k]; });
-      $('#prevCarga').innerHTML = 'Leídos: <b>' + CARGA.encuestados.length + '</b> encuestados, <b>' + CARGA.procesos.length + '</b> procesos, <b>' + CARGA.sistemas.length + '</b> sistemas.' +
-        (sinProc.length ? '<div class="msg warn" style="margin-top:6px">Secciones con encuestados pero sin procesos (verán una lista vacía y solo podrán agregar): ' + esc(sinProc.join('; ')) + '</div>' : '') +
-        (sinEnc.length ? '<div class="msg warn" style="margin-top:6px">Secciones con procesos pero sin encuestados: ' + esc(sinEnc.join('; ')) + '</div>' : '');
+      $('#prevCarga').innerHTML = 'Leídos: <b>' + CARGA.encuestados.length + '</b> personas, <b>' + CARGA.procesos.length + '</b> procesos, <b>' + CARGA.sistemas.length + '</b> sistemas.' +
+        (sinProc.length ? '<div class="msg warn" style="margin-top:6px">Secciones con personas pero sin procesos (tendrán que buscar sus procesos o agregarlos): ' + esc(sinProc.join('; ')) + '</div>' : '') +
+        (sinEnc.length ? '<div class="msg warn" style="margin-top:6px">Secciones con procesos pero sin personas (se cubren con el enlace abierto): ' + esc(sinEnc.join('; ')) + '</div>' : '');
       $('#btnImportar').disabled = false;
     }).catch(function(){ $('#prevCarga').textContent = 'No se pudo leer el archivo.'; });
   });
@@ -440,7 +755,7 @@
     var b = this; b.disabled = true;
     $('#msgCarga').innerHTML = '<span class="muted">Importando…</span>';
     api('/a/importar', Object.assign({campana_id: C.campana.id, modo: $('#modoCarga').value}, CARGA)).then(function(j){
-      $('#msgCarga').innerHTML = '<div class="msg ok">Importados: ' + j.encuestados + ' encuestados, ' + j.procesos + ' procesos, ' + j.sistemas + ' sistemas.</div>';
+      $('#msgCarga').innerHTML = '<div class="msg ok">Importados: ' + j.encuestados + ' personas, ' + j.procesos + ' procesos, ' + j.sistemas + ' sistemas.</div>';
       CARGA = null; $('#inExcel').value = '';
       abrir(C.campana.id);
     }).catch(function(err){ $('#msgCarga').innerHTML = '<div class="msg warn">' + esc(err.message) + '</div>'; b.disabled = false; });
@@ -461,10 +776,11 @@
     var wb = XLSX.utils.book_new();
     var inv = [], est = [], preg = [];
     C.procesos.forEach(function(p){
-      var e = estructuradoDe(p.id), d = e ? e.datos : null;
+      var e = estructuradoDe(p.id), d = e ? e.datos : null, cb = cobertura(p.id);
       var base = {'Código': p.codigo, Gerencia: p.gerencia, 'Sección': p.seccion, Macroproceso: p.macroproceso, Proceso: p.proceso, Subproceso: p.subproceso,
-        Fuente: p.fuente === 'nuevo' ? 'Nuevo (encuesta)' : 'Inventario anterior'};
-      var fila = Object.assign({}, base, {Vigencia: d ? d.vigencia : (revisionesDe(p.id).map(function(r){ return r.estado; }).join(', ') || 'sin revisar')});
+        Fuente: FUENTE_TXT[p.fuente] || p.fuente};
+      var fila = Object.assign({}, base, {Cobertura: ESTADO_TXT[cb.estado], Personas: cb.personas,
+        Vigencia: d ? d.vigencia : ((IX.rev[p.id] || []).map(function(r){ return r.estado; }).join(', ') || 'sin revisar')});
       var filaE = Object.assign({}, base);
       CAMPOS.forEach(function(c){
         var f = d && d.campos[c[0]];
@@ -474,20 +790,26 @@
       fila['Resumen'] = d ? d.resumen : '';
       fila['Contradicciones'] = d ? (d.contradicciones || []).join(' | ') : '';
       fila['Respuestas recibidas'] = respuestasDe(p.id).length;
-      fila['Estructurado'] = e ? e.generado.slice(0,16).replace('T',' ') + (desactualizado(p.id) ? ' (desactualizado)' : '') : '';
+      fila['Estructurado'] = e ? fecha(e.generado) + (desactualizado(p.id) ? ' (desactualizado)' : '') : '';
       inv.push(fila); est.push(filaE);
-      if (d) (d.preguntas_validacion || []).forEach(function(q, i){ preg.push({'Código': p.codigo, Gerencia: p.gerencia, 'Sección': p.seccion, Proceso: p.subproceso || p.proceso, '#': i+1, Pregunta: q}); });
+      if (d) (d.preguntas_validacion || []).forEach(function(q, i){ preg.push({'Código': p.codigo, Gerencia: p.gerencia, 'Sección': p.seccion, Proceso: nombreProc(p), '#': i+1, Pregunta: q}); });
     });
     var resp = C.respuestas.filter(function(r){ return (r.texto || '').trim() || r.sistemas.length; }).map(function(r){
       var p = C.procesos.filter(function(x){ return x.id === r.proceso_id; })[0] || {};
-      var en = C.encuestados.filter(function(x){ return x.id === r.encuestado_id; })[0] || {};
-      return {'Código': p.codigo, Proceso: p.subproceso || p.proceso, Encuestado: en.nombre, Rol: en.rol, Pregunta: PREG[r.pregunta], Respuesta: r.texto, 'Sistemas marcados': r.sistemas.join(', '), Fecha: r.actualizado.slice(0,16).replace('T',' ')};
+      var en = IX.enc[r.encuestado_id] || {};
+      return {'Código': p.codigo, Proceso: nombreProc(p), Encuestado: en.nombre, 'Área de la persona': (en.gerencia || '') + ' · ' + (en.seccion || ''), Rol: en.rol, Pregunta: PREG[r.pregunta], Respuesta: r.texto, 'Sistemas marcados': r.sistemas.join(', '), Fecha: fecha(r.actualizado)};
+    });
+    var plan = resumenSecciones().map(function(s){
+      return {Gerencia: s.gerencia, 'Sección': s.seccion, 'Procesos vigentes': s.procesos, Respondidos: s.respondidos, 'En curso': s.enCurso, 'Sin cobertura': s.sinCobertura,
+        'Ya no se hacen': s.noVigentes, Personas: s.personas, 'Sin empezar': s.sinEmpezar, Terminaron: s.terminaron, 'Qué hacer': accion(s),
+        'Enlace de la gerencia': C.campana.abierta && C.campana.codigo_publico ? enlaceAbierto(s.gerencia) : ''};
     });
     var add = function(rows, nombre, ancho){ var ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{'(sin datos)':''}]); if (ancho) ws['!cols'] = ancho; XLSX.utils.book_append_sheet(wb, ws, nombre); };
-    add(inv, 'Inventario', Object.keys(inv[0] || {}).map(function(){ return {wch:26}; }));
+    add(inv, 'Inventario', Object.keys(inv[0] || {}).map(function(){ return {wch:24}; }));
+    add(plan, 'Plan de barrido', [{wch:18},{wch:22},{wch:10},{wch:11},{wch:9},{wch:12},{wch:12},{wch:9},{wch:11},{wch:11},{wch:60},{wch:70}]);
     add(est, 'Estado de campos', Object.keys(est[0] || {}).map(function(){ return {wch:18}; }));
     add(preg, 'Preguntas validación', [{wch:12},{wch:16},{wch:20},{wch:34},{wch:4},{wch:90}]);
-    add(resp, 'Respuestas', [{wch:12},{wch:30},{wch:24},{wch:10},{wch:26},{wch:90},{wch:30},{wch:16}]);
+    add(resp, 'Respuestas', [{wch:12},{wch:30},{wch:24},{wch:26},{wch:12},{wch:26},{wch:90},{wch:30},{wch:16}]);
     XLSX.writeFile(wb, 'Inventario de procesos - ' + C.campana.nombre + ' - ' + new Date().toISOString().slice(0,10) + '.xlsx');
   });
 })();
