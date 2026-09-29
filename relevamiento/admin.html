@@ -111,6 +111,21 @@
   .hidden{display:none !important}
   code{background:var(--panel);border-radius:5px;padding:1px 5px;font-size:12.5px}
   .enlace{font-family:Consolas,monospace;font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;word-break:break-all;flex:1;min-width:240px}
+  /* Matriz de procesos */
+  .mtabla td{vertical-align:middle}
+  .mtabla tr.fila-ok td{background:var(--ok-bg)}
+  .mtabla input[type=checkbox], .chk input{width:18px;height:18px;accent-color:var(--ok);cursor:pointer}
+  .chk{display:inline-flex;gap:7px;align-items:center;font-family:inherit;font-weight:400;font-size:13px;color:var(--ink);margin:0}
+  .act-validado{background:var(--ok)} .act-actualizado{background:var(--warn)} .act-respondido{background:var(--inf)}
+  .act-en_levantamiento{background:#8DB8F0} .act-por_actualizar{background:var(--field-line)} .act-por_relevar{background:var(--accent)} .act-no_vigente{background:var(--muted)}
+  .mat{border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;margin:6px 0 16px;background:var(--panel)}
+  details.mgrupo{margin-top:10px}
+  details.mgrupo > summary{cursor:pointer;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;color:var(--heading)}
+  .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}
+  @media (max-width:700px){ .mgrid{grid-template-columns:1fr} }
+  .mcampo.ancho{grid-column:1 / -1}
+  .req{font-family:"Trebuchet MS","Segoe UI",sans-serif;font-weight:600;font-size:11px;color:var(--accent);margin-left:4px}
+  .sug{font-size:12.5px;color:var(--muted);margin-top:4px;white-space:pre-wrap}
 </style>
 </head>
 <body>
@@ -143,13 +158,14 @@
     <div class="card">
       <div class="row" style="justify-content:space-between">
         <div><h2 id="cTitulo" style="margin:0"></h2><div class="muted" id="cSub"></div></div>
-        <div class="row"><button class="btn btn-ghost btn-xs" id="btnVolver">← Campañas</button><button class="btn btn-ghost btn-xs" id="btnRecargar">Actualizar</button><button class="btn btn-navy btn-xs" id="btnExportar">Exportar inventario (Excel)</button></div>
+        <div class="row"><button class="btn btn-ghost btn-xs" id="btnVolver">← Campañas</button><button class="btn btn-ghost btn-xs" id="btnRecargar">Actualizar</button><button class="btn btn-navy btn-xs" id="btnExportar">Exportar todo (Excel)</button></div>
       </div>
       <div class="kpis" style="margin-top:14px" id="kpis"></div>
     </div>
     <div class="card">
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" data-tab="mapa" aria-selected="true">Mapa de procesos</button>
+        <button class="tab" role="tab" data-tab="matriz" aria-selected="false">Matriz y validación</button>
         <button class="tab" role="tab" data-tab="barrido" aria-selected="false">Plan de barrido</button>
         <button class="tab" role="tab" data-tab="encuestados" aria-selected="false">Personas y enlaces</button>
         <button class="tab" role="tab" data-tab="carga" aria-selected="false">Carga y configuración</button>
@@ -169,6 +185,7 @@
         <div id="mapa"></div>
       </div>
 
+      <div id="tMatriz" class="hidden"></div>
       <div id="tBarrido" class="hidden"></div>
       <div id="tEncuestados" class="hidden"></div>
 
@@ -176,7 +193,8 @@
         <div class="grid2">
           <div>
             <h3 style="font-size:14px">1. Plantilla</h3>
-            <p class="muted">Tres hojas: <code>Encuestados</code> (nombre, correo, gerencia, seccion, rol), <code>Procesos</code> (codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion) y <code>Sistemas</code> (nombre, tipo). Gerencia y sección deben escribirse igual en ambas hojas: así cada persona ve los procesos de su sección.</p>
+            <p class="muted">Tres hojas: <code>Encuestados</code> (nombre, correo, gerencia, seccion, rol), <code>Procesos</code> (codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion) y <code>Sistemas</code> (nombre, tipo). La gerencia y la sección de cada persona se ajustan a como están escritas en los procesos; un correo que ya existe actualiza a esa persona en vez de duplicarla.</p>
+            <p class="muted">También puedes cargar la <b>matriz de procesos</b> (el Excel exportado desde «Matriz y validación», editado): se reconoce sola y actualiza cada fila por su código.</p>
             <button class="btn btn-ghost btn-xs" id="btnPlantilla">Descargar plantilla</button>
             <h3 style="font-size:14px;margin-top:18px">2. Cargar Excel</h3>
             <input type="file" id="inExcel" accept=".xlsx,.xls" style="margin-top:6px">
@@ -209,14 +227,24 @@
 <script>
 'use strict';
 (function(){
-  var API = 'https://voz-relevamiento-api.minsait-business-consulting-pe.workers.dev';
-  var URL_ENCUESTA = location.origin + location.pathname.replace(/admin\.html$/, '');
+  // Un enlace de encuestado que llegó a la consola (p. ej. uno generado cuando la consola se abrió como
+  // ".../admin", sin ".html"): se lleva a la encuesta en vez de mostrar el acceso de administración.
+  var qs = new URLSearchParams(location.search), qc = qs.get('c') || '';
+  // ?c= de la consola es el id de la campaña (con guiones); el del enlace abierto es un código corto sin guiones.
+  if (qs.get('k') || qs.get('g') || /^[a-z0-9]{8,20}$/i.test(qc)){
+    location.replace(new URL('./', location.href).href + location.search);
+    return;
+  }
+  var API = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8787' : 'https://voz-relevamiento-api.minsait-business-consulting-pe.workers.dev';
+  // Carpeta de la encuesta: la misma si la consola se abrió como ".../admin.html" o como ".../admin".
+  var URL_ENCUESTA = new URL('./', location.href).href;
   var PREG = {q1:'Objetivo, inicio y fin', q2:'Actividades y participantes', q3:'Sistemas y manualidad', q4:'Terceros', q5:'Datos personales', q6:'Indicadores, normas y frecuencia'};
   var CAMPOS = [
     ['tipo_proceso','Tipo de proceso'],['dueno_proceso','Dueño del proceso'],['areas_intervienen','Áreas que intervienen'],
     ['objetivo','Objetivo'],['actividades','Actividades principales'],['inicio_fin','Evento de inicio y fin'],
     ['entradas_salidas','Entradas y salidas'],['frecuencia_volumen','Frecuencia y volumen'],['terceros','Terceros involucrados'],
-    ['interaccion_terceros','Interacción con terceros'],['sistemas','Sistemas y herramientas'],['nivel_automatizacion','Nivel de automatización'],
+    ['interaccion_terceros','Interacción con terceros'],['sistemas','Sistemas y herramientas'],['uso_sistemas','Uso específico de los sistemas'],
+    ['sistemas_datos_personales','Sistemas con datos personales'],['nivel_automatizacion','Nivel de automatización'],
     ['actividades_manuales','Actividades manuales clave'],['kpis','KPIs'],['regulacion','Regulación aplicable'],
     ['trata_datos_personales','¿Trata datos personales?'],['titulares_datos','Titulares de los datos'],['categoria_datos','Categoría de datos'],
     ['criticidad_preliminar','Criticidad preliminar']
@@ -225,6 +253,48 @@
   var ESTADO_ORDEN = ['respondido', 'en_curso', 'sin_cobertura', 'no_vigente'];
   var RELACION_TXT = {vigente:'participa', cambio:'participa, dice que cambió', no_participo:'existe, no participa', no_existe:'dice que ya no se hace'};
   var FUENTE_TXT = {inventario:'Inventario anterior', nuevo:'Agregado en la encuesta', consultor:'Agregado por el consultor'};
+
+  // Matriz de procesos (entregable): mismas columnas del inventario del cliente + contrato + lecciones + mapa de procesos.
+  // [clave, encabezado en el Excel, grupo, etiqueta en la ficha]
+  var MATRIZ = [
+    ['division','DIVISIÓN','id','División'], ['gerencia','GERENCIA','id','Gerencia'], ['seccion','SECCIÓN','id','Sección'],
+    ['participantes','PARTICIPANTES','car','Participantes'], ['niv0','NIV.0','id','Código macroproceso'], ['macroproceso','MACROPROCESO (NIV.0)','id','Macroproceso'],
+    ['niv1','NIV.1','id','Código proceso'], ['proceso','PROCESO (NIV.1)','id','Proceso'], ['niv2','NIV.2','id','Código subproceso'],
+    ['subproceso','SUBPROCESO (NIV.2)','id','Subproceso'], ['alcance','ALCANCE','car','Alcance (desde / hasta)'], ['objetivo','OBJETIVO','car','Objetivo'],
+    ['documentacion','DOCUMENTACIÓN','car','Documentación'], ['normativa','NORMATIVA','rie','Normativa'],
+    ['crit_normativa','CRITICIDAD DE NORMATIVA','rie','Criticidad de normativa'], ['riesgos','RIESGOS EMPRESARIALES','rie','Riesgos empresariales'],
+    ['crit_riesgo','CRITICIDAD DE RIESGO EMPRESARIAL','rie','Criticidad de riesgo empresarial'], ['datos_personales','DATOS PERSONALES (Sí/No)','rie','Datos personales'],
+    ['detalle_dp','DETALLE DATOS PERSONALES','rie','Detalle de datos personales'], ['terceros','TERCEROS','rie','Terceros'],
+    ['crit_tercero','CRITICIDAD DE TERCERO','rie','Criticidad de tercero'], ['tecnologia','TECNOLOGÍA','car','Tecnología'],
+    ['estandar_tdp','CUENTA CON ESTÁNDAR DE TDP','rie','Cuenta con estándar'], ['priorizacion','PROPUESTA DE PRIORIZACIÓN','rie','Propuesta de priorización'],
+    ['sancion','SANCIÓN','rie','Sanción'], ['dueno','DUEÑO DEL PROCESO (CARGO)','car','Dueño del proceso (cargo)'],
+    ['areas','ÁREAS QUE INTERVIENEN','car','Áreas que intervienen'], ['actividades','ACTIVIDADES PRINCIPALES','car','Actividades principales'],
+    ['kpis','KPIs','car','KPIs'], ['frecuencia','FRECUENCIA Y VOLUMEN','car','Frecuencia y volumen'],
+    ['uso_tecnologia','USO ESPECÍFICO DE LA TECNOLOGÍA','car','Uso específico de la tecnología'], ['sistemas_dp','SISTEMAS QUE TRATAN DATOS PERSONALES','rie','Sistemas que tratan datos personales'],
+    ['automatizacion','NIVEL DE AUTOMATIZACIÓN','car','Nivel de automatización'], ['cod_riesgo','CÓDIGO DE RIESGO (TGRS)','rie','Código de riesgo (TGRS)'],
+    ['categoria_mapa','CATEGORÍA MAPA TDP','mapa','Categoría del mapa de procesos'], ['proceso_mapa','PROCESO MAPA TDP','mapa','Proceso del mapa de procesos'],
+    ['comentarios','COMENTARIOS','obs','Comentarios'],
+    ['codigo_2021','CÓDIGO 2021','traza','Código 2021'], ['division_2021','DIVISIÓN 2021','traza','División 2021'], ['gerencia_2021','GERENCIA 2021','traza','Gerencia 2021'],
+    ['seccion_2021','SECCIÓN 2021','traza','Sección 2021'], ['mapeo_org','MAPEO ORGANIZACIONAL 2021-2026','traza','Mapeo organizacional'], ['origen','ORIGEN DE LA FILA','traza','Origen de la fila']
+  ];
+  var GRUPOS = [['id','Identificación'], ['car','Caracterización'], ['rie','Riesgo, cumplimiento y datos personales'], ['mapa','Mapa de procesos'], ['obs','Comentarios'], ['traza','Trazabilidad con el inventario anterior']];
+  var OPCIONES = {crit_normativa:['Alto','Medio','Bajo'], crit_riesgo:['Alto','Medio','Bajo'], crit_tercero:['Alto','Medio','Bajo'], datos_personales:['Sí','No'],
+    estandar_tdp:['Sí','No','Parcialmente','Programado (en proceso)'], automatizacion:['Manual','Semiautomático','Automatizado'],
+    categoria_mapa:['Gestión estratégica','Gestión de operaciones','Soporte de operaciones','Monitoreo de operaciones']};
+  var LARGOS = {participantes:1, alcance:1, objetivo:1, documentacion:1, normativa:1, riesgos:1, detalle_dp:1, terceros:1, tecnologia:1, sancion:1,
+    areas:1, actividades:1, kpis:1, uso_tecnologia:1, sistemas_dp:1, comentarios:1};
+  // Datos que el contrato pide por proceso: con alguno vacío, la fila no está lista para validar.
+  var OBLIGATORIOS = [['objetivo','Objetivo'], ['areas','Áreas que intervienen'], ['dueno','Dueño del proceso'], ['actividades','Actividades principales'],
+    ['tecnologia','Tecnología'], ['kpis','KPIs (o «No aplica»)'], ['normativa','Normativa (o «No aplica»)']];
+  var ES_OBLIG = {}; OBLIGATORIOS.forEach(function(o){ ES_OBLIG[o[0]] = 1; });
+  // Campo de la IA -> columna de la matriz.
+  var IA_A_MATRIZ = {objetivo:'objetivo', inicio_fin:'alcance', actividades:'actividades', sistemas:'tecnologia', uso_sistemas:'uso_tecnologia',
+    sistemas_datos_personales:'sistemas_dp', nivel_automatizacion:'automatizacion', kpis:'kpis', frecuencia_volumen:'frecuencia', terceros:'terceros',
+    regulacion:'normativa', trata_datos_personales:'datos_personales', dueno_proceso:'dueno', areas_intervienen:'areas'};
+  var ACT_TXT = {validado:'Validado', actualizado:'Actualizado', respondido:'Respondido', en_levantamiento:'En levantamiento',
+    por_actualizar:'Por actualizar', por_relevar:'Por relevar (nuevo)', no_vigente:'Ya no se hace'};
+  var ACT_CHIP = {validado:'c-ok', actualizado:'c-warn', respondido:'c-inf', en_levantamiento:'c-inf', por_actualizar:'c-mut', por_relevar:'c-acc', no_vigente:'c-mut'};
+  var ACT_ORDEN = ['validado', 'actualizado', 'respondido', 'en_levantamiento', 'por_actualizar', 'por_relevar', 'no_vigente'];
 
   var $ = function(s){ return document.querySelector(s); };
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -273,13 +343,39 @@
   $('#btnSalir').addEventListener('click', function(){ try { sessionStorage.removeItem('relev-admin'); } catch(e){} CODIGO=''; ver('vLogin'); });
   if (CODIGO) entrar();
 
+  var CAMPANAS = [];
   function pintarCampanas(lista){
+    CAMPANAS = lista;
     $('#tbCampanas').innerHTML = lista.length ? lista.map(function(c){
       return '<tr><td><b>' + esc(c.nombre) + '</b></td><td>' + esc(c.cliente) + '</td><td class="num">' + c.encuestados + '</td><td class="num">' + c.procesos + '</td><td>' + esc(c.creada.slice(0,10)) + '</td>' +
-        '<td><button class="btn btn-xs" data-abrir="' + esc(c.id) + '">Abrir</button></td></tr>';
+        '<td><div class="row" style="flex-wrap:nowrap"><button class="btn btn-xs" data-abrir="' + esc(c.id) + '">Abrir</button>' +
+        '<button class="btn btn-ghost btn-xs" data-borrar-camp="' + esc(c.id) + '">Borrar</button></div></td></tr>';
     }).join('') : '<tr><td colspan="6" class="muted">Todavía no hay campañas.</td></tr>';
   }
-  $('#tbCampanas').addEventListener('click', function(e){ var b = e.target.closest('[data-abrir]'); if (b) abrir(b.dataset.abrir); });
+  $('#tbCampanas').addEventListener('click', function(e){
+    var b = e.target.closest('[data-abrir]'); if (b) return abrir(b.dataset.abrir);
+    var d = e.target.closest('[data-borrar-camp]'); if (d) borrarCampana(CAMPANAS.filter(function(c){ return c.id === d.dataset.borrarCamp; })[0]);
+  });
+  // Borrar una campaña completa (procesos, matriz, personas, respuestas y resultados). Se confirma escribiendo su nombre.
+  function borrarCampana(c){
+    if (!c) return;
+    $('#dlgT').textContent = 'Borrar campaña';
+    $('#dlgS').textContent = c.nombre + ' · ' + c.cliente;
+    $('#dlgB').innerHTML = '<p class="msg warn" style="margin-top:0">Se borrarán de forma definitiva sus <b>' + c.procesos + '</b> procesos (con la matriz y las validaciones), sus <b>' + c.encuestados + '</b> personas y todas sus respuestas. No se puede deshacer: exporta la matriz antes si la necesitas.</p>' +
+      '<label for="bcNombre">Escribe el nombre exacto de la campaña para confirmar: <code>' + esc(c.nombre) + '</code></label>' +
+      '<input type="text" id="bcNombre" autocomplete="off">' +
+      '<div class="row" style="margin-top:12px"><button class="btn" id="bcOk" disabled>Borrar definitivamente</button><button class="btn btn-ghost" id="bcNo">Cancelar</button><span class="muted" id="bcMsg"></span></div>';
+    if (!$('#dlg').open) $('#dlg').showModal();
+    $('#bcNombre').addEventListener('input', function(){ $('#bcOk').disabled = this.value !== c.nombre; });
+    $('#bcNo').addEventListener('click', function(){ $('#dlg').close(); });
+    $('#bcOk').addEventListener('click', function(){
+      var b = this; b.disabled = true; $('#bcMsg').textContent = 'Borrando…';
+      api('/a/borrar-campana', {campana_id: c.id, confirmar: $('#bcNombre').value}).then(function(){
+        $('#dlg').close();
+        return api('/a/campanas').then(function(j){ pintarCampanas(j.campanas); ver('vCampanas'); history.replaceState(null, '', location.pathname); });
+      }).catch(function(err){ b.disabled = false; $('#bcMsg').textContent = err.message; });
+    });
+  }
   $('#btnCrear').addEventListener('click', function(){
     $('#ncMsg').textContent = 'Creando…';
     api('/a/campana', {nombre: $('#ncNombre').value, cliente: $('#ncCliente').value, glosario: $('#ncGlosario').value})
@@ -303,7 +399,7 @@
       pintarTodo();
     }).catch(function(err){ alert(err.message); });
   }
-  function pintarTodo(){ pintarKpis(); pintarMapa(); pintarBarrido(); pintarEncuestados(); }
+  function pintarTodo(){ pintarKpis(); pintarMapa(); pintarMatriz(); pintarBarrido(); pintarEncuestados(); }
 
   // Índices por proceso: quién lo tomó, quién respondió y qué dijo cada uno.
   function indexar(){
@@ -350,8 +446,10 @@
   function pintarKpis(){
     var enc = C.encuestados, n = function(e){ return enc.filter(function(x){ return x.estado === e; }).length; };
     var cuenta = contar(C.procesos);
+    var validados = C.procesos.filter(function(p){ return p.validacion === 'validado'; }).length;
     $('#kpis').innerHTML = [
       [C.procesos.length, 'procesos en el mapa'], [cuenta.respondido, 'respondidos'], [cuenta.en_curso, 'en curso'], [cuenta.sin_cobertura, 'sin cobertura'],
+      [validados, 'validados'],
       [enc.length, 'personas'], [n('enviado'), 'terminaron'], [n('pendiente'), 'sin empezar'], [C.estructurado.length, 'estructurados con IA']
     ].map(function(k){ return '<div class="kpi"><b>' + k[0] + '</b><span>' + k[1] + '</span></div>'; }).join('');
   }
@@ -359,7 +457,7 @@
   document.querySelector('.tabs').addEventListener('click', function(e){
     var t = e.target.closest('.tab'); if (!t) return;
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(x){ x.setAttribute('aria-selected', x === t ? 'true' : 'false'); });
-    [['mapa','#tMapa'], ['barrido','#tBarrido'], ['encuestados','#tEncuestados'], ['carga','#tCarga']].forEach(function(k){
+    [['mapa','#tMapa'], ['matriz','#tMatriz'], ['barrido','#tBarrido'], ['encuestados','#tEncuestados'], ['carga','#tCarga']].forEach(function(k){
       $(k[1]).classList.toggle('hidden', t.dataset.tab !== k[0]);
     });
   });
@@ -480,8 +578,254 @@
     });
   }
 
+  // ------------------------------------------------------------ matriz de procesos y validación
+  // Estado de actualización de una fila: el check manda (validado / actualizado); si no, lo dice la encuesta.
+  function actualizacion(p){
+    if (p.validacion === 'validado') return 'validado';
+    if (p.validacion === 'actualizado') return 'actualizado';
+    var cb = cobertura(p.id).estado;
+    if (cb === 'no_vigente') return 'no_vigente';
+    if (cb === 'respondido') return 'respondido';
+    if (cb === 'en_curso') return 'en_levantamiento';
+    return (p.matriz || {}).mapeo_org === 'Nuevo 2026' ? 'por_relevar' : 'por_actualizar';
+  }
+  function faltantes(p){ var m = p.matriz || {}; return OBLIGATORIOS.filter(function(o){ return !String(m[o[0]] || '').trim(); }); }
+  function sugerencias(pid){
+    var e = estructuradoDe(pid), out = {};
+    if (!e) return out;
+    var c = e.datos.campos || {};
+    Object.keys(IA_A_MATRIZ).forEach(function(k){ if (c[k] && c[k].valor) out[IA_A_MATRIZ[k]] = {valor: c[k].valor, estado: c[k].estado}; });
+    var t = c.titulares_datos || {}, d = c.categoria_datos || {};
+    var det = [t.valor ? 'Titulares: ' + t.valor : '', d.valor ? 'Datos: ' + d.valor : ''].filter(Boolean).join('. ');
+    if (det) out.detalle_dp = {valor: det, estado: t.estado || d.estado || 'inferido'};
+    return out;
+  }
+  function aplicarProceso(np){
+    C.procesos = C.procesos.map(function(x){ return x.id === np.id ? Object.assign({}, x, np) : x; });
+  }
+  function porCodigo(a, b){
+    return a.gerencia.localeCompare(b.gerencia, 'es') || a.seccion.localeCompare(b.seccion, 'es') ||
+      String(a.codigo || '').localeCompare(String(b.codigo || ''), 'es', {numeric: true}) || nombreProc(a).localeCompare(nombreProc(b), 'es');
+  }
+  var ULTIMO_VALIDADOR = '';
+  try { ULTIMO_VALIDADOR = localStorage.getItem('relev-validador') || ''; } catch(e){}
+  function pedirValidador(){
+    var v = prompt('¿Quién valida? Escribe el cargo (p. ej. «Jefe de Importaciones»). Queda registrado con la fecha.', ULTIMO_VALIDADOR);
+    if (v === null) return null;
+    ULTIMO_VALIDADOR = v.trim();
+    try { localStorage.setItem('relev-validador', ULTIMO_VALIDADOR); } catch(e){}
+    return ULTIMO_VALIDADOR;
+  }
+
+  var FM = {texto:'', ger:'', act:'', falt:false};   // filtros de la pestaña Matriz
+  function pintarMatriz(){
+    var gers = {};
+    C.procesos.forEach(function(p){ gers[p.gerencia] = 1; });
+    if (FM.ger && !gers[FM.ger]) FM.ger = '';
+    $('#tMatriz').innerHTML =
+      '<p class="muted" style="margin-top:0">Cada fila es un proceso de la matriz final, con las columnas del inventario anterior y las que pide el contrato. ' +
+      'Marca el check cuando la gerencia dueña dé su conformidad; el Excel que exportas es el entregable.</p>' +
+      '<div class="filtros">' +
+        '<div><label for="mTexto">Buscar</label><input type="search" id="mTexto" placeholder="Código, proceso, subproceso…" value="' + esc(FM.texto) + '"></div>' +
+        '<div><label for="mGer">Gerencia</label><select id="mGer"><option value="">Todas</option>' +
+          Object.keys(gers).sort(function(a, b){ return a.localeCompare(b, 'es'); }).map(function(g){ return '<option' + (g === FM.ger ? ' selected' : '') + '>' + esc(g) + '</option>'; }).join('') + '</select></div>' +
+        '<div><label for="mAct">Estado de actualización</label><select id="mAct"><option value="">Todos</option>' +
+          ACT_ORDEN.map(function(k){ return '<option value="' + k + '"' + (k === FM.act ? ' selected' : '') + '>' + ACT_TXT[k] + '</option>'; }).join('') + '</select></div>' +
+        '<div><button class="btn btn-navy" id="mExportar" type="button">Exportar matriz (Excel)</button></div>' +
+      '</div><div id="mResumen" class="cob"></div><div id="mLista"></div>';
+    var repintar = function(){ pintarMatrizLista(); };
+    var timer = null;
+    $('#mTexto').addEventListener('input', function(){ FM.texto = this.value; clearTimeout(timer); timer = setTimeout(repintar, 150); });
+    $('#mGer').addEventListener('change', function(){ FM.ger = this.value; repintar(); });
+    $('#mAct').addEventListener('change', function(){ FM.act = this.value; repintar(); });
+    $('#mExportar').addEventListener('click', exportarMatriz);
+    pintarMatrizLista();
+  }
+
+  function pintarMatrizLista(){
+    var cuenta = {}, total = C.procesos.length;
+    ACT_ORDEN.forEach(function(k){ cuenta[k] = 0; });
+    C.procesos.forEach(function(p){ cuenta[actualizacion(p)]++; });
+    var vigentes = total - cuenta.no_vigente;
+    $('#mResumen').innerHTML = total ? '<span class="cob-bar" role="img" aria-label="' + ACT_ORDEN.map(function(k){ return cuenta[k] + ' ' + ACT_TXT[k].toLowerCase(); }).join(', ') + '">' +
+      ACT_ORDEN.map(function(k){ return cuenta[k] ? '<span class="act-' + k + '" style="width:' + (100 * cuenta[k] / total) + '%"></span>' : ''; }).join('') + '</span>' +
+      '<div class="leyenda">' + ACT_ORDEN.map(function(k){ return '<span><i class="act-' + k + '"></i>' + ACT_TXT[k] + ': <b>' + cuenta[k] + '</b></span>'; }).join('') +
+      '<span>Validado: <b>' + pct(cuenta.validado, vigentes) + '</b> (' + cuenta.validado + ' de ' + vigentes + ' vigentes)</span></div>' +
+      '<p class="definicion">Validado: la gerencia dio su conformidad (check). Actualizado: el equipo editó la fila con lo relevado. Respondido y En levantamiento: avance de la encuesta. Por actualizar: sigue como en el inventario anterior. Por relevar: área nueva sin procesos en el inventario anterior.</p>' : '';
+
+    var texto = sinTildes(FM.texto.trim());
+    var lista = C.procesos.filter(function(p){
+      if (FM.ger && p.gerencia !== FM.ger) return false;
+      if (FM.act && actualizacion(p) !== FM.act) return false;
+      if (FM.falt && !faltantes(p).length) return false;
+      if (texto && sinTildes([p.codigo, p.macroproceso, p.proceso, p.subproceso, p.seccion, p.gerencia].join(' ')).indexOf(texto) < 0) return false;
+      return true;
+    }).sort(porCodigo);
+    var pendientes = lista.filter(function(p){ return p.validacion !== 'validado'; });
+    var h = '<div class="row" style="margin:8px 0 10px"><span class="muted">' + lista.length + ' de ' + total + ' filas</span>' +
+      '<label class="chk"><input type="checkbox" id="mFalt"' + (FM.falt ? ' checked' : '') + '> Solo filas con datos del contrato pendientes</label>' +
+      (pendientes.length ? '<button class="btn btn-ghost btn-xs" id="mValidarTodo" type="button">Validar las ' + pendientes.length + ' filas filtradas</button>' : '') + '</div>';
+    h += '<div class="tblwrap"><table class="mtabla"><thead><tr><th>Validado</th><th>Código</th><th>Gerencia · sección</th><th>Proceso</th><th>Actualización</th><th>Datos del contrato</th><th>Validación</th><th></th></tr></thead><tbody>';
+    lista.slice(0, 400).forEach(function(p){
+      var st = actualizacion(p), f = faltantes(p), ok = p.validacion === 'validado';
+      var ruta = [p.macroproceso, p.proceso !== nombreProc(p) ? p.proceso : ''].filter(Boolean).join(' › ');
+      h += '<tr' + (ok ? ' class="fila-ok"' : '') + '><td><input type="checkbox" data-v="' + esc(p.id) + '"' + (ok ? ' checked' : '') + ' aria-label="Validado: ' + esc(nombreProc(p)) + '"></td>' +
+        '<td>' + esc(p.codigo || '') + '</td><td>' + esc(p.gerencia) + '<div class="muted">' + esc(p.seccion) + '</div></td>' +
+        '<td>' + (ruta ? '<div class="muted">' + esc(ruta) + '</div>' : '') + '<b>' + esc(nombreProc(p)) + '</b></td>' +
+        '<td><span class="chip ' + ACT_CHIP[st] + '">' + ACT_TXT[st] + '</span></td>' +
+        '<td>' + (f.length ? '<span title="Faltan: ' + esc(f.map(function(x){ return x[1]; }).join(', ')) + '">' + (OBLIGATORIOS.length - f.length) + ' de ' + OBLIGATORIOS.length + '</span>' : '<span class="chip c-ok">Completos</span>') + '</td>' +
+        '<td>' + (ok ? esc(p.validado_por || '—') + '<div class="muted">' + esc(fecha(p.validado_en)) + '</div>' : '') + '</td>' +
+        '<td><button class="btn btn-ghost btn-xs" type="button" data-m="' + esc(p.id) + '">Abrir fila</button></td></tr>';
+    });
+    if (lista.length > 400) h += '<tr><td colspan="8" class="muted">Se muestran 400 de ' + lista.length + ': usa los filtros para ver el resto.</td></tr>';
+    if (!lista.length) h += '<tr><td colspan="8" class="muted">Ninguna fila coincide con el filtro.</td></tr>';
+    h += '</tbody></table></div>';
+    $('#mLista').innerHTML = h;
+    $('#mFalt').addEventListener('change', function(){ FM.falt = this.checked; pintarMatrizLista(); });
+    if ($('#mValidarTodo')) $('#mValidarTodo').addEventListener('click', function(){
+      if (!confirm('Se marcarán como validadas ' + pendientes.length + ' filas (las que ves con este filtro). Hazlo solo si la gerencia dio su conformidad a todas. ¿Continuar?')) return;
+      var por = pedirValidador(); if (por === null) return;
+      var b = this; b.disabled = true;
+      api('/a/validacion', {campana_id: C.campana.id, proceso_ids: pendientes.map(function(p){ return p.id; }), validacion: 'validado', validado_por: por}).then(function(j){
+        pendientes.forEach(function(p){ aplicarProceso({id: p.id, validacion: 'validado', validado_por: j.validado_por, validado_en: j.validado_en}); });
+        pintarKpis(); pintarMatrizLista();
+      }).catch(function(err){ b.disabled = false; alert(err.message); });
+    });
+  }
+
+  $('#tMatriz').addEventListener('change', function(e){
+    var cb = e.target.closest('[data-v]'); if (!cb) return;
+    var p = C.procesos.filter(function(x){ return x.id === cb.dataset.v; })[0]; if (!p) return;
+    var body;
+    if (cb.checked){
+      var f = faltantes(p);
+      if (f.length && !confirm('A esta fila le faltan datos del contrato (' + f.map(function(x){ return x[1]; }).join(', ') + '). ¿Validarla igual?')){ cb.checked = false; return; }
+      var por = pedirValidador(); if (por === null){ cb.checked = false; return; }
+      body = {proceso_id: p.id, validacion: 'validado', validado_por: por};
+    } else {
+      if (!confirm('¿Quitar la validación de «' + nombreProc(p) + '»?')){ cb.checked = true; return; }
+      body = {proceso_id: p.id, validacion: 'actualizado'};
+    }
+    cb.disabled = true;
+    api('/a/matriz', body).then(function(j){ aplicarProceso(j.proceso); pintarKpis(); pintarMatrizLista(); })
+      .catch(function(err){ cb.checked = !cb.checked; cb.disabled = false; alert(err.message); });
+  });
+  $('#tMatriz').addEventListener('click', function(e){ var b = e.target.closest('[data-m]'); if (b) detalle(b.dataset.m, true); });
+
+  // Personas que participaron en un proceso (para la columna PARTICIPANTES del entregable).
+  function participantesDe(pid){
+    var ids = {};
+    (IX.rev[pid] || []).forEach(function(r){ if (r.estado === 'vigente' || r.estado === 'cambio') ids[r.encuestado_id] = 1; });
+    Object.keys(IX.resp[pid] || {}).forEach(function(k){ ids[k] = 1; });
+    return Object.keys(ids).map(function(id){ var en = IX.enc[id] || {}; return en.nombre ? en.nombre + (en.rol ? ' (' + en.rol + ')' : '') : ''; }).filter(Boolean).join('\n');
+  }
+  // Filas del entregable: columnas del inventario anterior + nuevas + estado + trazabilidad.
+  function filasMatriz(){
+    var desdeProceso = {gerencia:'gerencia', seccion:'seccion', macroproceso:'macroproceso', proceso:'proceso', subproceso:'subproceso', niv2:'codigo'};
+    return C.procesos.slice().sort(porCodigo).map(function(p){
+      var m = p.matriz || {}, fila = {}, st = actualizacion(p);
+      MATRIZ.forEach(function(c){
+        if (c[0] === 'comentarios'){
+          fila['ESTADO DE ACTUALIZACIÓN'] = ACT_TXT[st];
+          fila['VALIDADO'] = p.validacion === 'validado' ? 'Sí' : 'No';
+          fila['VALIDADO POR (CARGO)'] = p.validado_por || '';
+          fila['FECHA DE VALIDACIÓN'] = p.validado_en ? String(p.validado_en).slice(0, 10) : '';
+        }
+        var v = m[c[0]] || '';
+        if (!v && desdeProceso[c[0]]) v = p[desdeProceso[c[0]]] || '';
+        if (!v && c[0] === 'participantes') v = participantesDe(p.id);
+        if (!v && c[0] === 'origen') v = FUENTE_TXT[p.fuente] || '';
+        fila[c[1]] = v;
+      });
+      return fila;
+    });
+  }
+  function hojaMatriz(){
+    var filas = filasMatriz();
+    var ws = XLSX.utils.json_to_sheet(filas.length ? filas : [{'(sin datos)': ''}]);
+    ws['!cols'] = Object.keys(filas[0] || {}).map(function(k){ return {wch: /ALCANCE|OBJETIVO|ACTIVIDADES|USO ESP|DETALLE|TERCEROS|NORMATIVA|TECNOLOG|COMENTARIOS|SISTEMAS|PARTICIPANTES|DOCUMENT/.test(k) ? 40 : 16}; });
+    if (ws['!ref']) ws['!autofilter'] = {ref: ws['!ref']};
+    return ws;
+  }
+  function exportarMatriz(){
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, hojaMatriz(), 'Inventario de Procesos');
+    XLSX.writeFile(wb, 'Matriz de procesos - ' + C.campana.nombre + ' - ' + new Date().toISOString().slice(0,10) + '.xlsx');
+  }
+
+  // Editor de la fila de la matriz dentro de la ficha del proceso.
+  function editorMatriz(p){
+    var m = p.matriz || {}, sug = sugerencias(p.id), st = actualizacion(p), f = faltantes(p);
+    var h = '<section class="mat" id="fMatriz"><div class="row" style="justify-content:space-between"><h3 style="font-size:14px">Fila de la matriz</h3>' +
+      '<div class="row"><span class="chip ' + ACT_CHIP[st] + '">' + ACT_TXT[st] + '</span>' +
+      (p.validacion === 'validado' ? '<span class="muted">Validado por ' + esc(p.validado_por || '—') + ' · ' + esc(fecha(p.validado_en)) + '</span>' : '') + '</div></div>';
+    if (f.length) h += '<p class="msg warn" style="margin:8px 0">Faltan datos del contrato: ' + esc(f.map(function(x){ return x[1]; }).join(', ')) + '.</p>';
+    if (Object.keys(sug).length) h += '<div class="row" style="margin:8px 0"><button class="btn btn-ghost btn-xs" type="button" id="mUsarIA">Completar los campos vacíos con la IA</button>' +
+      '<span class="muted">Las sugerencias aparecen bajo cada campo; revísalas antes de guardar.</span></div>';
+    GRUPOS.forEach(function(g){
+      var campos = MATRIZ.filter(function(c){ return c[2] === g[0]; });
+      var ro = g[0] === 'traza';
+      h += '<details class="mgrupo"' + (g[0] === 'car' || g[0] === 'rie' ? ' open' : '') + '><summary>' + esc(g[1]) + '</summary><div class="mgrid">';
+      campos.forEach(function(c){
+        var k = c[0], v = m[k] || '', id = 'mf-' + k, s = sug[k], campo;
+        if (!v && !ro && {gerencia:1, seccion:1, macroproceso:1, proceso:1, subproceso:1}[k]) v = p[k] || '';
+        if (!v && k === 'niv2') v = p.codigo || '';
+        if (OPCIONES[k] && !ro){
+          campo = '<select id="' + id + '" data-k="' + k + '"><option value=""></option>' + OPCIONES[k].map(function(o){ return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') +
+            (v && OPCIONES[k].indexOf(v) < 0 ? '<option selected>' + esc(v) + '</option>' : '') + '</select>';
+        } else if (LARGOS[k]){
+          campo = '<textarea id="' + id + '" data-k="' + k + '" rows="3"' + (ro ? ' readonly' : '') + '>' + esc(v) + '</textarea>';
+        } else {
+          campo = '<input type="text" id="' + id + '" data-k="' + k + '" value="' + esc(v) + '"' + (ro ? ' readonly' : '') + '>';
+        }
+        h += '<div class="mcampo' + (LARGOS[k] ? ' ancho' : '') + '"><label for="' + id + '">' + esc(c[3]) + (ES_OBLIG[k] ? '<span class="req">contrato</span>' : '') + '</label>' + campo +
+          (s && s.valor && s.valor !== v ? '<div class="sug"><span class="chip ' + (s.estado === 'dicho' ? 'c-ok' : 'c-inf') + '">IA · ' + esc(s.estado) + '</span> ' + esc(s.valor) +
+            ' <button type="button" class="btn-link" data-usar="' + k + '">Usar</button></div>' : '') + '</div>';
+      });
+      h += '</div></details>';
+    });
+    h += '<div class="row" style="margin-top:12px"><button class="btn" type="button" id="mGuardar">Guardar fila</button>' +
+      (p.validacion === 'validado' ? '<button class="btn btn-ghost btn-xs" type="button" id="mQuitarVal">Quitar validación</button>' :
+        '<button class="btn btn-navy" type="button" id="mValidar">Guardar y validar</button>') +
+      '<span class="muted" id="mMsg"></span></div></section>';
+    return h;
+  }
+  function leerEditor(){
+    var o = {};
+    Array.prototype.forEach.call(document.querySelectorAll('#fMatriz [data-k]'), function(el){ if (!el.readOnly && !el.disabled) o[el.dataset.k] = el.value; });
+    return o;
+  }
+  function activarEditor(p){
+    var sug = sugerencias(p.id);
+    var poner = function(k, valor){
+      var el = document.getElementById('mf-' + k); if (!el) return;
+      if (el.tagName === 'SELECT' && !Array.prototype.some.call(el.options, function(o){ return o.value === valor; })){
+        var op = document.createElement('option'); op.textContent = valor; el.appendChild(op);
+      }
+      el.value = valor;
+    };
+    $('#fMatriz').addEventListener('click', function(e){ var b = e.target.closest('[data-usar]'); if (b && sug[b.dataset.usar]) poner(b.dataset.usar, sug[b.dataset.usar].valor); });
+    if ($('#mUsarIA')) $('#mUsarIA').addEventListener('click', function(){
+      Object.keys(sug).forEach(function(k){ var el = document.getElementById('mf-' + k); if (el && !el.value.trim()) poner(k, sug[k].valor); });
+    });
+    var guardar = function(extra, boton){
+      boton.disabled = true; $('#mMsg').textContent = 'Guardando…';
+      return api('/a/matriz', Object.assign({proceso_id: p.id, matriz: leerEditor()}, extra || {})).then(function(j){
+        aplicarProceso(j.proceso); pintarTodo(); detalle(p.id, true);
+      }).catch(function(err){ boton.disabled = false; $('#mMsg').textContent = err.message; });
+    };
+    $('#mGuardar').addEventListener('click', function(){ guardar(null, this); });
+    if ($('#mValidar')) $('#mValidar').addEventListener('click', function(){
+      var por = pedirValidador(); if (por === null) return;
+      guardar({validacion: 'validado', validado_por: por}, this);
+    });
+    if ($('#mQuitarVal')) $('#mQuitarVal').addEventListener('click', function(){
+      if (confirm('¿Quitar la validación de esta fila?')) guardar({validacion: 'actualizado'}, this);
+    });
+  }
+
   // ------------------------------------------------------------ ficha de un proceso
-  function detalle(pid){
+  function detalle(pid, irAMatriz){
     var p = C.procesos.filter(function(x){ return x.id === pid; })[0];
     if (!p) return;
     var e = estructuradoDe(pid), cb = cobertura(pid), rs = respuestasDe(pid);
@@ -492,7 +836,7 @@
       '<button class="btn btn-ghost btn-xs" id="dEditar">Editar</button>' +
       '<button class="btn btn-ghost btn-xs" id="dBorrar"' + (rs.length ? ' disabled title="Tiene respuestas: no se puede borrar"' : '') + '>Borrar</button>' +
       '<span class="muted" id="dMsg"></span></div>';
-    if (p.descripcion) h += '<p class="muted" style="margin-top:0">' + esc(p.descripcion) + '</p>';
+    h += editorMatriz(p);
 
     var ids = {};
     (IX.rev[pid] || []).forEach(function(r){ ids[r.encuestado_id] = 1; });
@@ -514,7 +858,7 @@
 
     if (e){
       var d = e.datos;
-      h += '<h3 style="font-size:14px;margin-top:18px">Fila del inventario <span class="muted" style="font-weight:600">· ' + esc(e.modelo) + ' · ' + esc(fecha(e.generado)) + '</span></h3>';
+      h += '<h3 style="font-size:14px;margin-top:18px">Análisis de la IA <span class="muted" style="font-weight:600">· ' + esc(e.modelo) + ' · ' + esc(fecha(e.generado)) + '</span></h3>';
       if (desactualizado(pid)) h += '<p class="msg warn">Llegaron respuestas después de esta versión: regenera para incluirlas.</p>';
       h += '<p>' + esc(d.resumen) + '</p>';
       h += '<div class="row" style="margin:6px 0 10px"><span class="chip c-ok">dicho</span><span class="chip c-inf">inferido: validar</span><span class="chip c-mut">vacío: preguntar</span></div>';
@@ -540,6 +884,8 @@
     }
     $('#dlgB').innerHTML = h;
     if (!$('#dlg').open) $('#dlg').showModal();
+    activarEditor(p);
+    if (irAMatriz) $('#fMatriz').scrollIntoView({block: 'start'});
     $('#dEstr').addEventListener('click', function(){
       var b = this; b.disabled = true; $('#dMsg').textContent = 'La IA está leyendo las respuestas (suele tardar menos de un minuto)…';
       estructurar(pid).then(function(){ pintarTodo(); detalle(pid); }).catch(function(err){ b.disabled = false; $('#dMsg').textContent = err.message; });
@@ -682,21 +1028,57 @@
   function pintarEncuestados(){
     var activosPor = {};
     C.revisiones.forEach(function(r){ if (r.estado === 'vigente' || r.estado === 'cambio') activosPor[r.encuestado_id] = (activosPor[r.encuestado_id] || 0) + 1; });
+    var porCorreo = {}, areasProc = {};
+    C.encuestados.forEach(function(en){ var c = (en.correo || '').toLowerCase(); if (c) porCorreo[c] = (porCorreo[c] || 0) + 1; });
+    C.procesos.forEach(function(p){ if (p.fuente !== 'nuevo') areasProc[sinTildes(p.gerencia) + '|' + sinTildes(p.seccion)] = 1; });
+    var repetidos = Object.keys(porCorreo).filter(function(c){ return porCorreo[c] > 1; }).length;
     var h = '<div class="row" style="margin-bottom:10px"><button class="btn btn-ghost btn-xs" id="btnEnlacesXls">Descargar enlaces personales (Excel)</button>' +
-      '<span class="muted">Cada enlace es personal: da acceso a las respuestas de esa persona. Envíalo solo a ella.</span></div>';
-    h += '<div class="tblwrap"><table><thead><tr><th>Nombre</th><th>Gerencia · sección</th><th>Rol o cargo</th><th>Origen</th><th>Estado</th><th class="num">Procesos</th><th class="num">Respuestas</th><th>Última actividad</th><th></th></tr></thead><tbody>';
+      '<span class="muted">Cada enlace es personal: da acceso a las respuestas de esa persona. Envíalo solo a ella. Los enlaces abren <code>' + esc(URL_ENCUESTA) + '</code></span></div>';
+    if (repetidos) h += '<p class="msg warn">' + repetidos + (repetidos === 1 ? ' correo aparece' : ' correos aparecen') + ' más de una vez. Deja un solo registro por persona (el del enlace que le enviaste) y borra los demás: «Seleccionar duplicados» marca los repetidos sin respuestas. Las cargas nuevas ya no duplican: si el correo existe, actualizan su área.</p>';
+    h += '<div class="row" style="margin-bottom:8px"><button class="btn btn-xs" id="btnBorrarSel" disabled>Borrar seleccionados</button>' +
+      (repetidos ? '<button class="btn btn-ghost btn-xs" id="btnSelDup">Seleccionar duplicados</button>' : '') +
+      '<span class="muted" id="selMsg"></span></div>';
+    h += '<div class="tblwrap"><table><thead><tr><th><input type="checkbox" id="selTodos" aria-label="Seleccionar a todas las personas"></th><th>Nombre</th><th>Gerencia · sección</th><th>Rol o cargo</th><th>Origen</th><th>Estado</th><th class="num">Procesos</th><th class="num">Respuestas</th><th>Última actividad</th><th></th></tr></thead><tbody>';
     C.encuestados.forEach(function(en){
       var n = C.respuestas.filter(function(r){ return r.encuestado_id === en.id && (r.texto || '').trim(); }).length;
       var cls = en.estado === 'enviado' ? 'c-ok' : en.estado === 'en_curso' ? 'c-inf' : 'c-mut';
       var lbl = en.estado === 'enviado' ? 'terminó' : en.estado === 'en_curso' ? 'en curso' : 'sin empezar';
-      h += '<tr><td><b>' + esc(en.nombre) + '</b><div class="muted">' + esc(en.correo) + '</div></td><td>' + esc(en.gerencia + ' · ' + en.seccion) + '</td><td>' + esc(en.rol) + '</td>' +
+      var dup = en.correo && porCorreo[en.correo.toLowerCase()] > 1;
+      var sinArea = !areasProc[sinTildes(en.gerencia) + '|' + sinTildes(en.seccion)];
+      h += '<tr><td><input type="checkbox" data-sel="' + esc(en.id) + '" data-resp="' + n + '" aria-label="Seleccionar a ' + esc(en.nombre) + '"></td>' +
+        '<td><b>' + esc(en.nombre) + '</b><div class="muted">' + esc(en.correo) + '</div>' + (dup ? '<span class="chip c-warn">Correo repetido</span>' : '') + '</td>' +
+        '<td>' + esc(en.gerencia + ' · ' + en.seccion) + (sinArea ? '<div><span class="chip c-warn" title="Ningún proceso del mapa tiene esta gerencia y sección: la persona tendrá que buscar sus procesos">Área sin procesos</span></div>' : '') + '</td><td>' + esc(en.rol) + '</td>' +
         '<td>' + (en.origen === 'abierto' ? 'Enlace abierto' : 'Carga') + '</td>' +
         '<td><span class="chip ' + cls + '">' + lbl + '</span></td><td class="num">' + (activosPor[en.id] || 0) + '</td><td class="num">' + n + '</td><td>' + esc(fecha(en.actualizado)) + '</td>' +
-        '<td><button class="btn btn-ghost btn-xs" data-copiar="' + esc(en.token) + '">Copiar enlace</button></td></tr>';
+        '<td><div class="row" style="flex-wrap:nowrap"><button class="btn btn-ghost btn-xs" data-copiar="' + esc(en.token) + '">Copiar enlace</button>' +
+        '<button class="btn-link" data-quitar="' + esc(en.id) + '">Borrar</button></div></td></tr>';
     });
-    if (!C.encuestados.length) h += '<tr><td colspan="9" class="muted">Todavía no hay personas: carga el Excel o activa el enlace abierto.</td></tr>';
+    if (!C.encuestados.length) h += '<tr><td colspan="10" class="muted">Todavía no hay personas: carga el Excel o activa el enlace abierto.</td></tr>';
     h += '</tbody></table></div>';
     $('#tEncuestados').innerHTML = h;
+    var marcar = marcarSeleccion;
+    // Duplicados: por cada correo repetido se conserva un registro (el que ya tiene respuestas, o el que tiene el área del mapa)
+    // y se seleccionan los demás que todavía no respondieron.
+    if ($('#btnSelDup')) $('#btnSelDup').addEventListener('click', function(){
+      var grupos = {};
+      C.encuestados.forEach(function(en){ var c = (en.correo || '').toLowerCase(); if (c && porCorreo[c] > 1) (grupos[c] = grupos[c] || []).push(en); });
+      var conResp = function(en){ return C.respuestas.some(function(r){ return r.encuestado_id === en.id && (r.texto || '').trim(); }); };
+      var n = 0;
+      Object.keys(grupos).forEach(function(c){
+        var g = grupos[c];
+        var queda = g.filter(conResp)[0] || g.filter(function(en){ return areasProc[sinTildes(en.gerencia) + '|' + sinTildes(en.seccion)]; })[0] || g[0];
+        g.forEach(function(en){
+          var cb = document.querySelector('#tEncuestados [data-sel="' + en.id + '"]');
+          if (cb) { cb.checked = en !== queda && !conResp(en); if (cb.checked) n++; }
+        });
+      });
+      marcar();
+      $('#selMsg').textContent = n + ' registros duplicados seleccionados (se conserva uno por persona). Revísalos antes de borrar.';
+    });
+    $('#btnBorrarSel').addEventListener('click', function(){
+      var sel = Array.prototype.map.call(document.querySelectorAll('#tEncuestados [data-sel]:checked'), function(x){ return {id: x.dataset.sel, resp: +x.dataset.resp}; });
+      borrarPersonas(sel.map(function(x){ return x.id; }), sel.filter(function(x){ return x.resp > 0; }).length, this);
+    });
     $('#btnEnlacesXls').addEventListener('click', function(){
       var ws = XLSX.utils.json_to_sheet(C.encuestados.map(function(en){ return {Nombre: en.nombre, Correo: en.correo, Gerencia: en.gerencia, 'Sección': en.seccion, Rol: en.rol, Origen: en.origen === 'abierto' ? 'Enlace abierto' : 'Carga', Enlace: enlace(en)}; }));
       ws['!cols'] = [{wch:28},{wch:30},{wch:18},{wch:22},{wch:14},{wch:14},{wch:80}];
@@ -704,7 +1086,41 @@
       XLSX.writeFile(wb, 'Enlaces encuesta - ' + C.campana.nombre + '.xlsx');
     });
   }
+  function marcarSeleccion(){
+    var sel = document.querySelectorAll('#tEncuestados [data-sel]:checked'), b = $('#btnBorrarSel');
+    if (!b) return;
+    b.disabled = !sel.length;
+    b.textContent = sel.length ? 'Borrar ' + sel.length + (sel.length === 1 ? ' seleccionada' : ' seleccionadas') : 'Borrar seleccionados';
+  }
+  $('#tEncuestados').addEventListener('change', function(ev){
+    if (ev.target.id === 'selTodos') Array.prototype.forEach.call(document.querySelectorAll('#tEncuestados [data-sel]'), function(x){ x.checked = ev.target.checked; });
+    if (ev.target.id === 'selTodos' || ev.target.dataset.sel) marcarSeleccion();
+  });
+  // Borrar contactos: se confirma; si alguno ya respondió, hay que escribir BORRAR porque sus respuestas se pierden.
+  // Se envían en tandas de 30 (límite del servidor).
+  function borrarPersonas(ids, conRespuestas, boton){
+    if (!ids.length) return;
+    var texto = ids.length === 1 ? '¿Borrar a esta persona? Su enlace dejará de funcionar.' : '¿Borrar a estas ' + ids.length + ' personas? Sus enlaces dejarán de funcionar.';
+    if (!conRespuestas){ if (!confirm(texto)) return; }
+    else {
+      var ok = prompt(texto + '\n\n' + (ids.length === 1 ? 'Esta persona ya respondió' : conRespuestas === 1 ? 'Una de ellas ya respondió' : conRespuestas + ' de ellas ya respondieron') +
+        ': sus respuestas también se borrarán y no se pueden recuperar. Escribe BORRAR para confirmar.');
+      if (ok === null) return;
+      if (ok.trim().toUpperCase() !== 'BORRAR'){ alert('No se borró nada: hay que escribir BORRAR.'); return; }
+    }
+    if (boton) boton.disabled = true;
+    var tandas = [];
+    for (var i = 0; i < ids.length; i += 30) tandas.push(ids.slice(i, i + 30));
+    tandas.reduce(function(prom, t){ return prom.then(function(){ return api('/a/encuestado/borrar', {encuestado_ids: t, forzar: conRespuestas > 0}); }); }, Promise.resolve())
+      .then(function(){ abrir(C.campana.id); })
+      .catch(function(err){ if (boton) boton.disabled = false; alert(err.message); abrir(C.campana.id); });
+  }
   $('#tEncuestados').addEventListener('click', function(e){
+    var q = e.target.closest('[data-quitar]');
+    if (q){
+      var n = C.respuestas.filter(function(r){ return r.encuestado_id === q.dataset.quitar && (r.texto || '').trim(); }).length;
+      return borrarPersonas([q.dataset.quitar], n ? 1 : 0, q);
+    }
     var b = e.target.closest('[data-copiar]'); if (!b) return;
     var en = C.encuestados.filter(function(x){ return x.token === b.dataset.copiar; })[0];
     copiar(enlace(en), b);
@@ -730,10 +1146,52 @@
       var o = {}; Object.keys(r).forEach(function(k){ o[k.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')] = String(r[k]).trim(); }); return o;
     });
   }
+  // Matriz en Excel (formato del entregable): la hoja cuyos encabezados incluyen "SUBPROCESO (NIV.2)".
+  function normEnc(s){ return sinTildes(String(s == null ? '' : s).split('\n')[0]).replace(/\s+/g, ' ').trim(); }
+  function leerMatrizExcel(wb){
+    for (var i = 0; i < wb.SheetNames.length; i++){
+      var filas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[i]], {header: 1, defval: ''});
+      var hi = -1;
+      for (var r = 0; r < Math.min(filas.length, 6); r++){
+        if (filas[r].some(function(v){ return normEnc(v) === 'subproceso (niv.2)'; })){ hi = r; break; }
+      }
+      if (hi < 0) continue;
+      var idx = {};
+      filas[hi].forEach(function(v, j){ var k = normEnc(v); if (k && idx[k] === undefined) idx[k] = j; });
+      var celda = function(row, enc){ var j = idx[normEnc(enc)]; return j === undefined ? '' : String(row[j] == null ? '' : row[j]).trim(); };
+      var out = [];
+      filas.slice(hi + 1).forEach(function(row){
+        var m = {};
+        MATRIZ.forEach(function(c){ var v = celda(row, c[1]); if (v) m[c[0]] = v; });
+        if (!m.subproceso && !m.proceso) return;
+        var validado = normEnc(celda(row, 'VALIDADO')) === 'si';
+        var estado = normEnc(celda(row, 'ESTADO DE ACTUALIZACIÓN'));
+        out.push({codigo: m.niv2 || '', gerencia: m.gerencia || '', seccion: m.seccion || '', macroproceso: m.macroproceso || '',
+          proceso: m.proceso || '', subproceso: m.subproceso || '', matriz: m,
+          validacion: validado ? 'validado' : (estado === 'actualizado' ? 'actualizado' : undefined), validado_por: celda(row, 'VALIDADO POR (CARGO)')});
+      });
+      return {hoja: wb.SheetNames[i], procesos: out};
+    }
+    return null;
+  }
+
   $('#inExcel').addEventListener('change', function(ev){
     var f = ev.target.files[0]; if (!f) return;
     f.arrayBuffer().then(function(buf){
       var wb = XLSX.read(buf, {type:'array'});
+      var mx = leerMatrizExcel(wb);
+      if (mx){
+        var cods = {};
+        C.procesos.forEach(function(p){ if (p.codigo) cods[sinTildes(p.codigo)] = 1; });
+        var act = mx.procesos.filter(function(x){ return x.codigo && cods[sinTildes(x.codigo)]; }).length;
+        CARGA = {encuestados: [], procesos: mx.procesos, sistemas: [], upsert: true};
+        $('#modoCarga').value = 'agregar';
+        $('#prevCarga').innerHTML = 'Matriz detectada en la hoja «' + esc(mx.hoja) + '»: <b>' + mx.procesos.length + '</b> filas. ' +
+          '<b>' + act + '</b> actualizan procesos existentes (por código) y <b>' + (mx.procesos.length - act) + '</b> se agregan. ' +
+          'Las respuestas y validaciones que ya están en la herramienta se conservan; una fila con VALIDADO = Sí queda validada.';
+        $('#btnImportar').disabled = false;
+        return;
+      }
       CARGA = {encuestados: hoja(wb, 'Encuestados'), procesos: hoja(wb, 'Procesos'), sistemas: hoja(wb, 'Sistemas')};
       // Secciones sin procesos o sin personas suelen ser un error de escritura entre hojas.
       // En modo "agregar" también cuenta lo que ya está cargado en la campaña.
@@ -754,8 +1212,9 @@
     if (!CARGA) return;
     var b = this; b.disabled = true;
     $('#msgCarga').innerHTML = '<span class="muted">Importando…</span>';
-    api('/a/importar', Object.assign({campana_id: C.campana.id, modo: $('#modoCarga').value}, CARGA)).then(function(j){
-      $('#msgCarga').innerHTML = '<div class="msg ok">Importados: ' + j.encuestados + ' personas, ' + j.procesos + ' procesos, ' + j.sistemas + ' sistemas.</div>';
+    api('/a/importar', Object.assign({campana_id: C.campana.id, modo: CARGA.upsert ? 'agregar' : $('#modoCarga').value}, CARGA)).then(function(j){
+      $('#msgCarga').innerHTML = '<div class="msg ok">Importados: ' + j.encuestados + ' personas nuevas' + (j.encuestados_actualizados ? ' y ' + j.encuestados_actualizados + ' actualizadas (mismo correo, conservan su enlace)' : '') +
+        ', ' + j.procesos + ' procesos nuevos' + (j.procesos_actualizados ? ' y ' + j.procesos_actualizados + ' actualizados' : '') + ', ' + j.sistemas + ' sistemas.</div>';
       CARGA = null; $('#inExcel').value = '';
       abrir(C.campana.id);
     }).catch(function(err){ $('#msgCarga').innerHTML = '<div class="msg warn">' + esc(err.message) + '</div>'; b.disabled = false; });
@@ -805,7 +1264,8 @@
         'Enlace de la gerencia': C.campana.abierta && C.campana.codigo_publico ? enlaceAbierto(s.gerencia) : ''};
     });
     var add = function(rows, nombre, ancho){ var ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{'(sin datos)':''}]); if (ancho) ws['!cols'] = ancho; XLSX.utils.book_append_sheet(wb, ws, nombre); };
-    add(inv, 'Inventario', Object.keys(inv[0] || {}).map(function(){ return {wch:24}; }));
+    XLSX.utils.book_append_sheet(wb, hojaMatriz(), 'Inventario de Procesos');
+    add(inv, 'Análisis IA', Object.keys(inv[0] || {}).map(function(){ return {wch:24}; }));
     add(plan, 'Plan de barrido', [{wch:18},{wch:22},{wch:10},{wch:11},{wch:9},{wch:12},{wch:12},{wch:9},{wch:11},{wch:11},{wch:60},{wch:70}]);
     add(est, 'Estado de campos', Object.keys(est[0] || {}).map(function(){ return {wch:18}; }));
     add(preg, 'Preguntas validación', [{wch:12},{wch:16},{wch:20},{wch:34},{wch:4},{wch:90}]);

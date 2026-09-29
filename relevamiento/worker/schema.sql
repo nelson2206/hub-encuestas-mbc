@@ -1,6 +1,7 @@
 -- Voz MBC · Relevamiento de procesos — base D1 (voz-relevamiento)
 -- Base nueva: npx wrangler d1 execute voz-relevamiento --remote --file=schema.sql
--- Base creada antes del 2026-09-28: aplicar en su lugar migracion-002.sql
+-- Base creada antes del 2026-09-28: aplicar en su lugar migracion-002.sql y migracion-003.sql
+-- Base creada antes del 2026-09-29: aplicar migracion-003.sql
 -- El audio NUNCA se guarda: solo el texto que el encuestado revisa y confirma.
 
 CREATE TABLE IF NOT EXISTS campanas (
@@ -43,7 +44,12 @@ CREATE TABLE IF NOT EXISTS procesos (
   descripcion TEXT NOT NULL DEFAULT '',
   fuente TEXT NOT NULL DEFAULT 'inventario',   -- inventario / nuevo (encuestado) / consultor
   creado_por TEXT,                              -- encuestado que lo agregó (si es nuevo)
-  orden INTEGER NOT NULL DEFAULT 0
+  orden INTEGER NOT NULL DEFAULT 0,
+  matriz TEXT NOT NULL DEFAULT '{}',            -- fila de la matriz (JSON): columnas del inventario del cliente + contrato
+  validacion TEXT NOT NULL DEFAULT '',          -- '' / actualizado / validado
+  validado_por TEXT NOT NULL DEFAULT '',        -- cargo de quien validó
+  validado_en TEXT,
+  actualizado_en TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_proc_campana ON procesos(campana_id, gerencia, seccion);
 

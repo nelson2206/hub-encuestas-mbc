@@ -35,16 +35,24 @@
  *   POST /a/campana              {nombre, cliente, glosario}
  *   POST /a/campana/glosario     {campana_id, glosario}
  *   POST /a/enlace               {campana_id, abierta?, regenerar?, dominio?}
- *   POST /a/importar             {campana_id, modo, encuestados[], procesos[], sistemas[]}
+ *   POST /a/importar             {campana_id, modo, upsert?, encuestados[], procesos[] (con matriz opcional), sistemas[]}
  *   GET  /a/campana?id=          volcado completo de la campaña
  *   POST /a/proceso              {campana_id, id?, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion}
  *   POST /a/proceso/borrar       {proceso_id}   (solo si nadie lo respondió)
+ *   POST /a/matriz               {proceso_id, matriz?, validacion?, validado_por?}   (fila de la matriz y check de validación)
+ *   POST /a/validacion           {campana_id, proceso_ids[], validacion, validado_por}   (validación en bloque)
+ *   POST /a/encuestado/borrar    {encuestado_id | encuestado_ids[], forzar?}   (con respuestas, solo con forzar)
  *   POST /a/estructurar          {proceso_id}
  *   POST /a/borrar-campana       {campana_id, confirmar}   (confirmar = nombre exacto)
  *   GET  /health
  *
+ * La matriz (procesos.matriz, JSON) replica las columnas del inventario del cliente y agrega las del contrato;
+ * procesos.validacion guarda el check: '' (sin tocar), 'actualizado' o 'validado'.
+ *
  * Secretos (npx wrangler secret put ...): ADMIN_CODE, INTERNAL_CODE (IA vía processiq-api)
  * y, opcional, ANTHROPIC_API_KEY (IA directa).
+ * Registro: Workers Logs (observability en wrangler.toml). Nunca se registran tokens completos,
+ * nombres, correos ni respuestas.
  * ============================================================ */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -119,6 +127,37 @@ async function cuerpo(req) {
 // Minúsculas, sin tildes y sin espacios repetidos: "Importación" y "importacion" son lo mismo.
 const normal = s => String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 const VACIAS = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'e', 'en', 'a', 'al', 'para', 'por', 'con', 'un', 'una', 'o']);
+// Gerencia y sección se comparan sin mayúsculas ni tildes: "Control interno" y "Control Interno" son la misma área.
+const mismaArea = (a, b) => normal(a) === normal(b);
+
+// Registro estructurado para Workers Logs. Solo datos operativos: nunca tokens completos, nombres,
+// correos ni texto de respuestas.
+function log(evento, datos) {
+  try { console.log(JSON.stringify(Object.assign({ evento }, datos || {}))); } catch (e) { /* el registro nunca rompe la respuesta */ }
+}
+const mascara = k => (k ? String(k).slice(0, 4) + '…' : '');
+
+// Columnas de la matriz de procesos (formato del inventario del cliente + contrato + lecciones + mapa de procesos).
+const MATRIZ_CLAVES = ['division', 'gerencia', 'seccion', 'participantes', 'niv0', 'macroproceso', 'niv1', 'proceso', 'niv2', 'subproceso',
+  'alcance', 'objetivo', 'documentacion', 'normativa', 'crit_normativa', 'riesgos', 'crit_riesgo', 'datos_personales', 'detalle_dp',
+  'terceros', 'crit_tercero', 'tecnologia', 'estandar_tdp', 'priorizacion', 'sancion', 'dueno', 'areas', 'actividades', 'kpis',
+  'frecuencia', 'uso_tecnologia', 'sistemas_dp', 'automatizacion', 'cod_riesgo', 'categoria_mapa', 'proceso_mapa', 'comentarios',
+  'codigo_2021', 'division_2021', 'gerencia_2021', 'seccion_2021', 'mapeo_org', 'origen'];
+const VALIDACIONES = ['', 'actualizado', 'validado'];
+
+function limpiarMatriz(m) {
+  const out = {};
+  if (!m || typeof m !== 'object') return out;
+  MATRIZ_CLAVES.forEach(k => {
+    const v = m[k] == null ? '' : String(m[k]).trim();
+    if (v) out[k] = v.slice(0, 4000);
+  });
+  return out;
+}
+
+function leerMatriz(s) {
+  try { const o = JSON.parse(s || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; }
+}
 
 // Buscador del inventario: cada palabra escrita debe aparecer en el proceso (nombre, ruta,
 // código, área o descripción). Pesa más si aparece en el nombre y si es de la gerencia preferida.
@@ -176,7 +215,7 @@ async function marcarEnCurso(env, e) {
 async function procesoPermitido(env, e, procesoId) {
   const p = await env.DB.prepare('SELECT * FROM procesos WHERE id=? AND campana_id=?').bind(procesoId, e.campana_id).first();
   if (!p) throw new HttpError(404, 'Proceso no encontrado');
-  if ((p.gerencia === e.gerencia && p.seccion === e.seccion) || p.creado_por === e.id) return p;
+  if ((mismaArea(p.gerencia, e.gerencia) && mismaArea(p.seccion, e.seccion)) || p.creado_por === e.id) return p;
   const a = await env.DB.prepare('SELECT 1 AS x FROM asignaciones WHERE encuestado_id=? AND proceso_id=?').bind(e.id, p.id).first();
   if (!a) throw new HttpError(403, 'Primero elige este proceso en el paso 1');
   return p;
@@ -186,22 +225,26 @@ async function rutaSesion(env, url) {
   const e = await encuestadoPorToken(env, url.searchParams.get('k'));
   const [camp, procs, asig, revs, resps, sis] = await Promise.all([
     env.DB.prepare('SELECT nombre, cliente FROM campanas WHERE id=?').bind(e.campana_id).first(),
-    // Su sección (sin los nuevos que agregó otra persona), lo que eligió con el buscador y lo que agregó.
-    env.DB.prepare(`SELECT * FROM procesos WHERE campana_id=? AND (
-        (gerencia=? AND seccion=? AND fuente<>'nuevo') OR creado_por=?
-        OR id IN (SELECT proceso_id FROM asignaciones WHERE encuestado_id=?))
-      ORDER BY orden, macroproceso, proceso, subproceso`).bind(e.campana_id, e.gerencia, e.seccion, e.id, e.id).all(),
+    env.DB.prepare(`SELECT id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente, creado_por, orden
+      FROM procesos WHERE campana_id=?`).bind(e.campana_id).all(),
     env.DB.prepare('SELECT proceso_id FROM asignaciones WHERE encuestado_id=?').bind(e.id).all(),
     env.DB.prepare('SELECT proceso_id, estado, comentario FROM revisiones WHERE encuestado_id=?').bind(e.id).all(),
     env.DB.prepare('SELECT proceso_id, pregunta, texto, sistemas FROM respuestas WHERE encuestado_id=?').bind(e.id).all(),
     env.DB.prepare('SELECT nombre, tipo FROM sistemas WHERE campana_id=? ORDER BY nombre').bind(e.campana_id).all()
   ]);
   const elegidos = new Set(asig.results.map(a => a.proceso_id));
-  const procesos = procs.results.map(p => Object.assign(publico(p), {
-    enSeccion: p.gerencia === e.gerencia && p.seccion === e.seccion && p.fuente !== 'nuevo',
-    propio: p.fuente === 'nuevo' && p.creado_por === e.id,
-    elegido: elegidos.has(p.id)
-  }));
+  // Su sección (sin los nuevos que agregó otra persona), lo que eligió con el buscador y lo que agregó.
+  // La sección se compara normalizada: una diferencia de mayúsculas o tildes en la carga no deja a nadie sin procesos.
+  const enSeccion = p => p.fuente !== 'nuevo' && mismaArea(p.gerencia, e.gerencia) && mismaArea(p.seccion, e.seccion);
+  const orden = (a, b) => (a.orden - b.orden) || normal(a.macroproceso).localeCompare(normal(b.macroproceso))
+    || normal(a.proceso).localeCompare(normal(b.proceso)) || normal(a.subproceso).localeCompare(normal(b.subproceso));
+  const procesos = procs.results.filter(p => enSeccion(p) || p.creado_por === e.id || elegidos.has(p.id)).sort(orden)
+    .map(p => Object.assign(publico(p), {
+      enSeccion: enSeccion(p),
+      propio: p.fuente === 'nuevo' && p.creado_por === e.id,
+      elegido: elegidos.has(p.id)
+    }));
+  log('sesion', { campana: e.campana_id, origen: e.origen, estado: e.estado, procesos: procesos.length, k: mascara(e.token) });
   const revisiones = {};
   revs.results.forEach(r => { revisiones[r.proceso_id] = { estado: r.estado, comentario: r.comentario }; });
   const respuestas = {};
@@ -259,7 +302,7 @@ async function rutaElegir(env, b) {
   ]);
   await marcarEnCurso(env, e);
   return { ok: true, proceso: Object.assign(publico(p), {
-    enSeccion: p.gerencia === e.gerencia && p.seccion === e.seccion && p.fuente !== 'nuevo',
+    enSeccion: mismaArea(p.gerencia, e.gerencia) && mismaArea(p.seccion, e.seccion) && p.fuente !== 'nuevo',
     propio: p.fuente === 'nuevo' && p.creado_por === e.id,
     elegido: true
   }) };
@@ -322,6 +365,7 @@ async function rutaTranscribir(env, req, url) {
 async function rutaEnviar(env, b) {
   const e = await encuestadoPorToken(env, b.k);
   await env.DB.prepare("UPDATE encuestados SET estado='enviado', actualizado=? WHERE id=?").bind(ahora(), e.id).run();
+  log('enviado', { campana: e.campana_id, k: mascara(e.token) });
   return { ok: true };
 }
 
@@ -346,6 +390,7 @@ async function areasDeCampana(env, campId) {
 
 async function rutaAbierta(env, url) {
   const camp = await campanaAbierta(env, url.searchParams.get('c'));
+  log('abierta', { campana: camp.id, g: !!url.searchParams.get('g') });
   return { ok: true, campana: { nombre: camp.nombre, cliente: camp.cliente }, dominio: camp.dominio || '', areas: await areasDeCampana(env, camp.id) };
 }
 
@@ -396,6 +441,7 @@ async function rutaRegistro(env, b) {
     st.push(env.DB.prepare(`INSERT OR IGNORE INTO revisiones (encuestado_id, proceso_id, estado, comentario, actualizado) VALUES (?,?,'vigente','',?)`).bind(id, pid, t));
   });
   await env.DB.batch(st);
+  log('registro', { campana: camp.id, procesos: validos.length, dominio: !!camp.dominio });
   return { ok: true, k: token, nombre };
 }
 
@@ -458,31 +504,102 @@ async function rutaImportar(env, b) {
     st.push(env.DB.prepare('DELETE FROM procesos WHERE campana_id=?').bind(camp.id));
     st.push(env.DB.prepare('DELETE FROM sistemas WHERE campana_id=?').bind(camp.id));
   }
-  let nE = 0, nP = 0, nS = 0;
+  const agregar = b.modo !== 'reemplazar';
+  const t = ahora();
+
+  // Áreas de referencia: las del inventario ya cargado (si se agrega) y las de esta carga. Las personas se
+  // escriben con la misma gerencia y sección que los procesos: así cada una ve los procesos de su sección.
+  const areas = {};
+  const registrarArea = (g, s) => {
+    if (!normal(g)) return;
+    const a = areas[normal(g)] = areas[normal(g)] || { nombre: g, secciones: {} };
+    if (normal(s) && !a.secciones[normal(s)]) a.secciones[normal(s)] = s;
+  };
+  if (agregar) {
+    const ya = await env.DB.prepare(`SELECT gerencia, seccion FROM procesos WHERE campana_id=? AND fuente<>'nuevo' GROUP BY gerencia, seccion`).bind(camp.id).all();
+    ya.results.forEach(x => registrarArea(x.gerencia, x.seccion));
+  }
+  pro.forEach(x => registrarArea(txt(x.gerencia, 150), txt(x.seccion, 150)));
+  // Si la sección escrita no existe y la gerencia tiene una sola sección, se usa esa (p. ej. "CI" -> "Control Interno").
+  const canonica = (g, s) => {
+    const a = areas[normal(g)];
+    if (!a) return [g, s];
+    const secs = Object.keys(a.secciones);
+    return [a.nombre, a.secciones[normal(s)] || (secs.length === 1 ? a.secciones[secs[0]] : s)];
+  };
+
+  // Personas: una por correo. Si el correo ya existe en la campaña se actualiza su área y rol y conserva su enlace.
+  const porCorreo = {};
+  if (agregar) {
+    const ya = await env.DB.prepare(`SELECT id, lower(correo) AS correo FROM encuestados WHERE campana_id=? AND correo<>''`).bind(camp.id).all();
+    ya.results.forEach(x => { porCorreo[x.correo] = x.id; });
+  }
+  let nE = 0, nEAct = 0, nP = 0, nPAct = 0, nS = 0;
+  const vistos = new Set();
   enc.forEach(x => {
-    const nombre = txt(x.nombre, 150), gerencia = txt(x.gerencia, 150), seccion = txt(x.seccion, 150);
+    const nombre = txt(x.nombre, 150), correo = txt(x.correo, 150).toLowerCase();
+    const [gerencia, seccion] = canonica(txt(x.gerencia, 150), txt(x.seccion, 150));
     if (!nombre || !gerencia || !seccion) return;
+    if (correo) {
+      if (vistos.has(correo)) return;   // repetido dentro del mismo archivo
+      vistos.add(correo);
+      if (porCorreo[correo]) {
+        st.push(env.DB.prepare('UPDATE encuestados SET nombre=?, gerencia=?, seccion=?, rol=? WHERE id=?')
+          .bind(nombre, gerencia, seccion, txt(x.rol, 60), porCorreo[correo]));
+        nEAct++;
+        return;
+      }
+    }
     st.push(env.DB.prepare('INSERT INTO encuestados (id, campana_id, token, nombre, correo, gerencia, seccion, rol) VALUES (?,?,?,?,?,?,?,?)')
-      .bind(uid(), camp.id, tokenNuevo(), nombre, txt(x.correo, 150), gerencia, seccion, txt(x.rol, 60)));
+      .bind(uid(), camp.id, tokenNuevo(), nombre, correo, gerencia, seccion, txt(x.rol, 60)));
     nE++;
   });
+
+  // Procesos: con upsert (carga de la matriz), un código que ya existe en la campaña se actualiza en vez de duplicarse.
+  // La matriz se combina (json_patch): las columnas que trae el archivo se actualizan y las que no trae se conservan.
+  const porCodigo = {};
+  if (b.upsert && agregar) {
+    const ya = await env.DB.prepare(`SELECT id, codigo FROM procesos WHERE campana_id=? AND codigo<>''`).bind(camp.id).all();
+    ya.results.forEach(x => { porCodigo[normal(x.codigo)] = x.id; });
+  }
   pro.forEach((x, i) => {
     const gerencia = txt(x.gerencia, 150), seccion = txt(x.seccion, 150);
     const nombre = txt(x.proceso, 200) || txt(x.subproceso, 200);
     if (!gerencia || !seccion || !nombre) return;
-    st.push(env.DB.prepare(`INSERT INTO procesos (id, campana_id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente, orden)
-      VALUES (?,?,?,?,?,?,?,?,?,'inventario',?)`)
-      .bind(uid(), camp.id, txt(x.codigo, 60), gerencia, seccion, txt(x.macroproceso, 200), txt(x.proceso, 200), txt(x.subproceso, 200), txt(x.descripcion, 1500), i));
+    const matriz = limpiarMatriz(x.matriz);
+    const val = VALIDACIONES.includes(x.validacion) ? x.validacion : null;
+    const id = normal(x.codigo) && porCodigo[normal(x.codigo)];
+    if (id) {
+      st.push(env.DB.prepare(`UPDATE procesos SET gerencia=?, seccion=?, macroproceso=?, proceso=?, subproceso=?,
+          descripcion=CASE WHEN ?<>'' THEN ? ELSE descripcion END, matriz=CASE WHEN ?<>'{}' THEN json_patch(matriz, ?) ELSE matriz END,
+          validacion=COALESCE(?, validacion), validado_por=CASE WHEN ?='validado' THEN ? ELSE validado_por END,
+          validado_en=CASE WHEN ?='validado' THEN ? ELSE validado_en END, actualizado_en=? WHERE id=?`)
+        .bind(gerencia, seccion, txt(x.macroproceso, 200), txt(x.proceso, 200), txt(x.subproceso, 200),
+          txt(x.descripcion, 1500), txt(x.descripcion, 1500), JSON.stringify(matriz), JSON.stringify(matriz),
+          val, val, txt(x.validado_por, 150), val, t, t, id));
+      nPAct++;
+      return;
+    }
+    st.push(env.DB.prepare(`INSERT INTO procesos (id, campana_id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente, orden,
+        matriz, validacion, validado_por, validado_en) VALUES (?,?,?,?,?,?,?,?,?,'inventario',?,?,?,?,?)`)
+      .bind(uid(), camp.id, txt(x.codigo, 60), gerencia, seccion, txt(x.macroproceso, 200), txt(x.proceso, 200), txt(x.subproceso, 200),
+        txt(x.descripcion, 1500), i, JSON.stringify(matriz), val || '', val === 'validado' ? txt(x.validado_por, 150) : '', val === 'validado' ? t : null));
     nP++;
   });
+
+  // Sistemas: sin repetir nombres ya cargados.
+  const sisYa = new Set();
+  if (agregar) (await env.DB.prepare('SELECT nombre FROM sistemas WHERE campana_id=?').bind(camp.id).all()).results.forEach(x => sisYa.add(normal(x.nombre)));
   sis.forEach(x => {
     const nombre = txt(x.nombre, 120);
-    if (!nombre) return;
+    if (!nombre || sisYa.has(normal(nombre))) return;
+    sisYa.add(normal(nombre));
     st.push(env.DB.prepare('INSERT INTO sistemas (id, campana_id, nombre, tipo) VALUES (?,?,?,?)').bind(uid(), camp.id, nombre, txt(x.tipo, 80)));
     nS++;
   });
   for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
-  return { ok: true, encuestados: nE, procesos: nP, sistemas: nS };
+  log('importar', { campana: camp.id, modo: b.modo, upsert: !!b.upsert, nE, nEAct, nP, nPAct, nS });
+  return { ok: true, encuestados: nE, encuestados_actualizados: nEAct, procesos: nP, procesos_actualizados: nPAct, sistemas: nS };
 }
 
 async function rutaCampana(env, url) {
@@ -501,6 +618,7 @@ async function rutaCampana(env, url) {
   ]);
   estructurado.forEach(x => { x.datos = JSON.parse(x.datos); });
   respuestas.forEach(x => { x.sistemas = JSON.parse(x.sistemas || '[]'); });
+  procesos.forEach(x => { x.matriz = leerMatriz(x.matriz); });
   return { ok: true, campana: camp, encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado };
 }
 
@@ -544,6 +662,96 @@ async function rutaProcesoBorrar(env, b) {
   return { ok: true };
 }
 
+// Fila de la matriz de un proceso: guarda los campos editados y el check de validación.
+// Un campo enviado vacío se borra. Editar una fila sin tocar el check la deja como "actualizado".
+async function rutaMatriz(env, b) {
+  const p = await env.DB.prepare('SELECT * FROM procesos WHERE id=?').bind(b.proceso_id).first();
+  if (!p) throw new HttpError(404, 'Proceso no encontrado');
+  const m = leerMatriz(p.matriz);
+  const edita = b.matriz && typeof b.matriz === 'object';
+  if (edita) {
+    MATRIZ_CLAVES.forEach(k => {
+      if (!Object.prototype.hasOwnProperty.call(b.matriz, k)) return;
+      const v = String(b.matriz[k] == null ? '' : b.matriz[k]).trim().slice(0, 4000);
+      if (v) m[k] = v; else delete m[k];
+    });
+  }
+  let validacion = p.validacion || '', validadoPor = p.validado_por || '', validadoEn = p.validado_en || null;
+  if (b.validacion !== undefined) {
+    if (!VALIDACIONES.includes(b.validacion)) throw new HttpError(400, 'Estado de validación inválido');
+    validacion = b.validacion;
+    if (validacion === 'validado') { validadoPor = txt(b.validado_por, 150) || validadoPor; validadoEn = ahora(); }
+    else { validadoPor = ''; validadoEn = null; }
+  } else if (edita && !validacion) {
+    validacion = 'actualizado';
+  }
+  // La encuesta y el mapa usan la misma identificación que la matriz.
+  const f = {
+    codigo: txt(m.niv2 || p.codigo, 60), gerencia: txt(m.gerencia || p.gerencia, 150), seccion: txt(m.seccion || p.seccion, 150),
+    macroproceso: txt(m.macroproceso || p.macroproceso, 200), proceso: txt(m.proceso || p.proceso, 200), subproceso: txt(m.subproceso || p.subproceso, 200)
+  };
+  const t = ahora();
+  await env.DB.prepare(`UPDATE procesos SET matriz=?, validacion=?, validado_por=?, validado_en=?, actualizado_en=?,
+      codigo=?, gerencia=?, seccion=?, macroproceso=?, proceso=?, subproceso=? WHERE id=?`)
+    .bind(JSON.stringify(m), validacion, validadoPor, validadoEn, t, f.codigo, f.gerencia, f.seccion, f.macroproceso, f.proceso, f.subproceso, p.id).run();
+  log('matriz', { campana: p.campana_id, proceso: p.id, validacion, campos: edita ? Object.keys(b.matriz).length : 0 });
+  return { ok: true, proceso: Object.assign({}, p, f, { matriz: m, validacion, validado_por: validadoPor, validado_en: validadoEn, actualizado_en: t }) };
+}
+
+// Validación en bloque (p. ej. la gerencia da conformidad a todo su inventario en la reunión de cierre).
+async function rutaValidacion(env, b) {
+  const ids = Array.isArray(b.proceso_ids) ? b.proceso_ids.map(x => txt(x, 60)).filter(Boolean).slice(0, 1000) : [];
+  if (!ids.length) throw new HttpError(400, 'No se indicaron procesos');
+  if (!VALIDACIONES.includes(b.validacion)) throw new HttpError(400, 'Estado de validación inválido');
+  const t = ahora(), v = b.validacion, por = v === 'validado' ? txt(b.validado_por, 150) : '';
+  const st = ids.map(id => env.DB.prepare('UPDATE procesos SET validacion=?, validado_por=?, validado_en=?, actualizado_en=? WHERE id=? AND campana_id=?')
+    .bind(v, por, v === 'validado' ? t : null, t, id, b.campana_id));
+  for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
+  log('validacion', { campana: b.campana_id, validacion: v, procesos: ids.length });
+  return { ok: true, procesos: ids.length, validado_en: v === 'validado' ? t : null, validado_por: por };
+}
+
+// Borrar contactos (encuestados) de una campaña: uno o varios (hasta 30 por llamada, por el límite de
+// parámetros de D1). Quien ya respondió solo se borra con forzar=true y sus respuestas se borran con él.
+// Los procesos que agregó se borran si nadie más los usa; si otra persona los usa, se conservan sin autor.
+const MAX_BORRAR = 30;
+async function rutaEncuestadoBorrar(env, b) {
+  const ids = [...new Set((Array.isArray(b.encuestado_ids) ? b.encuestado_ids : [b.encuestado_id]).map(x => txt(x, 60)).filter(Boolean))];
+  if (!ids.length) throw new HttpError(400, 'No se indicaron personas');
+  if (ids.length > MAX_BORRAR) throw new HttpError(413, 'Borra como máximo ' + MAX_BORRAR + ' personas por vez');
+  const ph = ids.map(() => '?').join(',');
+  const enc = (await env.DB.prepare(`SELECT id, campana_id FROM encuestados WHERE id IN (${ph})`).bind(...ids).all()).results;
+  if (!enc.length) throw new HttpError(404, 'Persona no encontrada');
+  const conResp = (await env.DB.prepare(`SELECT COUNT(DISTINCT encuestado_id) AS n FROM respuestas
+      WHERE encuestado_id IN (${ph}) AND (trim(texto)<>'' OR sistemas<>'[]')`).bind(...ids).first()).n;
+  if (conResp && !b.forzar) {
+    throw new HttpError(409, conResp === 1 ? 'Esta persona ya respondió: confirma que también quieres borrar sus respuestas.'
+      : conResp + ' de estas personas ya respondieron: confirma que también quieres borrar sus respuestas.');
+  }
+  const st = [];
+  const propios = (await env.DB.prepare(`SELECT id FROM procesos WHERE creado_por IN (${ph})`).bind(...ids).all()).results;
+  for (const p of propios) {
+    const otros = await env.DB.prepare(`SELECT
+        (SELECT COUNT(*) FROM asignaciones WHERE proceso_id=? AND encuestado_id NOT IN (${ph})) +
+        (SELECT COUNT(*) FROM revisiones WHERE proceso_id=? AND encuestado_id NOT IN (${ph})) +
+        (SELECT COUNT(*) FROM respuestas WHERE proceso_id=? AND encuestado_id NOT IN (${ph})) AS n`)
+      .bind(p.id, ...ids, p.id, ...ids, p.id, ...ids).first();
+    if (otros.n) {
+      st.push(env.DB.prepare('UPDATE procesos SET creado_por=NULL WHERE id=?').bind(p.id));
+    } else {
+      st.push(env.DB.prepare('DELETE FROM estructurado WHERE proceso_id=?').bind(p.id));
+      st.push(env.DB.prepare('DELETE FROM procesos WHERE id=?').bind(p.id));
+    }
+  }
+  st.push(env.DB.prepare(`DELETE FROM asignaciones WHERE encuestado_id IN (${ph})`).bind(...ids));
+  st.push(env.DB.prepare(`DELETE FROM revisiones WHERE encuestado_id IN (${ph})`).bind(...ids));
+  st.push(env.DB.prepare(`DELETE FROM respuestas WHERE encuestado_id IN (${ph})`).bind(...ids));
+  st.push(env.DB.prepare(`DELETE FROM encuestados WHERE id IN (${ph})`).bind(...ids));
+  for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
+  log('encuestados_borrados', { campana: enc[0].campana_id, personas: enc.length, con_respuestas: conResp, forzado: !!b.forzar });
+  return { ok: true, borrados: enc.length, con_respuestas: conResp };
+}
+
 async function rutaBorrarCampana(env, b) {
   const camp = await env.DB.prepare('SELECT * FROM campanas WHERE id=?').bind(b.campana_id).first();
   if (!camp) throw new HttpError(404, 'Campaña no encontrada');
@@ -558,6 +766,7 @@ async function rutaBorrarCampana(env, b) {
     env.DB.prepare('DELETE FROM encuestados WHERE campana_id=?').bind(camp.id),
     env.DB.prepare('DELETE FROM campanas WHERE id=?').bind(camp.id)
   ]);
+  log('campana_borrada', { campana: camp.id });
   return { ok: true };
 }
 
@@ -576,6 +785,8 @@ const CAMPOS = [
   ['terceros', 'Terceros involucrados (proveedores, concesionarios, clientes, entidades)'],
   ['interaccion_terceros', 'Tipo de interacción con terceros (digital o presencial) y finalidad'],
   ['sistemas', 'Sistemas y herramientas con su nombre exacto (ERP, portales, Excel, aplicativos internos)'],
+  ['uso_sistemas', 'Uso específico de cada sistema: para qué se usa y en qué actividad (formato "Sistema: uso")'],
+  ['sistemas_datos_personales', 'Sistemas, portales o archivos donde se guardan o procesan datos personales en este proceso'],
   ['nivel_automatizacion', 'Nivel de automatización: manual, semiautomático o automatizado'],
   ['actividades_manuales', 'Actividades manuales o con reproceso relevantes'],
   ['kpis', 'Indicadores con los que se mide el proceso'],
@@ -586,7 +797,7 @@ const CAMPOS = [
   ['criticidad_preliminar', 'Criticidad preliminar Alta / Media / Baja con una frase de sustento']
 ];
 
-// Los campos van como LISTA de ítems con un solo esquema: un objeto con 19 propiedades
+// Los campos van como LISTA de ítems con un solo esquema: un objeto con 20 o más propiedades
 // anidadas supera el tamaño de gramática que admite la API ("compiled grammar is too large").
 // normalizarSalida() la convierte después en {campo: {valor, estado, evidencia}}.
 const SALIDA_SCHEMA = {
@@ -627,6 +838,8 @@ Reglas:
 - Escribe en español neutro, conciso y profesional, listo para un entregable al cliente.
 - Nunca incluyas nombres de personas ni datos personales concretos (DNI, teléfonos, nombres de clientes): usa cargos y categorías.
 - Para sistemas, usa el nombre exacto del catálogo cuando coincida; si mencionan una herramienta que no está en el catálogo, inclúyela igual y dilo en la evidencia.
+- "uso_sistemas" y "sistemas_datos_personales" responden a observaciones de auditoría del cliente: el inventario anterior no decía para qué se usaba cada sistema ni cuáles guardan datos personales. Sé específico por sistema; si no lo dijeron, déjalo vacío.
+- Si hay una ficha del inventario anterior, compárala con lo que contaron: lo que cambió va en "contradicciones".
 - "criticidad_preliminar" siempre es "inferido" (salvo que lo digan) y es solo una propuesta para priorizar.
 - "vigencia": resume lo que dijeron sobre si el proceso sigue vigente. Quien marcó "existe, pero no participa" confirma que existe. Usa "contradictorio" si difieren y "sin_revision" si nadie lo marcó.
 - "contradicciones": diferencias entre lo que dijeron las distintas personas, o entre la ficha anterior y lo que contaron ahora.
@@ -649,7 +862,16 @@ function textoParaClaude(camp, p, encuestados, revisiones, respuestas, sistemas)
   lineas.push(`- Gerencia / sección dueña: ${p.gerencia} / ${p.seccion}`);
   lineas.push(`- Macroproceso: ${p.macroproceso || '-'} | Proceso: ${p.proceso || '-'} | Subproceso: ${p.subproceso || '-'}`);
   lineas.push(`- Origen: ${ORIGEN_TEXTO[p.fuente] || 'inventario anterior'}`);
-  if (p.descripcion) lineas.push(`- Descripción previa: ${p.descripcion}`);
+  const m = leerMatriz(p.matriz);
+  const previos = [['Objetivo', m.objetivo], ['Alcance', m.alcance], ['Tecnología', m.tecnologia], ['Terceros', m.terceros],
+    ['Datos personales', [m.datos_personales, m.detalle_dp].filter(Boolean).join(': ')], ['Normativa', m.normativa],
+    ['Documentación', m.documentacion]].filter(x => x[1]);
+  if (previos.length) {
+    lineas.push('- Ficha del inventario anterior:');
+    previos.forEach(([k, v]) => lineas.push(`  · ${k}: ${String(v).replace(/\s+/g, ' ')}`));
+  } else if (p.descripcion) {
+    lineas.push(`- Descripción previa: ${p.descripcion}`);
+  }
   lineas.push('');
   lineas.push(`CATÁLOGO DE SISTEMAS DEL CLIENTE: ${sistemas.map(s => s.nombre + (s.tipo ? ' (' + s.tipo + ')' : '')).join('; ') || '(no cargado)'}`);
   lineas.push('');
@@ -758,9 +980,12 @@ export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
     const h = cors(req, env);
-    if (req.method === 'OPTIONS') return new Response(null, { status: h['Access-Control-Allow-Origin'] ? 204 : 403, headers: h });
+    const ruta = req.method + ' ' + url.pathname;
+    if (req.method === 'OPTIONS') {
+      if (!h['Access-Control-Allow-Origin']) log('cors_rechazado', { ruta, origen: req.headers.get('Origin') || '' });
+      return new Response(null, { status: h['Access-Control-Allow-Origin'] ? 204 : 403, headers: h });
+    }
     try {
-      const ruta = req.method + ' ' + url.pathname;
       if (ruta === 'GET /health') {
         const ia = (env.ANTHROPIC_API_KEY || '').trim() ? 'clave propia' : (env.PROCESSIQ && (env.INTERNAL_CODE || '').trim() ? 'via processiq-api' : 'sin configurar');
         return json({ ok: true, servicio: 'voz-relevamiento-api', ia, admin: !!(env.ADMIN_CODE || '').trim() }, 200, h);
@@ -794,6 +1019,9 @@ export default {
           if (url.pathname === '/a/importar') return json(await rutaImportar(env, b), 200, h);
           if (url.pathname === '/a/proceso') return json(await rutaProcesoAdmin(env, b), 200, h);
           if (url.pathname === '/a/proceso/borrar') return json(await rutaProcesoBorrar(env, b), 200, h);
+          if (url.pathname === '/a/matriz') return json(await rutaMatriz(env, b), 200, h);
+          if (url.pathname === '/a/validacion') return json(await rutaValidacion(env, b), 200, h);
+          if (url.pathname === '/a/encuestado/borrar') return json(await rutaEncuestadoBorrar(env, b), 200, h);
           if (url.pathname === '/a/estructurar') return json(await rutaEstructurar(env, b, ctx), 200, h);
           if (url.pathname === '/a/borrar-campana') return json(await rutaBorrarCampana(env, b), 200, h);
         }
@@ -802,6 +1030,10 @@ export default {
     } catch (err) {
       const status = err instanceof HttpError ? err.status : 500;
       if (!(err instanceof HttpError)) console.error(err);
+      // Cada rechazo queda en Workers Logs con lo necesario para diagnosticar (sin datos personales):
+      // así se ve si un enlace llega con token inválido, desde un origen no permitido o con una campaña cerrada.
+      log('error', { ruta, status, error: err instanceof HttpError ? err.message : String(err && err.message || err),
+        origen: req.headers.get('Origin') || '', k: mascara(url.searchParams.get('k')), c: mascara(url.searchParams.get('c')) });
       return json({ ok: false, error: err instanceof HttpError ? err.message : 'Error interno' }, status, h);
     }
   }

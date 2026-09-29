@@ -168,15 +168,15 @@
 <script>
 'use strict';
 (function(){
-  var API = 'https://voz-relevamiento-api.minsait-business-consulting-pe.workers.dev';
+  var API = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8787' : 'https://voz-relevamiento-api.minsait-business-consulting-pe.workers.dev';
   var TRAMO_SEG = 120;          // el audio se envía en tramos de 2 minutos (16 kHz, mono)
   var MAX_SEG = 600;            // hasta 10 minutos por grabación
   var PREGUNTAS = [
     {id:'q1', t:'¿Para qué existe este proceso? ¿Qué lo inicia y dónde termina?', g:'Cuéntanos el objetivo, qué evento lo dispara y a quién le entregas el resultado (otra área, un cliente, un tercero).'},
     {id:'q2', t:'¿Cómo se hace, paso a paso?', g:'Describe las actividades principales en orden, quién las hace y qué otras áreas participan.'},
-    {id:'q3', t:'¿Qué sistemas y herramientas usan? ¿Qué se hace a mano?', g:'Menciona el nombre exacto de cada sistema, portal, Excel o aplicativo, y en qué paso se usa. Cuéntanos qué partes son manuales y cuáles automáticas.', sistemas:true},
+    {id:'q3', t:'¿Qué sistemas y herramientas usan? ¿Qué se hace a mano?', g:'Menciona el nombre exacto de cada sistema, portal, Excel o aplicativo, para qué lo usan y en qué paso. Cuéntanos qué partes son manuales y cuáles automáticas.', sistemas:true},
     {id:'q4', t:'¿Con qué terceros interactúan?', g:'Proveedores, concesionarios, clientes, entidades del Estado u otros: para qué, y si es por un sistema, correo o de forma presencial.'},
-    {id:'q5', t:'¿Se manejan datos de personas en este proceso?', g:'De quiénes (clientes, trabajadores, proveedores) y qué tipo de datos (identificación, contacto, financieros…). No menciones datos reales de nadie.'},
+    {id:'q5', t:'¿Se manejan datos de personas en este proceso?', g:'De quiénes (clientes, trabajadores, proveedores), qué tipo de datos (identificación, contacto, financieros…) y en qué sistemas o archivos se guardan. No menciones datos reales de nadie.'},
     {id:'q6', t:'¿Cómo saben si va bien, qué lo regula y cada cuánto ocurre?', g:'Indicadores que usan, normas o políticas que aplican, y la frecuencia o volumen aproximado.'}
   ];
   // Relación de la persona con un proceso de su sección que viene del inventario.
@@ -221,7 +221,10 @@
 
   function api(path, body){
     var opt = body ? {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(Object.assign({k:K}, body))} : {};
-    return fetch(API + path, opt).then(function(r){
+    // Sin conexión con el servidor (red corporativa que lo bloquea, sin internet): un mensaje que la persona pueda resolver.
+    return fetch(API + path, opt).catch(function(){
+      throw new Error('No pudimos conectarnos con el servidor de la encuesta. Si estás en la red de tu empresa, ábrela desde tu celular con datos móviles, o avisa al equipo consultor.');
+    }).then(function(r){
       return r.json().catch(function(){ return {ok:false, error:'Respuesta inesperada del servidor'}; }).then(function(j){
         if (!r.ok || !j.ok) throw new Error(j.error || ('Error ' + r.status));
         return j;
@@ -229,7 +232,15 @@
     });
   }
 
-  function errorGeneral(t){ var e = $('#errorGeneral'); e.textContent = t; e.classList.remove('hidden'); }
+  function errorGeneral(t){
+    var e = $('#errorGeneral');
+    if (!e){   // la vista pudo reemplazar el contenedor original
+      e = document.createElement('div');
+      e.id = 'errorGeneral'; e.className = 'msg warn'; e.setAttribute('role', 'alert');
+      $('#root').insertBefore(e, $('#root').firstChild);
+    }
+    e.textContent = t; e.classList.remove('hidden');
+  }
   function nombreProc(p){ return p.subproceso || p.proceso || p.macroproceso; }
   function rutaProc(p){ return [p.macroproceso, p.proceso, p.subproceso].filter(Boolean).filter(function(x){ return x !== nombreProc(p); }).join(' › '); }
   function areaProc(p){ return [p.gerencia, p.seccion].filter(Boolean).join(' · '); }
