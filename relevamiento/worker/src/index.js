@@ -434,6 +434,20 @@ async function rutaRespuesta(env, b) {
   return { ok: true };
 }
 
+// Pista para Whisper: primero el glosario y luego los sistemas (sin el detalle entre paréntesis), sin repetir y
+// cortada entre términos. Whisper admite unos 224 tokens de pista: con una más larga, Workers AI falla con
+// "3030: Failed to decode audio file" aunque el audio esté bien (pasó con los 26 sistemas de TDP, ~600 caracteres).
+const MAX_PISTA = 350;
+function pistaWhisper(glosario, sistemas) {
+  const terminos = [];
+  String(glosario || '').split(/[,;\n]/).concat(sistemas.map(s => String(s).replace(/\s*\([^)]*\)/g, '')))
+    .map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean)
+    .forEach(t => { if (!terminos.some(p => normal(p) === normal(t))) terminos.push(t); });
+  let out = '';
+  terminos.forEach(t => { const sig = out ? out + ', ' + t : t; if (sig.length <= MAX_PISTA) out = sig; });
+  return out;
+}
+
 async function rutaTranscribir(env, req, url) {
   const e = await encuestadoPorToken(env, url.searchParams.get('k'));
   const buf = await req.arrayBuffer();
@@ -442,15 +456,29 @@ async function rutaTranscribir(env, req, url) {
   const camp = await env.DB.prepare('SELECT glosario FROM campanas WHERE id=?').bind(e.campana_id).first();
   const sis = await env.DB.prepare('SELECT nombre FROM sistemas WHERE campana_id=? LIMIT 40').bind(e.campana_id).all();
   // El glosario orienta a Whisper con siglas y nombres propios que suele escribir mal.
-  const pista = [camp && camp.glosario, sis.results.map(s => s.nombre).join(', ')].filter(Boolean).join('. ').slice(0, 800);
-  let r;
-  try {
-    r = await env.AI.run(WHISPER, { audio: aBase64(buf), language: 'es', vad_filter: true, initial_prompt: pista || undefined });
-  } catch (err) {
-    console.error('whisper', err && err.message);
+  const pista = pistaWhisper(camp && camp.glosario, sis.results.map(s => s.nombre));
+  const audio = aBase64(buf);
+  const whisper = p => env.AI.run(WHISPER, { audio, language: 'es', vad_filter: true, initial_prompt: p || undefined });
+  // Workers AI a veces responde "3030: Failed to decode audio file" con audio válido: el mismo archivo falla y al
+  // repetirlo funciona (pruebas del 2026-09-30, ~1 de cada 3 llamadas). Se reintenta con pausa, alternando con y
+  // sin pista por si la pista fuera la causa (sin pista solo se pierde la ayuda con siglas y nombres).
+  const intentos = [pista, '', pista, '', ''];
+  let r = null, ultimo = null;
+  for (let i = 0; i < intentos.length && !r; i++) {
+    if (i) await new Promise(ok => setTimeout(ok, 400 * i));
+    try {
+      r = await whisper(intentos[i]);
+    } catch (err) {
+      ultimo = err;
+      log('whisper_reintento', { campana: e.campana_id, intento: i + 1, pista: intentos[i].length, bytes: buf.byteLength,
+        error: String((err && err.message) || err).slice(0, 160) });
+    }
+  }
+  if (!r) {
+    console.error('whisper', ultimo && ultimo.message);
     throw new HttpError(502, 'No se pudo transcribir el audio. Inténtalo de nuevo o escribe tu respuesta.');
   }
-  return { ok: true, texto: String((r && r.text) || '').trim() };
+  return { ok: true, texto: String(r.text || '').trim() };
 }
 
 async function rutaEnviar(env, b) {

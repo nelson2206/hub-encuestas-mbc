@@ -1049,7 +1049,7 @@
     });
   }
   window.addEventListener('beforeunload', function(ev){
-    if (Object.keys(sinGuardar).length || Object.keys(grab).length){ ev.preventDefault(); ev.returnValue = ''; }
+    if (Object.keys(sinGuardar).length || Object.keys(grab).length || Object.keys(fallidos).length){ ev.preventDefault(); ev.returnValue = ''; }
   });
 
   // ------------------------------------------------------------ grabación y transcripción
@@ -1068,6 +1068,7 @@
 
   function iniciar(pid, qid){
     var key = pid + '-' + qid;
+    delete fallidos[key];   // una grabación nueva reemplaza la que no se pudo convertir
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder){
       estado(key, 'Tu navegador no permite grabar: escribe tu respuesta.', 'warn'); return;
     }
@@ -1118,31 +1119,63 @@
     if (!blob.size || g.secs < 1){ delete grab[key]; restaurarBoton(key); estado(key, 'No se capturó audio. Intenta de nuevo.', 'warn'); return; }
     estado(key, 'Convirtiendo tu voz en texto…');
     tramosWav(blob).then(function(tramos){
-      var textos = [];
-      var cadena = Promise.resolve();
-      tramos.forEach(function(wav, i){
-        cadena = cadena.then(function(){
-          if (tramos.length > 1) estado(key, 'Convirtiendo tu voz en texto… (' + (i+1) + ' de ' + tramos.length + ')');
-          return fetch(API + '/r/transcribir?k=' + encodeURIComponent(K), {method:'POST', headers:{'content-type':'audio/wav'}, body: wav})
-            .then(function(r){ return r.json().then(function(j){ if (!r.ok || !j.ok) throw new Error(j.error || 'Error ' + r.status); return j; }); })
-            .then(function(j){ if (j.texto) textos.push(j.texto); });
-        });
-      });
-      return cadena.then(function(){ return textos.join(' '); });
-    }).then(function(texto){
+      transcribir(key, {pid: g.pid, qid: g.qid, tramos: tramos, textos: [], desde: 0});
+    }).catch(function(){
       delete grab[key];
       restaurarBoton(key);
+      estado(key, 'Tu navegador no pudo procesar la grabación. Intenta de nuevo o escribe tu respuesta.', 'warn');
+    });
+  }
+
+  // Envía los tramos en orden. Si uno falla (el servicio de transcripción a veces rechaza un audio válido), el audio
+  // queda en la memoria del navegador —no se guarda en ningún servidor— y se ofrece reintentar sin volver a grabar.
+  var fallidos = {};
+  function enviarTramo(wav){
+    var intento = function(){
+      return fetch(API + '/r/transcribir?k=' + encodeURIComponent(K), {method:'POST', headers:{'content-type':'audio/wav'}, body: wav})
+        .then(function(r){ return r.json().then(function(j){ if (!r.ok || !j.ok) throw new Error(j.error || 'Error ' + r.status); return j.texto || ''; }); });
+    };
+    return intento().catch(function(){ return new Promise(function(ok){ setTimeout(ok, 1500); }).then(intento); });
+  }
+  function transcribir(key, t){
+    grab[key] = {pid: t.pid, qid: t.qid, fase: 'transcribiendo'};
+    var b = botonRec(key); if (b) b.disabled = true;
+    var cadena = Promise.resolve();
+    t.tramos.forEach(function(wav, i){
+      if (i < t.desde) return;
+      cadena = cadena.then(function(){
+        if (t.tramos.length > 1) estado(key, 'Convirtiendo tu voz en texto… (' + (i+1) + ' de ' + t.tramos.length + ')');
+        return enviarTramo(wav).then(function(texto){ if (texto) t.textos.push(texto); t.desde = i + 1; });
+      });
+    });
+    cadena.then(function(){
+      delete grab[key];
+      restaurarBoton(key);
+      var texto = t.textos.join(' ');
       if (!texto){ estado(key, 'No se entendió el audio. Intenta de nuevo más cerca del micrófono o escribe.', 'warn'); return; }
       var ta = document.getElementById('tx-' + key);
       ta.value = (ta.value.trim() ? ta.value.trim() + '\n\n' : '') + texto;
-      return guardar(g.pid, g.qid).then(function(){
+      return guardar(t.pid, t.qid).then(function(){
         estado(key, 'Listo. Revisa el texto y corrige lo que haga falta (se guarda solo).', 'ok');
-        verificar(g.pid, g.qid);
+        verificar(t.pid, t.qid);
       });
-    }).catch(function(err){
+    }).catch(function(){
       delete grab[key];
       restaurarBoton(key);
-      estado(key, (err && err.message) || 'No se pudo transcribir. Intenta de nuevo o escribe.', 'warn');
+      fallidos[key] = t;
+      var st = document.getElementById('st-' + key);
+      if (!st) return;
+      st.className = 'estado warn';
+      st.textContent = 'No pudimos convertir tu voz en texto. Tu grabación no se perdió: ';
+      var r = document.createElement('button');
+      r.type = 'button'; r.className = 'btn-link'; r.textContent = 'Reintentar sin volver a grabar';
+      r.addEventListener('click', function(){
+        var f = fallidos[key]; if (!f) return;
+        delete fallidos[key];
+        estado(key, 'Convirtiendo tu voz en texto…');
+        transcribir(key, f);
+      });
+      st.appendChild(r);
     });
   }
 
