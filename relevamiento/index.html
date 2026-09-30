@@ -36,8 +36,9 @@
   .hero{background:linear-gradient(150deg,#003478 0%,#00234F 70%,#001A3C 100%);color:#fff;padding:30px 20px 36px;position:relative;overflow:hidden}
   .hero::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.10) 1px,transparent 1.6px);background-size:26px 26px;pointer-events:none}
   .hero-inner{max-width:820px;margin:0 auto;position:relative;z-index:1}
-  .lockup{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+  .lockup{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
   .lockup .mbc-logo{height:22px;width:auto;display:block}
+  .lockup .cliente-logo{height:44px;width:auto;display:block;background:#fff;border-radius:9px;padding:6px 12px;box-sizing:content-box}
   .lockup .sep{width:1px;height:26px;background:rgba(255,255,255,.28)}
   .lockup .tool{font-family:Montserrat,sans-serif;font-weight:700;font-size:15px}
   .eyebrow{font-family:Montserrat,sans-serif;font-size:13px;font-weight:600;color:#9FC1F2;margin:0 0 8px}
@@ -136,6 +137,29 @@
   .ptext{font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700;color:var(--heading);white-space:nowrap;font-variant-numeric:tabular-nums}
   .msg{border-radius:12px;padding:12px 16px}
   .msg.warn{background:var(--warn-bg);color:var(--warn)} .msg.ok{background:var(--ok-bg);color:var(--ok)}
+  /* Checklist de cada bloque: lo que la matriz necesita saber */
+  .ck-t{font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700;color:var(--muted);margin:0 0 6px 36px}
+  .ck{list-style:none;margin:0 0 14px 36px;padding:0;display:flex;flex-direction:column;gap:8px}
+  @media (max-width:560px){ .ck,.ck-t{margin-left:0} }
+  .ck li{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.35}
+  .ck .caja{flex:none;width:19px;height:19px;border-radius:5px;border:2px solid var(--field-line);display:grid;place-content:center;font-size:12px;font-weight:800;line-height:1;margin-top:1px;color:transparent}
+  .ck li.cubierto .caja{background:var(--ok);border-color:var(--ok);color:#fff}
+  .ck li.no_aplica .caja{background:var(--panel);border-color:var(--muted);color:var(--muted)}
+  .ck li.falta .caja{border-color:var(--warn)}
+  .ck .t{flex:1;min-width:0}
+  .ck .nota{display:block;font-size:12.5px;color:var(--muted);margin-top:1px}
+  .ck li.falta .nota{color:var(--warn)}
+  .ck .acc{flex:none;display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+  .btn-mini{appearance:none;cursor:pointer;background:var(--card);border:1.5px solid var(--field-line);color:var(--heading);border-radius:8px;padding:3px 9px;font-family:Montserrat,sans-serif;font-weight:600;font-size:12px;white-space:nowrap}
+  .btn-mini:hover{border-color:var(--navy)} .btn-mini[disabled]{opacity:.5;cursor:default}
+  .sug{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:10px 14px;font-size:14px;margin:10px 0 0}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .bus-persona{padding:12px 14px;border-top:1px solid var(--line);background:var(--panel);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .bus-persona:first-child{border-top:none}
+  .bus-persona .txt{flex:1;min-width:0;font-size:14px}
+  .previas{background:var(--panel);border-radius:12px;padding:10px 14px;margin:14px 20px 0;font-size:14px}
+  .previas summary{cursor:pointer;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;color:var(--heading)}
+  .previas p{white-space:pre-wrap;margin:8px 0 0}
   .foot{background:linear-gradient(150deg,#003478,#00234F);color:#C6D6EC;padding:22px 16px}
   .foot-inner{max-width:820px;margin:0 auto;font-size:12.5px}
   .hidden{display:none !important}
@@ -171,14 +195,12 @@
   var API = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8787' : 'https://voz-relevamiento-api.minsait-business-consulting-pe.workers.dev';
   var TRAMO_SEG = 120;          // el audio se envía en tramos de 2 minutos (16 kHz, mono)
   var MAX_SEG = 600;            // hasta 10 minutos por grabación
-  var PREGUNTAS = [
-    {id:'q1', t:'¿Para qué existe este proceso? ¿Qué lo inicia y dónde termina?', g:'Cuéntanos el objetivo, qué evento lo dispara y a quién le entregas el resultado (otra área, un cliente, un tercero).'},
-    {id:'q2', t:'¿Cómo se hace, paso a paso?', g:'Describe las actividades principales en orden, quién las hace y qué otras áreas participan.'},
-    {id:'q3', t:'¿Qué sistemas y herramientas usan? ¿Qué se hace a mano?', g:'Menciona el nombre exacto de cada sistema, portal, Excel o aplicativo, para qué lo usan y en qué paso. Cuéntanos qué partes son manuales y cuáles automáticas.', sistemas:true},
-    {id:'q4', t:'¿Con qué terceros interactúan?', g:'Proveedores, concesionarios, clientes, entidades del Estado u otros: para qué, y si es por un sistema, correo o de forma presencial.'},
-    {id:'q5', t:'¿Se manejan datos de personas en este proceso?', g:'De quiénes (clientes, trabajadores, proveedores), qué tipo de datos (identificación, contacto, financieros…) y en qué sistemas o archivos se guardan. No menciones datos reales de nadie.'},
-    {id:'q6', t:'¿Cómo saben si va bien, qué lo regula y cada cuánto ocurre?', g:'Indicadores que usan, normas o políticas que aplican, y la frecuencia o volumen aproximado.'}
-  ];
+  // Cada proceso se responde en 3 bloques que vienen del servidor con su checklist (lo que la matriz necesita saber).
+  var BLOQUES = [];
+  // Formato anterior (6 preguntas): si alguien ya respondió así, se le muestra como referencia.
+  var PREG_ANTES = {q1:'Objetivo, inicio y fin', q2:'Actividades y participantes', q3:'Sistemas y manualidad', q4:'Terceros', q5:'Datos personales', q6:'Indicadores, normas y frecuencia'};
+  var ORIGEN_ASIG = {inventario:'En el inventario anterior', consultor:'Asignado por el equipo'};
+  var EST_TXT = {cubierto:'Cubierto', falta:'Falta', no_aplica:'No aplica', pendiente:'Pendiente'};
   // Relación de la persona con un proceso de su sección que viene del inventario.
   var ESTADOS = [['vigente','Participo'], ['cambio','Participo, pero cambió'], ['no_participo','Existe, no participo'], ['no_existe','Ya no se hace']];
 
@@ -244,6 +266,14 @@
   function nombreProc(p){ return p.subproceso || p.proceso || p.macroproceso; }
   function rutaProc(p){ return [p.macroproceso, p.proceso, p.subproceso].filter(Boolean).filter(function(x){ return x !== nombreProc(p); }).join(' › '); }
   function areaProc(p){ return [p.gerencia, p.seccion].filter(Boolean).join(' · '); }
+  // El logo del cliente acompaña a la marca MBC, no la reemplaza.
+  function ponerLogo(camp){
+    if (!camp || !camp.logo || document.querySelector('.hero .cliente-logo')) return;
+    var lockup = document.querySelector('.hero .lockup');
+    var sep = document.createElement('span'); sep.className = 'sep';
+    var img = document.createElement('img'); img.className = 'cliente-logo'; img.src = camp.logo; img.alt = camp.cliente || 'Logo del cliente';
+    lockup.appendChild(sep); lockup.appendChild(img);
+  }
 
   // ------------------------------------------------------------ buscador de procesos
   // Patrón combobox: escribes, las flechas recorren la lista y Enter elige.
@@ -258,7 +288,7 @@
       '<p class="bus-estado" aria-live="polite"></p>' +
       '<ul class="bus-lista hidden" id="' + id + '-l" role="listbox" aria-label="Procesos encontrados"></ul>';
     var input = el.querySelector('input'), lista = el.querySelector('ul'), estadoEl = el.querySelector('.bus-estado');
-    var items = [], activo = -1, seq = 0, timer = null, ultimo = '';
+    var items = [], personasRes = [], activo = -1, seq = 0, timer = null, ultimo = '';
 
     function cerrar(){ lista.classList.add('hidden'); input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); activo = -1; }
     function abrir(){ lista.classList.remove('hidden'); input.setAttribute('aria-expanded', 'true'); }
@@ -279,12 +309,33 @@
       o.buscar(q).then(function(j){
         if (mio !== seq) return;
         items = j.resultados || [];
+        personasRes = o.elegirVarios ? (j.personas || []) : [];
         pintar(q, j.total || 0);
       }).catch(function(err){ if (mio === seq) estadoEl.textContent = err.message; });
     }
     function pintar(q, total){
       lista.innerHTML = '';
       activo = -1;
+      // Quien escribe su nombre ve los procesos donde figura en el inventario anterior y los elige de una vez.
+      personasRes.forEach(function(g){
+        var faltan = g.procesos.filter(function(p){ return !o.yaElegido(p); });
+        var li = document.createElement('li');
+        li.className = 'bus-persona';
+        li.innerHTML = '<div class="txt"><b>' + resaltar(g.nombre, q) + '</b> figura en ' + (g.total === 1 ? '1 proceso' : g.total + ' procesos') + ' del inventario anterior.' +
+          (g.total > g.procesos.length ? ' Puedes elegir los primeros ' + g.procesos.length + '.' : '') + '</div>' +
+          (faltan.length ? '<button type="button" class="btn btn-sm">' + (faltan.length === 1 ? 'Elegir ese proceso' : 'Elegir los ' + faltan.length) + '</button>'
+            : '<span class="bus-accion" style="color:var(--ok)">✓ Ya están en tu lista</span>');
+        li.addEventListener('mousedown', function(ev){ ev.preventDefault(); });
+        var b = li.querySelector('button');
+        if (b) b.addEventListener('click', function(){
+          b.disabled = true; b.textContent = 'Agregando…';
+          Promise.resolve(o.elegirVarios(faltan)).then(function(){
+            estadoEl.textContent = 'Agregaste ' + (faltan.length === 1 ? '1 proceso' : faltan.length + ' procesos') + ' de ' + g.nombre + '. Están en tu lista.';
+            input.value = ''; items = []; personasRes = []; cerrar(); input.focus();
+          }).catch(function(err){ b.disabled = false; b.textContent = 'Elegir los ' + faltan.length; estadoEl.textContent = err.message; });
+        });
+        lista.appendChild(li);
+      });
       items.forEach(function(p, i){
         var ya = o.yaElegido(p);
         var li = document.createElement('li');
@@ -295,7 +346,8 @@
         if (ya) li.setAttribute('aria-disabled', 'true');
         var ruta = [areaProc(p), rutaProc(p)].filter(Boolean).join(' › ');
         li.innerHTML = '<div class="txt"><div class="bus-nombre">' + resaltar(nombreProc(p), q) + (p.nuevo ? '<span class="tag">Agregado en la encuesta</span>' : '') + '</div>' +
-          '<div class="bus-ruta">' + resaltar(ruta, q) + (p.codigo ? ' · ' + resaltar(p.codigo, q) : '') + '</div></div>' +
+          '<div class="bus-ruta">' + resaltar(ruta, q) + (p.codigo ? ' · ' + resaltar(p.codigo, q) : '') +
+            (p.persona ? ' · En el inventario anterior: ' + resaltar(p.persona, q) : '') + '</div></div>' +
           '<span class="bus-accion">' + (ya ? '✓ Ya está en tu lista' : 'Elegir') + '</span>';
         li.addEventListener('mousedown', function(ev){ ev.preventDefault(); });   // el campo no pierde el foco
         li.addEventListener('click', function(){ elegir(i); });
@@ -360,7 +412,8 @@
   function pintarAbierto(){
     $('#heroEyebrow').textContent = [A.campana.cliente, G, 'Relevamiento de procesos'].filter(Boolean).join(' · ');
     $('#heroTitle').textContent = '¿Qué proceso nos vas a contar?';
-    $('#heroIntro').innerHTML = 'Escribe unas letras del nombre de tu proceso y elígelo de la lista. Luego nos cuentas cómo funciona, <strong>hablando</strong> o escribiendo.';
+    $('#heroIntro').innerHTML = 'Escribe unas letras del nombre de tu proceso, o tu nombre, y elige tus procesos de la lista. Luego nos cuentas cómo funcionan, <strong>hablando</strong> o escribiendo.';
+    ponerLogo(A.campana);
     var root = $('#root');
     root.innerHTML = '';
 
@@ -381,7 +434,7 @@
     var paso1 = document.createElement('section');
     paso1.className = 'card';
     paso1.innerHTML = '<div class="paso"><span class="n">1</span><div><h2>Busca y elige tu proceso</h2>' +
-      '<p class="lead">Si participas en varios, elige todos. Después podrás agregar más.</p>' +
+      '<p class="lead">Si participas en varios, elige todos. También puedes escribir tu nombre y apellido: si figuras en el inventario anterior, verás tus procesos para elegirlos de una vez.</p>' +
       '<div id="busA"></div>' +
       '<p class="sub-t hidden" id="elegT">Elegiste</p><ul class="lista-el" id="elegL"></ul>' +
       '<p class="msg ok hidden" id="nuevoNota" style="margin:12px 0 0"></p>' +
@@ -390,10 +443,14 @@
     root.appendChild(paso1);
 
     var bus = crearBuscador({
-      etiqueta: 'Nombre de tu proceso', placeholder: 'Ej.: importación, facturación, alquiler…',
+      etiqueta: 'Nombre de tu proceso o tu nombre', placeholder: 'Ej.: importación, facturación… o tu nombre y apellido',
       buscar: function(q){ return api('/r/buscar?c=' + encodeURIComponent(C) + '&g=' + encodeURIComponent(G) + '&q=' + encodeURIComponent(q)); },
       yaElegido: function(p){ return ELEGIDOS.some(function(x){ return x.id === p.id; }); },
       elegir: function(p){ ELEGIDOS.push(p); pintarElegidosA(); },
+      elegirVarios: function(ps){
+        ps.forEach(function(p){ if (!ELEGIDOS.some(function(x){ return x.id === p.id; })) ELEGIDOS.push(p); });
+        pintarElegidosA();
+      },
       agregar: function(q){ marcarNuevo(q); }, textoAgregar: 'Agregarlo como proceso nuevo'
     });
     paso1.querySelector('#busA').appendChild(bus.el);
@@ -435,7 +492,7 @@
     c.id = 'cardReg';
     var dom = A.dominio ? '@' + A.dominio : '';
     c.innerHTML = '<div class="paso"><span class="n">2</span><div><h2>¿Quién eres?</h2>' +
-      '<p class="lead">Lo usamos para coordinar contigo la reunión de validación. Tu nombre no aparece en el inventario final.</p>' +
+      '<p class="lead">Lo usamos para coordinar contigo la reunión de validación. Si figuras en el inventario anterior, también verás en tu lista los procesos donde apareces.</p>' +
       '<div class="grid2">' +
         '<div><label for="rNombre">Nombre y apellido *</label><input type="text" id="rNombre" autocomplete="name" maxlength="150"></div>' +
         '<div><label for="rCorreo">Correo corporativo *</label><input type="email" id="rCorreo" autocomplete="email" maxlength="150" placeholder="' + esc(dom ? 'nombre' + dom : 'nombre@empresa.com') + '"></div>' +
@@ -505,6 +562,7 @@
       S = j;
       S.revisiones = S.revisiones || {};
       S.respuestas = S.respuestas || {};
+      BLOQUES = S.bloques || [];
       pintar();
     }).catch(function(err){
       $('#heroIntro').textContent = 'No pudimos abrir tu encuesta.';
@@ -521,12 +579,15 @@
     $('#heroEyebrow').textContent = (S.campana ? S.campana.cliente + ' · ' : '') + e.gerencia + ' · ' + e.seccion;
     $('#heroTitle').textContent = 'Hola, ' + e.nombre.split(' ')[0] + ': cuéntanos cómo funcionan tus procesos';
     $('#heroIntro').innerHTML = 'Son dos pasos. Primero eliges los procesos en los que participas; luego nos cuentas, <strong>hablando</strong> o escribiendo, cómo funciona cada uno. Todo se guarda solo: puedes dejarlo y volver con tu enlace.';
+    ponerLogo(S.campana);
 
     var root = $('#root');
     root.innerHTML = '';
     var intro = document.createElement('section');
+    var porNombre = S.procesos.filter(function(p){ return p.asignado === 'inventario' && !S.revisiones[p.id]; }).length;
     intro.className = 'card' + (bienvenida ? ' destacado' : '');
-    intro.innerHTML = (bienvenida ? '<h2>Listo, ya estás registrado</h2><p class="lead">Guarda tu enlace personal: con él vuelves a tu encuesta desde cualquier equipo. Es solo tuyo, no lo compartas.</p>' : '') +
+    intro.innerHTML = (bienvenida ? '<h2>Listo, ya estás registrado</h2><p class="lead">Guarda tu enlace personal: con él vuelves a tu encuesta desde cualquier equipo. Es solo tuyo, no lo compartas.' +
+        (porNombre ? ' Figuras en ' + (porNombre === 1 ? '1 proceso' : porNombre + ' procesos') + ' del inventario anterior: están en el paso 1 para que confirmes tu relación con cada uno.' : '') + '</p>' : '') +
       '<p class="aviso"><strong>Cómo tratamos lo que nos cuentas.</strong> Tu voz se convierte en texto y el audio se descarta al instante: no se guarda. ' +
       'Antes de guardar, puedes leer y corregir el texto. La información se usa solo para el inventario de procesos y se borra al cierre del proyecto. ' +
       'Habla de cargos y áreas, no de personas, y no menciones datos reales de clientes o trabajadores.</p>' +
@@ -543,8 +604,10 @@
     var p1 = document.createElement('section');
     p1.className = 'card';
     p1.innerHTML = '<div class="paso"><span class="n">1</span><div><h2>¿En qué procesos participas?</h2>' +
-      '<p class="lead">Busca tus procesos escribiendo unas letras y elígelos. Puedes elegir procesos de cualquier área.</p>' +
+      '<p class="lead">Busca tus procesos escribiendo unas letras y elígelos, o escribe tu nombre para ver los procesos donde figuras en el inventario anterior. Puedes elegir procesos de cualquier área.</p>' +
       '<div id="busP"></div>' +
+      '<div id="bloqueAsig" class="hidden"><p class="sub-t">Procesos asignados a ti</p>' +
+      '<p class="lead" style="font-size:14px;margin:0 0 4px">Figuras en ellos en el inventario anterior o te los asignó el equipo consultor. Marca tu relación con cada uno.</p><div id="listaAsig"></div></div>' +
       '<p class="sub-t" id="elegidosT">Procesos que elegiste</p><ul class="lista-el" id="listaElegidos"></ul>' +
       '<div id="bloqueSeccion"' + (hayDeSeccion ? '' : ' class="hidden"') + '><p class="sub-t">Procesos de tu sección en el inventario</p>' +
       '<p class="lead" style="font-size:14px;margin:0 0 4px">Vienen del inventario anterior. Marca tu relación con cada uno.</p><div id="listaRev"></div></div>' +
@@ -559,10 +622,11 @@
     root.appendChild(p1);
 
     var bus = crearBuscador({
-      etiqueta: 'Busca un proceso', placeholder: 'Ej.: importación, facturación, alquiler…',
+      etiqueta: 'Busca un proceso o tu nombre', placeholder: 'Ej.: importación, facturación… o tu nombre y apellido',
       buscar: function(q){ return api('/r/buscar?k=' + encodeURIComponent(K) + '&q=' + encodeURIComponent(q)); },
       yaElegido: function(p){ var r = S.revisiones[p.id]; return p.elegido || !!(r && (r.estado === 'vigente' || r.estado === 'cambio')); },
       elegir: elegirPersonal,
+      elegirVarios: elegirVariosPersonal,
       agregar: function(q){ abrirNuevo(q); }, textoAgregar: 'Agregarlo como proceso nuevo'
     });
     p1.querySelector('#busP').appendChild(bus.el);
@@ -570,8 +634,9 @@
     // Paso 2: respuestas
     var p2 = document.createElement('section');
     p2.innerHTML = '<div class="card" style="margin-bottom:14px"><div class="paso"><span class="n">2</span><div><h2>Cuéntanos cómo funciona cada proceso</h2>' +
-      '<p class="lead" style="margin:0">Abre cada proceso y responde las 6 preguntas. Lo más rápido es pulsar <strong>Grabar</strong> y hablar como si se lo explicaras a un colega nuevo; el texto aparece solo y lo puedes corregir. ' +
-      'Si tu respuesta es la misma para varios procesos, basta con decir «igual que el anterior» y lo diferente.</p></div></div></div>' +
+      '<p class="lead" style="margin:0">Abre cada proceso y responde sus 3 bloques. Cada bloque trae la lista de lo que necesitamos saber: pulsa <strong>Grabar</strong> y cuéntalo como si se lo explicaras a un colega nuevo; el texto aparece solo y lo puedes corregir. ' +
+      'Al terminar revisamos tu respuesta y marcamos lo que ya cubriste. Lo que no exista en tu proceso (por ejemplo, si no hay indicadores) márcalo como «No aplica». ' +
+      'Un proceso queda <strong>completo</strong> cuando todos sus puntos están marcados.</p></div></div></div>' +
       '<div id="listaProc" style="display:flex;flex-direction:column;gap:12px"></div>';
     root.appendChild(p2);
 
@@ -590,6 +655,9 @@
     $('#btnCancelarNuevo').addEventListener('click', function(){ $('#formNuevo').classList.add('hidden'); });
     $('#btnGuardarNuevo').addEventListener('click', agregarProceso);
     $('#btnEnviar').addEventListener('click', function(){
+      var inc = procesosActivos().filter(function(p){ return !procesoCompleto(p.id); });
+      if (inc.length && !confirm('Te ' + (inc.length === 1 ? 'falta completar 1 proceso' : 'faltan completar ' + inc.length + ' procesos') + ': ' +
+        inc.slice(0, 5).map(nombreProc).join(', ') + (inc.length > 5 ? '…' : '') + '.\n\n¿Marcar la encuesta como terminada igual?')) return;
       var b = this; b.disabled = true;
       api('/r/enviar', {}).then(function(){ mostrarFin('¡Gracias! Avisamos al equipo consultor. Te contactarán para una reunión corta de validación.'); })
         .catch(function(err){ mostrarFin(err.message, true); }).then(function(){ b.disabled = false; });
@@ -611,18 +679,22 @@
   function pintarPaso1(){
     var ul = $('#listaElegidos');
     ul.innerHTML = '';
-    var el = S.procesos.filter(function(p){ return !p.enSeccion && (p.elegido || p.propio); });
+    // Los asignados (por el equipo o por su nombre en el inventario anterior) se confirman como los de su sección.
+    var el = S.procesos.filter(function(p){ return !p.enSeccion && !p.asignado && (p.elegido || p.propio); });
     el.forEach(function(p){ ul.appendChild(filaElegido(p)); });
     var sec = S.procesos.filter(function(p){ return p.enSeccion; });
+    var asig = S.procesos.filter(function(p){ return !p.enSeccion && p.asignado; });
     // Si lo que eligió es de su propia sección, ya aparece marcado abajo: no se muestra una lista vacía que confunda.
     var nada = !el.length && !procesosActivos().length;
-    if (nada) ul.innerHTML = '<li class="vacio">Todavía no eliges procesos. Búscalos arriba' + (sec.length ? ' o márcalos en la lista de tu sección.' : '.') + '</li>';
+    if (nada) ul.innerHTML = '<li class="vacio">Todavía no tienes procesos elegidos. Búscalos arriba' + (sec.length || asig.length ? ' o marca «Participo» en los procesos de las listas.' : '.') + '</li>';
     $('#elegidosT').classList.toggle('hidden', !el.length && !nada);
     ul.classList.toggle('hidden', !el.length && !nada);
     $('#bloqueSeccion').classList.toggle('hidden', !sec.length);
+    $('#bloqueAsig').classList.toggle('hidden', !asig.length);
     // Solo se agregan las filas que faltan: las existentes conservan lo que la persona está escribiendo.
-    var cont = $('#listaRev');
+    var cont = $('#listaRev'), contA = $('#listaAsig');
     sec.forEach(function(p){ if (!document.getElementById('rev-' + p.id)) cont.appendChild(tarjetaRevision(p)); });
+    asig.forEach(function(p){ if (!document.getElementById('rev-' + p.id)) contA.appendChild(tarjetaRevision(p)); });
   }
 
   function filaElegido(p){
@@ -630,27 +702,34 @@
     var area = (p.gerencia !== S.encuestado.gerencia || p.seccion !== S.encuestado.seccion) ? areaProc(p) : '';
     li.innerHTML = '<div class="txt"><div class="proc-nombre">' + esc(nombreProc(p)) + (p.propio ? '<span class="tag">Agregado por ti</span>' : '') + '</div>' +
       '<div class="proc-ruta">' + esc([area, rutaProc(p)].filter(Boolean).join(' › ') || (p.codigo || '')) + '</div></div>' +
+      '<span class="avance" data-avance="' + esc(p.id) + '"></span>' +
       '<button type="button" class="btn-link">Quitar</button>';
     li.querySelector('button').addEventListener('click', function(){ soltar(p); });
     return li;
   }
 
-  function elegirPersonal(p){
-    return api('/r/elegir', {proceso_id: p.id}).then(function(j){
-      var q = j.proceso;
+  // Procesos que la persona eligió (uno o varios): quedan como "participo" y listos para responder.
+  function aplicarElegidos(lista){
+    lista.forEach(function(q){
       var ya = S.procesos.filter(function(x){ return x.id === q.id; })[0];
       if (ya) Object.assign(ya, q); else S.procesos.push(q);
       var r = S.revisiones[q.id];
       if (!r || (r.estado !== 'vigente' && r.estado !== 'cambio')) S.revisiones[q.id] = {estado:'vigente', comentario: r ? r.comentario : ''};
-      pintarPaso1();
-      if (q.enSeccion) marcarRevision(q.id);
-      pintarProcesos();
     });
+    pintarPaso1();
+    lista.forEach(function(q){ marcarRevision(q.id); });
+    pintarProcesos();
+  }
+  function elegirPersonal(p){
+    return api('/r/elegir', {proceso_id: p.id}).then(function(j){ aplicarElegidos(j.procesos || [j.proceso]); });
+  }
+  function elegirVariosPersonal(ps){
+    return api('/r/elegir', {proceso_ids: ps.map(function(p){ return p.id; })}).then(function(j){ aplicarElegidos(j.procesos || [j.proceso]); });
   }
 
   function soltar(p){
     if (ocupado(p.id)){ alert('Espera a que termine la grabación de este proceso.'); return; }
-    var tiene = PREGUNTAS.some(function(q){ return respondida(p.id, q.id); });
+    var tiene = Object.keys(S.respuestas[p.id] || {}).some(function(q){ return respondida(p.id, q); });
     if (!confirm('¿Quitar «' + nombreProc(p) + '» de tu lista?' + (tiene ? ' También se borrarán tus respuestas sobre este proceso.' : ''))) return;
     api('/r/soltar', {proceso_id: p.id}).then(function(){
       S.procesos = S.procesos.filter(function(x){ return x.id !== p.id || x.enSeccion; });
@@ -665,9 +744,10 @@
     d.className = 'proc-rev';
     d.id = 'rev-' + p.id;
     var r = S.revisiones[p.id] || {};
-    var ruta = rutaProc(p);
-    d.innerHTML = '<div class="proc-nombre">' + esc(nombreProc(p)) + '</div>' +
-      (ruta || p.codigo ? '<div class="proc-ruta">' + esc([p.codigo, ruta].filter(Boolean).join(' · ')) + '</div>' : '<div style="height:8px"></div>') +
+    var ruta = rutaProc(p), area = p.enSeccion ? '' : areaProc(p);
+    d.innerHTML = '<div class="proc-nombre">' + esc(nombreProc(p)) + (p.asignado && ORIGEN_ASIG[p.asignado] && !p.enSeccion ? '<span class="tag">' + esc(ORIGEN_ASIG[p.asignado]) + '</span>' : '') +
+        ' <span class="avance" data-avance="' + esc(p.id) + '"></span></div>' +
+      (ruta || p.codigo || area ? '<div class="proc-ruta">' + esc([area, p.codigo, ruta].filter(Boolean).join(' · ')) + '</div>' : '<div style="height:8px"></div>') +
       '<div class="pillbox" role="radiogroup" aria-label="Tu relación con este proceso">' +
         ESTADOS.map(function(o){
           return '<label class="pill"><input type="radio" name="rv-' + esc(p.id) + '" value="' + o[0] + '"' + (r.estado === o[0] ? ' checked' : '') + '><span>' + o[1] + '</span></label>';
@@ -751,8 +831,17 @@
     actualizarAvance();
   }
 
-  function respuesta(pid, q){ return ((S.respuestas[pid] || {})[q]) || {texto:'', sistemas:[]}; }
+  function respuesta(pid, q){ return ((S.respuestas[pid] || {})[q]) || {texto:'', sistemas:[], checklist:{}}; }
   function respondida(pid, q){ var r = respuesta(pid, q); return !!(r.texto && r.texto.trim()) || (r.sistemas && r.sistemas.length > 0); }
+  function bloque(bid){ return BLOQUES.filter(function(b){ return b.id === bid; })[0]; }
+
+  // Checklist: un punto está listo si quedó cubierto o si no aplica al proceso. Un proceso está completo
+  // cuando todos los puntos de sus 3 bloques están listos.
+  function puntoListo(ck, id){ var x = ck && ck[id]; return !!x && (x.estado === 'cubierto' || x.estado === 'no_aplica'); }
+  function listosBloque(pid, b){ var ck = respuesta(pid, b.id).checklist || {}; return b.puntos.filter(function(pt){ return puntoListo(ck, pt[0]); }).length; }
+  function totalPuntos(){ return BLOQUES.reduce(function(a, b){ return a + b.puntos.length; }, 0); }
+  function listosProceso(pid){ return BLOQUES.reduce(function(a, b){ return a + listosBloque(pid, b); }, 0); }
+  function procesoCompleto(pid){ return !!BLOQUES.length && listosProceso(pid) === totalPuntos(); }
 
   function tarjetaProceso(p){
     var d = document.createElement('details');
@@ -763,56 +852,172 @@
     var ruta = [area, rutaProc(p)].filter(Boolean).join(' › ');
     var html = '<summary><div class="sum-txt"><div class="proc-nombre">' + esc(nombreProc(p)) + '</div>' +
       (ruta ? '<div class="proc-ruta" style="margin:2px 0 0">' + esc(ruta) + '</div>' : '') + '</div>' +
-      '<span class="avance" id="av-' + esc(p.id) + '"></span>' +
+      '<span class="avance" data-avance="' + esc(p.id) + '"></span>' +
       '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>';
-    PREGUNTAS.forEach(function(q, i){
+    // Respuestas en el formato anterior (6 preguntas): quedan a la vista como base para los bloques.
+    var previas = Object.keys(PREG_ANTES).filter(function(q){ return respondida(p.id, q); });
+    if (previas.length) html += '<details class="previas"><summary>Lo que ya nos contaste antes (' + previas.length + (previas.length === 1 ? ' respuesta' : ' respuestas') + ')</summary>' +
+      previas.map(function(q){ var r = respuesta(p.id, q); return '<p><b>' + esc(PREG_ANTES[q]) + ':</b> ' + esc(r.texto) + (r.sistemas.length ? ' · Sistemas: ' + esc(r.sistemas.join(', ')) : '') + '</p>'; }).join('') +
+      '<p class="preg-g" style="margin:8px 0 0">Úsalo como base: cópialo en el bloque que corresponda o vuelve a grabarlo.</p></details>';
+    BLOQUES.forEach(function(q, i){
       var r = respuesta(p.id, q.id);
       var key = p.id + '-' + q.id;
       html += '<div class="preg">' +
         '<div class="preg-t"><span class="qn">' + (i+1) + '</span><span>' + esc(q.t) + '</span></div>' +
         '<p class="preg-g">' + esc(q.g) + '</p>' +
+        '<p class="ck-t" id="ckt-' + esc(key) + '">Lo que necesitamos saber</p>' +
+        '<ul class="ck" id="ck-' + esc(key) + '" aria-labelledby="ckt-' + esc(key) + '"></ul>' +
         '<div class="rec-row">' +
           '<button class="btn btn-rec btn-sm btn-ico" type="button" data-rec="' + esc(key) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3" fill="currentColor" stroke="none"></rect><path d="M5 10.5a7 7 0 0 0 14 0M12 17.5V21"></path></svg><span>Grabar</span></button>' +
           '<span class="rec-dot hidden" id="dot-' + esc(key) + '" aria-hidden="true"></span>' +
           '<span class="rec-timer hidden" id="tm-' + esc(key) + '">0:00</span>' +
           '<span class="estado" id="st-' + esc(key) + '" aria-live="polite"></span>' +
         '</div>' +
-        '<textarea id="tx-' + esc(key) + '" maxlength="12000" aria-label="Respuesta a la pregunta ' + (i+1) + '" placeholder="Pulsa Grabar y habla, o escribe aquí…">' + esc(r.texto) + '</textarea>';
+        '<textarea id="tx-' + esc(key) + '" maxlength="12000" aria-label="Respuesta al bloque ' + (i+1) + '" placeholder="Pulsa Grabar y habla, o escribe aquí…">' + esc(r.texto) + '</textarea>';
       if (q.sistemas && S.sistemas.length){
         html += '<div class="sis-t">Marca los sistemas que usan en este proceso</div><div class="pillbox">' +
           S.sistemas.map(function(s){
-            return '<label class="pill"><input type="checkbox" data-sis="' + esc(key) + '" value="' + esc(s.nombre) + '"' + (r.sistemas.indexOf(s.nombre) >= 0 ? ' checked' : '') + '><span>' + esc(s.nombre) + '</span></label>';
+            return '<label class="pill"><input type="checkbox" data-sis="' + esc(key) + '" value="' + esc(s.nombre) + '"' + ((r.sistemas || []).indexOf(s.nombre) >= 0 ? ' checked' : '') + '><span>' + esc(s.nombre) + '</span></label>';
           }).join('') + '</div>' +
           '<p class="preg-g" style="margin:8px 0 0">¿Usan algo que no está en la lista (un Excel, un aplicativo del área)? Menciónalo en el texto.</p>';
       }
-      html += '</div>';
+      html += '<p class="sug hidden" id="sg-' + esc(key) + '"></p>' +
+        '<div class="fila" style="margin-top:8px;gap:10px"><button type="button" class="btn-link" data-verif="' + esc(key) + '">Revisar mi respuesta</button>' +
+        '<span class="estado" id="vs-' + esc(key) + '" aria-live="polite"></span></div></div>';
     });
     d.innerHTML = html;
-    PREGUNTAS.forEach(function(q){
+    BLOQUES.forEach(function(q){
       var key = p.id + '-' + q.id;
-      d.querySelector('#tx-' + CSS.escape(key)).addEventListener('input', function(){ programarGuardado(p.id, q.id); });
+      var ta = d.querySelector('#tx-' + CSS.escape(key));
+      ta.addEventListener('input', function(){ programarGuardado(p.id, q.id); });
+      // Al salir del texto se revisa qué puntos cubrió (solo si cambió desde la última revisión).
+      ta.addEventListener('blur', function(){ if (porRevisar[key]) verificar(p.id, q.id); });
       d.querySelector('[data-rec="' + CSS.escape(key) + '"]').addEventListener('click', function(){ alternarGrabacion(p.id, q.id); });
+      d.querySelector('[data-verif="' + CSS.escape(key) + '"]').addEventListener('click', function(){ verificar(p.id, q.id, true); });
       Array.prototype.forEach.call(d.querySelectorAll('[data-sis="' + CSS.escape(key) + '"]'), function(c){
-        c.addEventListener('change', function(){ programarGuardado(p.id, q.id, 0); });
+        c.addEventListener('change', function(){ programarGuardado(p.id, q.id, 0); programarRevision(p.id, q.id, 4000); });
       });
+      d.querySelector('#ck-' + CSS.escape(key)).addEventListener('click', function(ev){
+        var bt = ev.target.closest('[data-punto]');
+        if (bt) marcarPunto(p.id, q.id, bt.dataset.punto, bt.dataset.estado, bt);
+      });
+      pintarChecklist(p.id, q.id, d);
     });
+    // Bloques respondidos que nunca se revisaron (p. ej. escritos antes de cerrar la página): se revisan al abrir el proceso.
+    d.addEventListener('toggle', function(){ if (d.open) revisarPendientes(p.id); });
     pintarAvanceProc(p.id, d);
     return d;
   }
 
+  // Lista de puntos del bloque con su estado y los botones para marcar a mano "Lo mencioné" o "No aplica".
+  function pintarChecklist(pid, bid, root){
+    var key = pid + '-' + bid, b = bloque(bid);
+    var ul = (root || document).querySelector('#ck-' + CSS.escape(key));
+    if (!ul || !b) return;
+    var ck = respuesta(pid, bid).checklist || {}, hay = respondida(pid, bid), revisado = !!ck._huella;
+    ul.innerHTML = b.puntos.map(function(pt){
+      var x = ck[pt[0]] || null, persona = !!(x && x.fuente === 'persona');
+      var est = x ? x.estado : (revisado ? 'falta' : 'pendiente');
+      var nota = '';
+      if (est === 'cubierto') nota = persona ? 'Marcaste que lo mencionaste' : (x.evidencia ? '«' + x.evidencia + '»' : '');
+      else if (est === 'no_aplica') nota = persona ? 'Marcaste que no aplica a tu proceso' : 'Dijiste que no aplica' + (x.evidencia ? ': «' + x.evidencia + '»' : '');
+      else if (est === 'falta') nota = 'Todavía no lo mencionas';
+      var acc = '';
+      if (persona) acc = '<button type="button" class="btn-mini" data-punto="' + esc(pt[0]) + '" data-estado="">Deshacer</button>';
+      else if (est === 'falta' || est === 'pendiente'){
+        // "No aplica" solo en lo que puede no existir (terceros, datos personales, indicadores…): el objetivo o los pasos hay que contarlos.
+        acc = (hay ? '<button type="button" class="btn-mini" data-punto="' + esc(pt[0]) + '" data-estado="cubierto" aria-label="Lo mencioné: ' + esc(pt[1]) + '">Lo mencioné</button>' : '') +
+          (pt[2] ? '<button type="button" class="btn-mini" data-punto="' + esc(pt[0]) + '" data-estado="no_aplica" aria-label="No aplica: ' + esc(pt[1]) + '">No aplica</button>' : '');
+      }
+      return '<li class="' + est + '"><span class="caja" aria-hidden="true">' + (est === 'cubierto' ? '✓' : est === 'no_aplica' ? '–' : '') + '</span>' +
+        '<span class="t"><span class="sr">' + EST_TXT[est] + ': </span>' + esc(pt[1]) + (nota ? '<span class="nota">' + esc(nota) + '</span>' : '') + '</span>' +
+        (acc ? '<span class="acc">' + acc + '</span>' : '') + '</li>';
+    }).join('');
+    var sg = (root || document).querySelector('#sg-' + CSS.escape(key));
+    var faltan = b.puntos.filter(function(pt){ return !puntoListo(ck, pt[0]); }).length;
+    if (sg){ sg.textContent = faltan && ck._sugerencia ? ck._sugerencia : ''; sg.classList.toggle('hidden', !(faltan && ck._sugerencia)); }
+  }
+
+  function ponerChecklist(pid, bid, ck){
+    var r = respuesta(pid, bid);
+    (S.respuestas[pid] = S.respuestas[pid] || {})[bid] = {texto: r.texto, sistemas: r.sistemas || [], checklist: ck || {}};
+    pintarChecklist(pid, bid);
+    actualizarAvance();
+  }
+
+  // ------------------------------------------------------------ revisión del checklist con IA
+  var revisando = {}, repetir = {}, porRevisar = {}, timersRev = {};
+  function estadoRev(key, t, cls){ var st = document.getElementById('vs-' + key); if (st){ st.className = 'estado' + (cls ? ' ' + cls : ''); st.textContent = t; } }
+  function programarRevision(pid, bid, ms){
+    var key = pid + '-' + bid;
+    clearTimeout(timersRev[key]);
+    timersRev[key] = setTimeout(function(){ verificar(pid, bid); }, ms);
+  }
+  function verificar(pid, bid, manual){
+    var key = pid + '-' + bid;
+    clearTimeout(timersRev[key]);
+    if (grab[key]) return Promise.resolve();                  // se revisa al terminar la transcripción
+    if (revisando[key]){ repetir[key] = true; return revisando[key]; }
+    if (!manual && !sinGuardar[key] && !respondida(pid, bid)) return Promise.resolve();
+    estadoRev(key, 'Revisando qué puntos cubriste…');
+    var prom = (sinGuardar[key] ? guardar(pid, bid) : Promise.resolve()).then(function(){
+      return api('/r/verificar', {proceso_id: pid, pregunta: bid});
+    }).then(function(j){
+      delete porRevisar[key];
+      ponerChecklist(pid, bid, j.checklist);
+      var b = bloque(bid), ck = j.checklist || {};
+      var faltan = b.puntos.filter(function(pt){ return !puntoListo(ck, pt[0]); }).length;
+      estadoRev(key, faltan ? (faltan === 1 ? 'Falta 1 punto de este bloque.' : 'Faltan ' + faltan + ' puntos de este bloque.') : '✓ Bloque completo.', faltan ? 'warn' : 'ok');
+    }).catch(function(err){
+      estadoRev(key, err.message, 'warn');
+    }).then(function(){
+      delete revisando[key];
+      if (repetir[key]){ delete repetir[key]; return verificar(pid, bid); }
+    });
+    revisando[key] = prom;
+    return prom;
+  }
+  function revisarPendientes(pid){
+    BLOQUES.reduce(function(prom, b){
+      var ck = respuesta(pid, b.id).checklist || {};
+      if (!respondida(pid, b.id) || ck._huella) return prom;
+      return prom.then(function(){ return verificar(pid, b.id); });
+    }, Promise.resolve());
+  }
+  function marcarPunto(pid, bid, punto, est, boton){
+    var key = pid + '-' + bid;
+    if (boton) boton.disabled = true;
+    api('/r/punto', {proceso_id: pid, pregunta: bid, punto: punto, estado: est}).then(function(j){
+      ponerChecklist(pid, bid, j.checklist);
+      if (!est && respondida(pid, bid)) verificar(pid, bid);   // al deshacer, la IA vuelve a mirar ese punto
+    }).catch(function(err){ if (boton) boton.disabled = false; estadoRev(key, err.message, 'warn'); });
+  }
+
+  // Avance: "✓ Completo", "N de 15 puntos" o "Por responder". Se muestra en el paso 1 y en cada proceso.
+  function textoAvance(pid){
+    if (!BLOQUES.length) return {t:'', full:false};
+    var n = listosProceso(pid), tot = totalPuntos();
+    if (n === tot) return {t:'✓ Completo', full:true};
+    var algo = n || BLOQUES.some(function(b){ return respondida(pid, b.id); });
+    return {t: algo ? n + ' de ' + tot + ' puntos' : 'Por responder', full:false};
+  }
   function pintarAvanceProc(pid, root){
-    var n = PREGUNTAS.filter(function(q){ return respondida(pid, q.id); }).length;
-    var el = (root || document).querySelector('#av-' + CSS.escape(pid));
-    if (el){ el.textContent = n === PREGUNTAS.length ? '✓ Completo' : n + ' de ' + PREGUNTAS.length; el.classList.toggle('full', n === PREGUNTAS.length); }
+    var r = S.revisiones[pid], activo = !!r && (r.estado === 'vigente' || r.estado === 'cambio');
+    var a = activo ? textoAvance(pid) : {t:'', full:false};
+    var sel = '[data-avance="' + CSS.escape(pid) + '"]';
+    var els = Array.prototype.slice.call(document.querySelectorAll(sel));
+    if (root) els = els.concat(Array.prototype.slice.call(root.querySelectorAll(sel)));
+    els.forEach(function(el){ el.textContent = a.t; el.classList.toggle('full', a.full); });
   }
 
   function actualizarAvance(){
-    var activos = procesosActivos();
-    var total = activos.length * PREGUNTAS.length, hechas = 0;
-    activos.forEach(function(p){ PREGUNTAS.forEach(function(q){ if (respondida(p.id, q.id)) hechas++; }); pintarAvanceProc(p.id); });
-    var pendientesRev = S.procesos.filter(function(p){ return p.enSeccion && !S.revisiones[p.id]; }).length;
-    $('#pfill').style.width = (total ? Math.round(hechas * 100 / total) : 0) + '%';
-    $('#ptext').textContent = (pendientesRev ? pendientesRev + ' por marcar en el paso 1 · ' : '') + hechas + ' de ' + total + ' respuestas';
+    var activos = procesosActivos(), tot = totalPuntos(), completos = 0, puntos = 0;
+    activos.forEach(function(p){ var n = listosProceso(p.id); puntos += n; if (tot && n === tot) completos++; });
+    S.procesos.forEach(function(p){ pintarAvanceProc(p.id); });
+    var pendientesRev = S.procesos.filter(function(p){ return (p.enSeccion || p.asignado) && !S.revisiones[p.id]; }).length;
+    $('#pfill').style.width = (activos.length && tot ? Math.round(puntos * 100 / (activos.length * tot)) : 0) + '%';
+    $('#ptext').textContent = (pendientesRev ? pendientesRev + ' por marcar en el paso 1 · ' : '') + completos + ' de ' + activos.length +
+      (activos.length === 1 ? ' proceso completo' : ' procesos completos');
   }
 
   // ------------------------------------------------------------ guardado
@@ -820,6 +1025,7 @@
   function programarGuardado(pid, qid, espera){
     var key = pid + '-' + qid;
     sinGuardar[key] = true;
+    porRevisar[key] = true;
     if (!grab[key]) estado(key, 'Sin guardar…');
     clearTimeout(timers[key]);
     timers[key] = setTimeout(function(){ guardar(pid, qid); }, espera === undefined ? 1200 : espera);
@@ -833,8 +1039,10 @@
     var sistemas = Array.prototype.map.call(document.querySelectorAll('[data-sis="' + CSS.escape(key) + '"]:checked'), function(c){ return c.value; });
     return api('/r/respuesta', {proceso_id: pid, pregunta: qid, texto: texto, sistemas: sistemas}).then(function(){
       delete sinGuardar[key];
-      (S.respuestas[pid] = S.respuestas[pid] || {})[qid] = {texto: texto, sistemas: sistemas};
+      var ant = respuesta(pid, qid);
+      (S.respuestas[pid] = S.respuestas[pid] || {})[qid] = {texto: texto, sistemas: sistemas, checklist: ant.checklist || {}};
       if (!grab[key]) estado(key, 'Guardado', 'ok');
+      pintarChecklist(pid, qid);
       actualizarAvance();
     }).catch(function(err){
       estado(key, 'No se guardó: ' + err.message + '. Vuelve a escribir para reintentar.', 'warn');
@@ -927,7 +1135,10 @@
       if (!texto){ estado(key, 'No se entendió el audio. Intenta de nuevo más cerca del micrófono o escribe.', 'warn'); return; }
       var ta = document.getElementById('tx-' + key);
       ta.value = (ta.value.trim() ? ta.value.trim() + '\n\n' : '') + texto;
-      return guardar(g.pid, g.qid).then(function(){ estado(key, 'Listo. Revisa el texto y corrige lo que haga falta (se guarda solo).', 'ok'); });
+      return guardar(g.pid, g.qid).then(function(){
+        estado(key, 'Listo. Revisa el texto y corrige lo que haga falta (se guarda solo).', 'ok');
+        verificar(g.pid, g.qid);
+      });
     }).catch(function(err){
       delete grab[key];
       restaurarBoton(key);

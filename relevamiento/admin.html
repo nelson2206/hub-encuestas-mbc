@@ -173,7 +173,7 @@
 
       <div id="tMapa">
         <div class="filtros">
-          <div><label for="fTexto">Buscar en el mapa</label><input type="search" id="fTexto" placeholder="Nombre, código, macroproceso…"></div>
+          <div><label for="fTexto">Buscar en el mapa</label><input type="search" id="fTexto" placeholder="Nombre, código, macroproceso o persona…"></div>
           <div><label for="fGer">Gerencia</label><select id="fGer"></select></div>
           <div><label for="fEst">Estado</label><select id="fEst">
             <option value="">Todos</option><option value="sin_cobertura">Sin cobertura</option><option value="en_curso">En curso</option>
@@ -206,7 +206,12 @@
             <div id="msgCarga" style="margin-top:8px"></div>
           </div>
           <div>
-            <h3 style="font-size:14px">Glosario de transcripción</h3>
+            <h3 style="font-size:14px">Logo del cliente en la encuesta</h3>
+            <p class="muted">Aparece junto a la marca MBC en la encuesta. PNG, JPG, WEBP o SVG de hasta 300 KB, mejor con fondo blanco o transparente.</p>
+            <div class="row"><img id="logoPrev" alt="Logo actual del cliente" class="hidden" style="height:44px;width:auto;background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 10px"><span class="muted" id="logoNada">Sin logo</span></div>
+            <div class="row" style="margin-top:8px"><input type="file" id="inLogo" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="width:auto" aria-label="Subir logo del cliente">
+              <button class="btn btn-ghost btn-xs hidden" id="btnLogoQuitar">Quitar logo</button><span class="muted" id="msgLogo"></span></div>
+            <h3 style="font-size:14px;margin-top:22px">Glosario de transcripción</h3>
             <p class="muted">Ayuda al reconocimiento de voz con siglas y nombres propios. Los nombres de la hoja Sistemas se agregan solos.</p>
             <input type="text" id="inGlosario">
             <div class="row" style="margin-top:8px"><button class="btn btn-ghost btn-xs" id="btnGlosario">Guardar glosario</button><span class="muted" id="msgGlosario"></span></div>
@@ -238,7 +243,10 @@
   var API = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8787' : 'https://voz-relevamiento-api.minsait-business-consulting-pe.workers.dev';
   // Carpeta de la encuesta: la misma si la consola se abrió como ".../admin.html" o como ".../admin".
   var URL_ENCUESTA = new URL('./', location.href).href;
-  var PREG = {q1:'Objetivo, inicio y fin', q2:'Actividades y participantes', q3:'Sistemas y manualidad', q4:'Terceros', q5:'Datos personales', q6:'Indicadores, normas y frecuencia'};
+  var PREG = {q1:'Objetivo, inicio y fin', q2:'Actividades y participantes', q3:'Sistemas y manualidad', q4:'Terceros', q5:'Datos personales', q6:'Indicadores, normas y frecuencia',
+    b1:'Bloque 1 · Objetivo, inicio y fin, responsable y áreas', b2:'Bloque 2 · Pasos, sistemas y volumen', b3:'Bloque 3 · Terceros, datos personales, indicadores y normas'};
+  var PREG_ANTES = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6'];
+  var ORIGEN_TXT = {encuestado:'La eligió', consultor:'Asignado por el equipo', inventario:'Inventario anterior (por nombre)'};
   var CAMPOS = [
     ['tipo_proceso','Tipo de proceso'],['dueno_proceso','Dueño del proceso'],['areas_intervienen','Áreas que intervienen'],
     ['objetivo','Objetivo'],['actividades','Actividades principales'],['inicio_fin','Evento de inicio y fin'],
@@ -395,6 +403,7 @@
       $('#cTitulo').textContent = C.campana.nombre;
       $('#cSub').textContent = C.campana.cliente + ' · creada el ' + C.campana.creada.slice(0,10);
       $('#inGlosario').value = C.campana.glosario || '';
+      pintarLogo();
       llenarFiltros();
       pintarTodo();
     }).catch(function(err){ alert(err.message); });
@@ -403,10 +412,13 @@
 
   // Índices por proceso: quién lo tomó, quién respondió y qué dijo cada uno.
   function indexar(){
-    IX = {rev:{}, resp:{}, est:{}, enc:{}};
+    IX = {rev:{}, resp:{}, todas:{}, est:{}, enc:{}};
     C.encuestados.forEach(function(e){ IX.enc[e.id] = e; });
     C.revisiones.forEach(function(r){ (IX.rev[r.proceso_id] = IX.rev[r.proceso_id] || []).push(r); });
     C.respuestas.forEach(function(r){
+      // Todas las filas (también las que solo tienen marcas del checklist) cuentan para saber si un proceso está completo.
+      var t = IX.todas[r.proceso_id] = IX.todas[r.proceso_id] || {};
+      (t[r.encuestado_id] = t[r.encuestado_id] || []).push(r);
       if (!((r.texto || '').trim() || r.sistemas.length)) return;
       var m = IX.resp[r.proceso_id] = IX.resp[r.proceso_id] || {};
       (m[r.encuestado_id] = m[r.encuestado_id] || []).push(r);
@@ -420,16 +432,39 @@
   function desactualizado(pid){ var e = estructuradoDe(pid); return !!e && respuestasDe(pid).some(function(r){ return r.actualizado > e.generado; }); }
   function pendienteIA(pid){ return respuestasDe(pid).length > 0 && (!estructuradoDe(pid) || desactualizado(pid)); }
 
-  // Cobertura de un proceso. Respondido: alguien respondió las 6 preguntas. En curso: alguien lo
+  // Avance de una persona en un proceso: puntos del checklist listos (cubiertos o "no aplica") en los 3 bloques.
+  // Quien respondió las 6 preguntas del formato anterior cuenta como completo.
+  function totalPuntos(){ return (C.bloques || []).reduce(function(a, b){ return a + b.puntos.length; }, 0); }
+  function puntoListo(ck, id){ var x = ck && ck[id]; return !!x && (x.estado === 'cubierto' || x.estado === 'no_aplica'); }
+  function avancePersona(pid, eid){
+    var filas = (IX.todas[pid] || {})[eid] || [], por = {};
+    filas.forEach(function(r){ por[r.pregunta] = r; });
+    var legado = PREG_ANTES.every(function(q){ var r = por[q]; return r && ((r.texto || '').trim() || r.sistemas.length); });
+    var listos = 0, total = totalPuntos();
+    (C.bloques || []).forEach(function(b){ var ck = (por[b.id] || {}).checklist || {}; b.puntos.forEach(function(pt){ if (puntoListo(ck, pt[0])) listos++; }); });
+    return {listos: listos, total: total, legado: legado, completo: legado || (total > 0 && listos === total)};
+  }
+  function textoAvance(a){ return a.completo ? (a.legado && a.listos < a.total ? 'Completo (formato anterior)' : 'Completo') : a.listos + ' de ' + a.total + ' puntos'; }
+  function resumenChecklist(r){
+    var b = (C.bloques || []).filter(function(x){ return x.id === r.pregunta; })[0];
+    if (!b) return '';
+    var ck = r.checklist || {}, falta = [], na = [];
+    b.puntos.forEach(function(pt){
+      var x = ck[pt[0]], marca = x && x.fuente === 'persona' ? ' (lo marcó la persona)' : '';
+      if (x && x.estado === 'no_aplica') na.push(pt[1] + marca);
+      else if (!puntoListo(ck, pt[0])) falta.push(pt[1]);
+    });
+    return [falta.length ? 'Falta: ' + falta.join('; ') : 'Checklist completo', na.length ? 'No aplica: ' + na.join('; ') : ''].filter(Boolean).join(' · ');
+  }
+
+  // Cobertura de un proceso. Respondido: alguien completó el checklist de los 3 bloques. En curso: alguien lo
   // tomó o empezó a responder. Ya no se hace: solo hay marcas de "ya no se hace". Sin cobertura: nadie lo tomó.
   function cobertura(pid){
     var revs = IX.rev[pid] || [], resp = IX.resp[pid] || {};
     var personas = {};
     revs.forEach(function(r){ if (r.estado === 'vigente' || r.estado === 'cambio') personas[r.encuestado_id] = 1; });
     Object.keys(resp).forEach(function(eid){ personas[eid] = 1; });
-    var completos = Object.keys(resp).filter(function(eid){
-      var q = {}; resp[eid].forEach(function(r){ q[r.pregunta] = 1; }); return Object.keys(q).length >= 6;
-    }).length;
+    var completos = Object.keys(IX.todas[pid] || {}).filter(function(eid){ return avancePersona(pid, eid).completo; }).length;
     var noExiste = revs.filter(function(r){ return r.estado === 'no_existe'; }).length;
     var n = Object.keys(personas).length;
     var estado = completos ? 'respondido' : n ? 'en_curso' : noExiste ? 'no_vigente' : 'sin_cobertura';
@@ -493,12 +528,12 @@
     $('#cobertura').innerHTML = total ? barraCob(cuenta, total) +
       '<div class="leyenda">' + ESTADO_ORDEN.map(function(k){ return '<span><i class="seg-' + k + '"></i>' + ESTADO_TXT[k] + ': <b>' + cuenta[k] + '</b></span>'; }).join('') +
       '<span>Cobertura: <b>' + pct(cuenta.respondido, vivos) + '</b> (' + cuenta.respondido + ' de ' + vivos + ' procesos vigentes respondidos)</span></div>' +
-      '<p class="definicion">Respondido: al menos una persona respondió las 6 preguntas. En curso: alguien lo eligió o empezó a responder. Sin cobertura: nadie lo ha tomado. Ya no se hace: solo hay marcas de que no existe.</p>' : '';
+      '<p class="definicion">Respondido: al menos una persona completó los 3 bloques (todos los puntos del checklist cubiertos o marcados «no aplica»). En curso: alguien lo eligió o empezó a responder. Sin cobertura: nadie lo ha tomado. Ya no se hace: solo hay marcas de que no existe.</p>' : '';
 
     var texto = sinTildes($('#fTexto').value.trim()), fG = $('#fGer').value, fE = $('#fEst').value;
     var lista = C.procesos.filter(function(p){
       if (fG && p.gerencia !== fG) return false;
-      if (texto && sinTildes([p.codigo, p.macroproceso, p.proceso, p.subproceso, p.seccion].join(' ')).indexOf(texto) < 0) return false;
+      if (texto && sinTildes([p.codigo, p.macroproceso, p.proceso, p.subproceso, p.seccion, p.personas || '', participantesDe(p.id)].join(' ')).indexOf(texto) < 0) return false;
       if (fE === 'nuevo') return p.fuente === 'nuevo';
       if (fE === 'ia_pend') return pendienteIA(p.id);
       if (fE) return cobertura(p.id).estado === fE;
@@ -844,14 +879,14 @@
     h += '<h3 style="font-size:14px;margin-top:6px">Personas</h3>';
     if (!Object.keys(ids).length) h += '<p class="muted">Nadie lo ha tomado todavía. Envía el enlace de la gerencia (pestaña «Plan de barrido») o pide a alguien de la sección que lo elija.</p>';
     else {
-      h += '<div class="tblwrap"><table><thead><tr><th>Persona</th><th>Área</th><th>Relación con el proceso</th><th class="num">Preguntas respondidas</th></tr></thead><tbody>';
+      h += '<div class="tblwrap"><table><thead><tr><th>Persona</th><th>Área</th><th>Relación con el proceso</th><th class="num">Avance del checklist</th></tr></thead><tbody>';
       Object.keys(ids).forEach(function(eid){
         var en = IX.enc[eid] || {};
         var rv = (IX.rev[pid] || []).filter(function(r){ return r.encuestado_id === eid; })[0];
-        var q = {}; ((IX.resp[pid] || {})[eid] || []).forEach(function(r){ q[r.pregunta] = 1; });
+        var av = avancePersona(pid, eid);
         h += '<tr><td>' + esc(en.nombre) + '<div class="muted">' + esc(en.rol || '') + '</div></td><td>' + esc(en.gerencia + ' · ' + en.seccion) + '</td>' +
           '<td>' + esc(rv ? RELACION_TXT[rv.estado] || rv.estado : 'respondió') + (rv && rv.comentario ? '<div class="muted">' + esc(rv.comentario) + '</div>' : '') + '</td>' +
-          '<td class="num">' + Object.keys(q).length + ' de 6</td></tr>';
+          '<td class="num">' + (av.completo ? '<span class="chip c-ok">' + esc(textoAvance(av)) + '</span>' : esc(textoAvance(av))) + '</td></tr>';
       });
       h += '</tbody></table></div>';
     }
@@ -872,13 +907,22 @@
       h += '<h3 style="font-size:14px;margin-top:16px">Preguntas para la reunión de validación</h3><ol>' + (d.preguntas_validacion || []).map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>';
     }
 
-    if (rs.length){
+    // También se muestran los bloques sin texto que tienen marcas de la persona (p. ej. "no aplica" en indicadores).
+    var conMarcas = function(r){ return Object.keys(r.checklist || {}).some(function(k){ return k.charAt(0) !== '_'; }); };
+    var contaron = {};
+    Object.keys(IX.todas[pid] || {}).forEach(function(eid){
+      var filas = IX.todas[pid][eid].filter(function(r){ return (r.texto || '').trim() || r.sistemas.length || conMarcas(r); });
+      if (filas.length) contaron[eid] = filas;
+    });
+    if (Object.keys(contaron).length){
       h += '<h3 style="font-size:14px;margin-top:18px">Lo que contaron</h3>';
-      Object.keys(IX.resp[pid]).forEach(function(eid){
+      Object.keys(contaron).forEach(function(eid){
         var en = IX.enc[eid] || {};
         h += '<div style="margin-top:10px"><b>' + esc(en.nombre) + '</b> <span class="muted">' + esc([en.rol, en.gerencia + ' · ' + en.seccion].filter(Boolean).join(' · ')) + '</span></div>';
-        IX.resp[pid][eid].slice().sort(function(a,b){ return a.pregunta.localeCompare(b.pregunta); }).forEach(function(r){
-          h += '<div class="resp"><b>' + esc(PREG[r.pregunta]) + '</b>\n' + esc(r.texto) + (r.sistemas.length ? '\nSistemas marcados: ' + esc(r.sistemas.join(', ')) : '') + '</div>';
+        contaron[eid].slice().sort(function(a,b){ return a.pregunta.localeCompare(b.pregunta); }).forEach(function(r){
+          var ckr = resumenChecklist(r);
+          h += '<div class="resp"><b>' + esc(PREG[r.pregunta] || r.pregunta) + '</b>\n' + (esc(r.texto) || '<span class="muted">(sin texto)</span>') + (r.sistemas.length ? '\nSistemas marcados: ' + esc(r.sistemas.join(', ')) : '') +
+            (ckr ? '\n<span class="muted">' + esc(ckr) + '</span>' : '') + '</div>';
         });
       });
     }
@@ -928,8 +972,8 @@
     return 'Asunto: Relevamiento de procesos ' + C.campana.cliente + (g ? ' · ' + g : '') + '\n\n' +
       'Hola:\n\nComo parte del inventario de procesos de ' + C.campana.cliente + ', te pedimos contarnos cómo funcionan los procesos en los que participas.\n\n' +
       '1. Entra a este enlace: ' + enlaceAbierto(g) + '\n' +
-      '2. Escribe unas letras del nombre de tu proceso y elígelo de la lista. Si no aparece, puedes agregarlo.\n' +
-      '3. Responde las preguntas hablando o por escrito. Todo se guarda solo y puedes volver cuando quieras.\n\n' +
+      '2. Escribe unas letras del nombre de tu proceso (o tu nombre y apellido, para ver los procesos donde figuras en el inventario anterior) y elígelos. Si alguno no aparece, puedes agregarlo.\n' +
+      '3. Cuéntanos cada proceso en 3 bloques, hablando o por escrito. Cada bloque te muestra lo que necesitamos saber y te avisa si falta algo. Todo se guarda solo y puedes volver cuando quieras.\n\n' +
       'Tus respuestas se usan solo para el inventario de procesos. Después te buscaremos para una reunión corta de validación.\n\nGracias,\nEquipo consultor';
   }
 
@@ -1025,9 +1069,25 @@
 
   // ------------------------------------------------------------ personas y enlaces
   function enlace(en){ return URL_ENCUESTA + '?k=' + en.token; }
+  function mismaArea(a, b){ return sinTildes(a).replace(/\s+/g, ' ').trim() === sinTildes(b).replace(/\s+/g, ' ').trim(); }
+  // Procesos que la persona ve en su encuesta: los de su sección, los asignados, los que eligió y los que agregó.
+  function listaPersona(en){
+    var asig = {}, revs = {};
+    C.asignaciones.forEach(function(a){ if (a.encuestado_id === en.id) asig[a.proceso_id] = a.origen || 'encuestado'; });
+    C.revisiones.forEach(function(r){ if (r.encuestado_id === en.id) revs[r.proceso_id] = r; });
+    var out = [];
+    C.procesos.forEach(function(p){
+      var sec = p.fuente !== 'nuevo' && mismaArea(p.gerencia, en.gerencia) && mismaArea(p.seccion, en.seccion);
+      var propio = p.creado_por === en.id;
+      if (!sec && !propio && !asig[p.id]) return;
+      var rv = revs[p.id];
+      out.push({p: p, origen: sec ? 'seccion' : propio ? 'propio' : asig[p.id], porque: sec ? 'Su sección' : propio ? 'Lo agregó' : ORIGEN_TXT[asig[p.id]] || 'Asignado',
+        rev: rv, activo: !!rv && (rv.estado === 'vigente' || rv.estado === 'cambio'), avance: avancePersona(p.id, en.id),
+        respondido: !!(IX.resp[p.id] || {})[en.id]});
+    });
+    return out;
+  }
   function pintarEncuestados(){
-    var activosPor = {};
-    C.revisiones.forEach(function(r){ if (r.estado === 'vigente' || r.estado === 'cambio') activosPor[r.encuestado_id] = (activosPor[r.encuestado_id] || 0) + 1; });
     var porCorreo = {}, areasProc = {};
     C.encuestados.forEach(function(en){ var c = (en.correo || '').toLowerCase(); if (c) porCorreo[c] = (porCorreo[c] || 0) + 1; });
     C.procesos.forEach(function(p){ if (p.fuente !== 'nuevo') areasProc[sinTildes(p.gerencia) + '|' + sinTildes(p.seccion)] = 1; });
@@ -1035,28 +1095,49 @@
     var h = '<div class="row" style="margin-bottom:10px"><button class="btn btn-ghost btn-xs" id="btnEnlacesXls">Descargar enlaces personales (Excel)</button>' +
       '<span class="muted">Cada enlace es personal: da acceso a las respuestas de esa persona. Envíalo solo a ella. Los enlaces abren <code>' + esc(URL_ENCUESTA) + '</code></span></div>';
     if (repetidos) h += '<p class="msg warn">' + repetidos + (repetidos === 1 ? ' correo aparece' : ' correos aparecen') + ' más de una vez. Deja un solo registro por persona (el del enlace que le enviaste) y borra los demás: «Seleccionar duplicados» marca los repetidos sin respuestas. Las cargas nuevas ya no duplican: si el correo existe, actualizan su área.</p>';
-    h += '<div class="row" style="margin-bottom:8px"><button class="btn btn-xs" id="btnBorrarSel" disabled>Borrar seleccionados</button>' +
+    var conNombres = C.procesos.some(function(p){ return (p.personas || '').trim(); });
+    h += '<div class="row" style="margin-bottom:8px"><input type="search" id="pBuscar" placeholder="Buscar por nombre, correo o área…" style="width:280px" aria-label="Buscar personas">' +
+      (conNombres ? '<button class="btn btn-navy btn-xs" id="btnAsigInv" title="A cada persona se le agregan los procesos donde figura con su nombre en el inventario anterior">Asignar procesos según el inventario anterior</button>' : '') +
+      '<button class="btn btn-xs" id="btnBorrarSel" disabled>Borrar seleccionados</button>' +
       (repetidos ? '<button class="btn btn-ghost btn-xs" id="btnSelDup">Seleccionar duplicados</button>' : '') +
       '<span class="muted" id="selMsg"></span></div>';
-    h += '<div class="tblwrap"><table><thead><tr><th><input type="checkbox" id="selTodos" aria-label="Seleccionar a todas las personas"></th><th>Nombre</th><th>Gerencia · sección</th><th>Rol o cargo</th><th>Origen</th><th>Estado</th><th class="num">Procesos</th><th class="num">Respuestas</th><th>Última actividad</th><th></th></tr></thead><tbody>';
+    h += '<div class="tblwrap"><table><thead><tr><th><input type="checkbox" id="selTodos" aria-label="Seleccionar a todas las personas"></th><th>Nombre</th><th>Gerencia · sección</th><th>Rol o cargo</th><th>Origen</th><th>Estado</th><th class="num">Procesos completos</th><th class="num">Respuestas</th><th>Última actividad</th><th></th></tr></thead><tbody>';
     C.encuestados.forEach(function(en){
       var n = C.respuestas.filter(function(r){ return r.encuestado_id === en.id && (r.texto || '').trim(); }).length;
       var cls = en.estado === 'enviado' ? 'c-ok' : en.estado === 'en_curso' ? 'c-inf' : 'c-mut';
       var lbl = en.estado === 'enviado' ? 'terminó' : en.estado === 'en_curso' ? 'en curso' : 'sin empezar';
       var dup = en.correo && porCorreo[en.correo.toLowerCase()] > 1;
       var sinArea = !areasProc[sinTildes(en.gerencia) + '|' + sinTildes(en.seccion)];
-      h += '<tr><td><input type="checkbox" data-sel="' + esc(en.id) + '" data-resp="' + n + '" aria-label="Seleccionar a ' + esc(en.nombre) + '"></td>' +
+      var L = listaPersona(en), act = L.filter(function(x){ return x.activo; });
+      var comp = act.filter(function(x){ return x.avance.completo; }).length;
+      var porMarcar = L.filter(function(x){ return !x.rev && (x.origen === 'seccion' || x.origen === 'consultor' || x.origen === 'inventario'); }).length;
+      h += '<tr data-texto="' + esc(sinTildes([en.nombre, en.correo, en.gerencia, en.seccion, en.rol].join(' '))) + '"><td><input type="checkbox" data-sel="' + esc(en.id) + '" data-resp="' + n + '" aria-label="Seleccionar a ' + esc(en.nombre) + '"></td>' +
         '<td><b>' + esc(en.nombre) + '</b><div class="muted">' + esc(en.correo) + '</div>' + (dup ? '<span class="chip c-warn">Correo repetido</span>' : '') + '</td>' +
         '<td>' + esc(en.gerencia + ' · ' + en.seccion) + (sinArea ? '<div><span class="chip c-warn" title="Ningún proceso del mapa tiene esta gerencia y sección: la persona tendrá que buscar sus procesos">Área sin procesos</span></div>' : '') + '</td><td>' + esc(en.rol) + '</td>' +
         '<td>' + (en.origen === 'abierto' ? 'Enlace abierto' : 'Carga') + '</td>' +
-        '<td><span class="chip ' + cls + '">' + lbl + '</span></td><td class="num">' + (activosPor[en.id] || 0) + '</td><td class="num">' + n + '</td><td>' + esc(fecha(en.actualizado)) + '</td>' +
-        '<td><div class="row" style="flex-wrap:nowrap"><button class="btn btn-ghost btn-xs" data-copiar="' + esc(en.token) + '">Copiar enlace</button>' +
+        '<td><span class="chip ' + cls + '">' + lbl + '</span></td>' +
+        '<td class="num">' + (act.length ? comp + ' de ' + act.length : '—') + (porMarcar ? '<div class="muted">' + porMarcar + ' por marcar</div>' : '') + '</td>' +
+        '<td class="num">' + n + '</td><td>' + esc(fecha(en.actualizado)) + '</td>' +
+        '<td><div class="row" style="flex-wrap:nowrap"><button class="btn btn-ghost btn-xs" data-procs="' + esc(en.id) + '">Procesos</button><button class="btn btn-ghost btn-xs" data-copiar="' + esc(en.token) + '">Copiar enlace</button>' +
         '<button class="btn-link" data-quitar="' + esc(en.id) + '">Borrar</button></div></td></tr>';
     });
     if (!C.encuestados.length) h += '<tr><td colspan="10" class="muted">Todavía no hay personas: carga el Excel o activa el enlace abierto.</td></tr>';
     h += '</tbody></table></div>';
     $('#tEncuestados').innerHTML = h;
     var marcar = marcarSeleccion;
+    $('#pBuscar').addEventListener('input', function(){
+      var t = sinTildes(this.value.trim());
+      Array.prototype.forEach.call(document.querySelectorAll('#tEncuestados tr[data-texto]'), function(tr){ tr.classList.toggle('hidden', !!t && tr.dataset.texto.indexOf(t) < 0); });
+    });
+    if ($('#btnAsigInv')) $('#btnAsigInv').addEventListener('click', function(){
+      if (!confirm('A cada persona cargada se le agregan a su lista los procesos donde figura con su nombre y apellido en el inventario anterior. ' +
+        'Ella confirma en la encuesta su relación con cada uno. No se quita nada de lo que ya tiene. ¿Continuar?')) return;
+      var b = this; b.disabled = true;
+      api('/a/asignar-por-inventario', {campana_id: C.campana.id}).then(function(j){
+        alert('De ' + j.total_personas + ' personas, ' + j.personas + ' figuran con su nombre en el inventario anterior. Sus procesos ya están en su lista.');
+        abrir(C.campana.id);
+      }).catch(function(err){ b.disabled = false; alert(err.message); });
+    });
     // Duplicados: por cada correo repetido se conserva un registro (el que ya tiene respuestas, o el que tiene el área del mapa)
     // y se seleccionan los demás que todavía no respondieron.
     if ($('#btnSelDup')) $('#btnSelDup').addEventListener('click', function(){
@@ -1115,7 +1196,68 @@
       .then(function(){ abrir(C.campana.id); })
       .catch(function(err){ if (boton) boton.disabled = false; alert(err.message); abrir(C.campana.id); });
   }
+  // Lista de procesos de una persona: la que ve en su encuesta, con su avance. Aquí se le asignan o quitan procesos.
+  function procesosPersona(eid){
+    var en = IX.enc[eid]; if (!en) return;
+    var L = listaPersona(en).sort(function(a, b){ return (b.activo - a.activo) || porCodigo(a.p, b.p); });
+    var act = L.filter(function(x){ return x.activo; });
+    $('#dlgT').textContent = 'Procesos de ' + en.nombre;
+    $('#dlgS').textContent = en.gerencia + ' · ' + en.seccion + ' · ' + act.filter(function(x){ return x.avance.completo; }).length + ' de ' + act.length + ' completos';
+    var h = '<p class="muted" style="margin-top:0">Es la lista que la persona ve en su encuesta. Los de su sección aparecen solos; los demás se asignan aquí o ella los elige con el buscador. ' +
+      'Un proceso asignado queda «por marcar» hasta que ella confirma su relación. Lo que ya respondió no se quita desde aquí.</p>';
+    h += '<div class="tblwrap"><table><thead><tr><th>Proceso</th><th>Por qué está en su lista</th><th>Relación</th><th>Avance</th><th></th></tr></thead><tbody>';
+    L.forEach(function(x){
+      var p = x.p, quitable = x.origen !== 'seccion' && x.origen !== 'propio' && !x.respondido;
+      h += '<tr><td>' + (p.codigo ? '<span class="muted">' + esc(p.codigo) + '</span> ' : '') + '<b>' + esc(nombreProc(p)) + '</b><div class="muted">' + esc(p.gerencia + ' · ' + p.seccion) + '</div></td>' +
+        '<td>' + esc(x.porque) + '</td><td>' + (x.rev ? esc(RELACION_TXT[x.rev.estado] || x.rev.estado) : '<span class="chip c-warn">por marcar</span>') + '</td>' +
+        '<td>' + (x.activo ? (x.avance.completo ? '<span class="chip c-ok">' + esc(textoAvance(x.avance)) + '</span>' : esc(textoAvance(x.avance))) : '') + '</td>' +
+        '<td>' + (quitable ? '<button class="btn-link" data-quitar-proc="' + esc(p.id) + '">Quitar</button>' : '') + '</td></tr>';
+    });
+    if (!L.length) h += '<tr><td colspan="5" class="muted">No tiene procesos en su lista: asígnale los suyos abajo o pídele que los busque en la encuesta.</td></tr>';
+    h += '</tbody></table></div>';
+    h += '<h3 style="font-size:14px;margin-top:18px">Asignar procesos</h3>' +
+      '<input type="search" id="apBuscar" placeholder="Nombre, código, área o persona del inventario anterior…" aria-label="Buscar procesos para asignar">' +
+      '<div id="apRes" style="margin-top:8px"></div><span class="muted" id="apMsg"></span>';
+    // Contenedor propio: se reemplaza en cada refresco, así el clic no se engancha dos veces.
+    $('#dlgB').innerHTML = '<div id="ppCont">' + h + '</div>';
+    if (!$('#dlg').open) $('#dlg').showModal();
+    var ya = {}; L.forEach(function(x){ ya[x.p.id] = 1; });
+    var refrescar = function(){ return abrir(C.campana.id).then(function(){ procesosPersona(eid); }); };
+    $('#apBuscar').addEventListener('input', function(){
+      var ts = sinTildes(this.value.trim()).split(/\s+/).filter(Boolean);
+      if (!ts.length || ts.join('').length < 2){ $('#apRes').innerHTML = ''; return; }
+      var res = C.procesos.filter(function(p){
+        if (ya[p.id]) return false;
+        var hay = sinTildes([p.codigo, p.gerencia, p.seccion, p.macroproceso, p.proceso, p.subproceso, p.personas || ''].join(' '));
+        return ts.every(function(t){ return hay.indexOf(t) >= 0; });
+      }).sort(porCodigo);
+      $('#apRes').innerHTML = (res.length ? '<table><tbody>' + res.slice(0, 20).map(function(p){
+        return '<tr><td>' + (p.codigo ? '<span class="muted">' + esc(p.codigo) + '</span> ' : '') + '<b>' + esc(nombreProc(p)) + '</b><div class="muted">' + esc(p.gerencia + ' · ' + p.seccion) + '</div></td>' +
+          '<td style="text-align:right"><button class="btn btn-ghost btn-xs" data-asignar="' + esc(p.id) + '">Asignar</button></td></tr>';
+      }).join('') + '</tbody></table>' : '<p class="muted">Ningún proceso coincide (o ya están en su lista).</p>') +
+        (res.length > 20 ? '<p class="muted">Se muestran 20 de ' + res.length + ': escribe más para afinar.</p>' : '');
+    });
+    $('#ppCont').addEventListener('click', function(ev){
+      var b = ev.target.closest('[data-asignar]'), q = ev.target.closest('[data-quitar-proc]');
+      if (!b && !q) return;
+      var cuerpo = {encuestado_id: eid};
+      if (b) cuerpo.agregar = [b.dataset.asignar];
+      else {
+        if (!confirm('¿Quitar este proceso de la lista de ' + en.nombre + '?')) return;
+        cuerpo.quitar = [q.dataset.quitarProc];
+      }
+      (b || q).disabled = true;
+      $('#apMsg').textContent = 'Guardando…';
+      api('/a/asignar', cuerpo).then(function(j){
+        if (j.con_respuesta) alert('Ese proceso ya tiene respuestas de esta persona: no se quitó.');
+        return refrescar();
+      }).catch(function(err){ (b || q).disabled = false; $('#apMsg').textContent = err.message; });
+    });
+  }
+
   $('#tEncuestados').addEventListener('click', function(e){
+    var pr = e.target.closest('[data-procs]');
+    if (pr) return procesosPersona(pr.dataset.procs);
     var q = e.target.closest('[data-quitar]');
     if (q){
       var n = C.respuestas.filter(function(r){ return r.encuestado_id === q.dataset.quitar && (r.texto || '').trim(); }).length;
@@ -1219,6 +1361,31 @@
       abrir(C.campana.id);
     }).catch(function(err){ $('#msgCarga').innerHTML = '<div class="msg warn">' + esc(err.message) + '</div>'; b.disabled = false; });
   });
+  // Logo del cliente: se guarda como imagen incrustada (data URI) en la campaña.
+  function pintarLogo(){
+    var l = (C && C.campana.logo) || '';
+    $('#logoPrev').classList.toggle('hidden', !l);
+    if (l) $('#logoPrev').src = l; else $('#logoPrev').removeAttribute('src');
+    $('#logoNada').classList.toggle('hidden', !!l);
+    $('#btnLogoQuitar').classList.toggle('hidden', !l);
+  }
+  function guardarLogo(logo){
+    $('#msgLogo').textContent = 'Guardando…';
+    return api('/a/campana/logo', {campana_id: C.campana.id, logo: logo}).then(function(){
+      C.campana.logo = logo; pintarLogo();
+      $('#msgLogo').textContent = logo ? 'Guardado: ya se ve en la encuesta.' : 'Logo quitado.';
+    }).catch(function(err){ $('#msgLogo').textContent = err.message; });
+  }
+  $('#inLogo').addEventListener('change', function(ev){
+    var f = ev.target.files[0]; if (!f) return;
+    if (!/^image\/(png|jpeg|webp|svg\+xml)$/.test(f.type)){ $('#msgLogo').textContent = 'Usa una imagen PNG, JPG, WEBP o SVG.'; return; }
+    if (f.size > 300 * 1024){ $('#msgLogo').textContent = 'La imagen pesa ' + Math.round(f.size / 1024) + ' KB: el máximo es 300 KB.'; return; }
+    var rd = new FileReader();
+    rd.onload = function(){ guardarLogo(String(rd.result)).then(function(){ ev.target.value = ''; }); };
+    rd.readAsDataURL(f);
+  });
+  $('#btnLogoQuitar').addEventListener('click', function(){ if (confirm('¿Quitar el logo de la encuesta?')) guardarLogo(''); });
+
   $('#btnGlosario').addEventListener('click', function(){
     api('/a/campana/glosario', {campana_id: C.campana.id, glosario: $('#inGlosario').value}).then(function(){ $('#msgGlosario').textContent = 'Guardado'; })
       .catch(function(err){ $('#msgGlosario').textContent = err.message; });
@@ -1256,7 +1423,8 @@
     var resp = C.respuestas.filter(function(r){ return (r.texto || '').trim() || r.sistemas.length; }).map(function(r){
       var p = C.procesos.filter(function(x){ return x.id === r.proceso_id; })[0] || {};
       var en = IX.enc[r.encuestado_id] || {};
-      return {'Código': p.codigo, Proceso: nombreProc(p), Encuestado: en.nombre, 'Área de la persona': (en.gerencia || '') + ' · ' + (en.seccion || ''), Rol: en.rol, Pregunta: PREG[r.pregunta], Respuesta: r.texto, 'Sistemas marcados': r.sistemas.join(', '), Fecha: fecha(r.actualizado)};
+      return {'Código': p.codigo, Proceso: nombreProc(p), Encuestado: en.nombre, 'Área de la persona': (en.gerencia || '') + ' · ' + (en.seccion || ''), Rol: en.rol, Pregunta: PREG[r.pregunta] || r.pregunta, Respuesta: r.texto,
+        'Sistemas marcados': r.sistemas.join(', '), Checklist: resumenChecklist(r), Fecha: fecha(r.actualizado)};
     });
     var plan = resumenSecciones().map(function(s){
       return {Gerencia: s.gerencia, 'Sección': s.seccion, 'Procesos vigentes': s.procesos, Respondidos: s.respondidos, 'En curso': s.enCurso, 'Sin cobertura': s.sinCobertura,
@@ -1269,7 +1437,7 @@
     add(plan, 'Plan de barrido', [{wch:18},{wch:22},{wch:10},{wch:11},{wch:9},{wch:12},{wch:12},{wch:9},{wch:11},{wch:11},{wch:60},{wch:70}]);
     add(est, 'Estado de campos', Object.keys(est[0] || {}).map(function(){ return {wch:18}; }));
     add(preg, 'Preguntas validación', [{wch:12},{wch:16},{wch:20},{wch:34},{wch:4},{wch:90}]);
-    add(resp, 'Respuestas', [{wch:12},{wch:30},{wch:24},{wch:26},{wch:12},{wch:26},{wch:90},{wch:30},{wch:16}]);
+    add(resp, 'Respuestas', [{wch:12},{wch:30},{wch:24},{wch:26},{wch:12},{wch:26},{wch:90},{wch:30},{wch:60},{wch:16}]);
     XLSX.writeFile(wb, 'Inventario de procesos - ' + C.campana.nombre + ' - ' + new Date().toISOString().slice(0,10) + '.xlsx');
   });
 })();

@@ -1,7 +1,7 @@
 -- Voz MBC · Relevamiento de procesos — base D1 (voz-relevamiento)
 -- Base nueva: npx wrangler d1 execute voz-relevamiento --remote --file=schema.sql
 -- Base creada antes del 2026-09-28: aplicar en su lugar migracion-002.sql y migracion-003.sql
--- Base creada antes del 2026-09-29: aplicar migracion-003.sql
+-- Base creada antes del 2026-09-29: aplicar migracion-003.sql y migracion-004.sql
 -- El audio NUNCA se guarda: solo el texto que el encuestado revisa y confirma.
 
 CREATE TABLE IF NOT EXISTS campanas (
@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS campanas (
   creada TEXT NOT NULL,
   codigo_publico TEXT,                 -- código del enlace abierto (?c=)
   abierta INTEGER NOT NULL DEFAULT 0,  -- 1 = el enlace abierto acepta registros
-  dominio TEXT NOT NULL DEFAULT ''     -- dominio de correo exigido al registrarse (opcional)
+  dominio TEXT NOT NULL DEFAULT '',    -- dominio de correo exigido al registrarse (opcional)
+  logo TEXT NOT NULL DEFAULT ''        -- logo del cliente (data URI) que se muestra en la encuesta
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_camp_codigo ON campanas(codigo_publico);
 
@@ -49,7 +50,8 @@ CREATE TABLE IF NOT EXISTS procesos (
   validacion TEXT NOT NULL DEFAULT '',          -- '' / actualizado / validado
   validado_por TEXT NOT NULL DEFAULT '',        -- cargo de quien validó
   validado_en TEXT,
-  actualizado_en TEXT
+  actualizado_en TEXT,
+  personas TEXT NOT NULL DEFAULT ''             -- nombres del inventario anterior, uno por línea (buscador por persona)
 );
 CREATE INDEX IF NOT EXISTS ix_proc_campana ON procesos(campana_id, gerencia, seccion);
 
@@ -68,6 +70,7 @@ CREATE TABLE IF NOT EXISTS asignaciones (
   encuestado_id TEXT NOT NULL,
   proceso_id TEXT NOT NULL,
   creado TEXT NOT NULL,
+  origen TEXT NOT NULL DEFAULT 'encuestado',   -- encuestado (lo eligió) / consultor / inventario (por su nombre)
   PRIMARY KEY (encuestado_id, proceso_id)
 );
 CREATE INDEX IF NOT EXISTS ix_asig_proceso ON asignaciones(proceso_id);
@@ -77,7 +80,8 @@ CREATE TABLE IF NOT EXISTS respuestas (
   proceso_id TEXT NOT NULL,
   pregunta TEXT NOT NULL,        -- q1..q6
   texto TEXT NOT NULL DEFAULT '',
-  sistemas TEXT NOT NULL DEFAULT '[]',   -- JSON: sistemas del catálogo marcados (solo q3)
+  sistemas TEXT NOT NULL DEFAULT '[]',   -- JSON: sistemas del catálogo marcados (q3 o bloque 2)
+  checklist TEXT NOT NULL DEFAULT '{}',  -- JSON por punto del bloque: {estado: cubierto/falta/no_aplica, fuente: ia/persona, evidencia}
   actualizado TEXT NOT NULL,
   PRIMARY KEY (encuestado_id, proceso_id, pregunta)
 );

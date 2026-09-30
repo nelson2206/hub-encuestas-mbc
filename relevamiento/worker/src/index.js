@@ -19,15 +19,17 @@
  *
  * Rutas del enlace abierto (sin token, con el código público de la campaña):
  *   GET  /r/abierta?c=           nombre de la campaña y áreas para el registro
- *   GET  /r/buscar?c=&q=&g=      buscador de procesos (también acepta ?k= en lugar de ?c=)
+ *   GET  /r/buscar?c=&q=&g=      buscador de procesos y de personas del inventario anterior (también acepta ?k= en lugar de ?c=)
  *   POST /r/registro             {c, nombre, correo, gerencia, seccion, cargo, procesos[]} -> {k}
  * Rutas del encuestado (autenticadas con su token personal, ?k= o campo k):
  *   GET  /r/sesion?k=            datos para pintar la encuesta
- *   POST /r/elegir               {k, proceso_id}   (proceso de cualquier gerencia)
+ *   POST /r/elegir               {k, proceso_id | proceso_ids[]}   (uno o varios, de cualquier gerencia)
  *   POST /r/soltar               {k, proceso_id}   (quita el proceso de su lista y sus respuestas)
  *   POST /r/revision             {k, proceso_id, estado, comentario}
  *   POST /r/proceso              {k, macroproceso, proceso, subproceso, descripcion}
  *   POST /r/respuesta            {k, proceso_id, pregunta, texto, sistemas[]}
+ *   POST /r/verificar            {k, proceso_id, pregunta}   (la IA marca el checklist del bloque)
+ *   POST /r/punto                {k, proceso_id, pregunta, punto, estado}   (la persona marca "lo mencioné" / "no aplica")
  *   POST /r/transcribir?k=       cuerpo: audio WAV (bytes) -> {texto}
  *   POST /r/enviar               {k}
  * Rutas de la consola (cabecera x-admin-code):
@@ -39,6 +41,9 @@
  *   GET  /a/campana?id=          volcado completo de la campaña
  *   POST /a/proceso              {campana_id, id?, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion}
  *   POST /a/proceso/borrar       {proceso_id}   (solo si nadie lo respondió)
+ *   POST /a/campana/logo         {campana_id, logo}   (data URI; vacío lo quita)
+ *   POST /a/asignar              {encuestado_id, agregar[], quitar[]}   (lista de procesos de una persona)
+ *   POST /a/asignar-por-inventario {campana_id}   (asigna por el nombre en el inventario anterior)
  *   POST /a/matriz               {proceso_id, matriz?, validacion?, validado_por?}   (fila de la matriz y check de validación)
  *   POST /a/validacion           {campana_id, proceso_ids[], validacion, validado_por}   (validación en bloque)
  *   POST /a/encuestado/borrar    {encuestado_id | encuestado_ids[], forzar?}   (con respuestas, solo con forzar)
@@ -61,7 +66,43 @@ const MODELO = 'claude-opus-5';
 const WHISPER = '@cf/openai/whisper-large-v3-turbo';
 const MAX_AUDIO = 8 * 1024 * 1024;       // por tramo; el navegador corta en tramos de 2 min
 const MAX_TEXTO = 12000;
-const PREGUNTAS = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6'];
+// Encuesta por bloques: cada bloque se responde con una grabación y trae el checklist de lo que la matriz necesita.
+// Después de cada respuesta, la IA marca qué puntos se cubrieron y pide solo lo que falta. Un punto que no existe
+// en el área (p. ej. no hay indicadores) se marca "no aplica": así ningún dato queda vacío sin explicación.
+// Tercer elemento de cada punto: 1 = puede no existir en un proceso y la persona puede marcarlo "no aplica" a mano.
+// Objetivo, inicio y fin, responsable, pasos y frecuencia existen siempre: esos solo se cumplen contándolos.
+const BLOQUES = [
+  { id: 'b1', t: 'El proceso: para qué existe y quiénes participan',
+    g: 'Cuéntanos el objetivo, qué lo inicia y dónde termina, quién es el responsable y qué otras áreas intervienen.',
+    puntos: [
+      ['objetivo', 'Para qué existe el proceso (su objetivo)'],
+      ['inicio_fin', 'Qué lo inicia y dónde termina (a quién le entregas el resultado)'],
+      ['dueno', 'Quién es el responsable del proceso (su cargo)'],
+      ['areas', 'Qué otras áreas participan', 1]
+    ] },
+  { id: 'b2', t: 'Cómo se hace: pasos, sistemas y volumen', sistemas: true,
+    g: 'Describe los pasos principales en orden, qué sistemas o archivos usan y para qué, qué partes se hacen a mano y cada cuánto ocurre.',
+    puntos: [
+      ['actividades', 'Los pasos principales, en orden'],
+      ['sistemas', 'Qué sistemas, portales o Excel usan (su nombre)', 1],
+      ['uso_sistemas', 'Para qué usan cada sistema', 1],
+      ['manual', 'Qué partes se hacen a mano', 1],
+      ['frecuencia', 'Cada cuánto ocurre y qué volumen maneja']
+    ] },
+  { id: 'b3', t: 'Control y cumplimiento: terceros, datos personales, indicadores y normas',
+    g: 'Cuéntanos con qué terceros trabajan, si manejan datos de personas y dónde se guardan, cómo miden el proceso, qué normas lo regulan y si está documentado.',
+    puntos: [
+      ['terceros', 'Con qué terceros interactúan y por qué medio', 1],
+      ['datos_personales', 'Si manejan datos de personas: de quiénes y de qué tipo', 1],
+      ['sistemas_dp', 'En qué sistemas o archivos se guardan esos datos', 1],
+      ['kpis', 'Con qué indicadores miden el proceso', 1],
+      ['normativa', 'Qué normas o políticas lo regulan', 1],
+      ['documentacion', 'Si está documentado (procedimiento, instructivo, flujo)', 1]
+    ] }
+];
+// q1..q6: formato anterior (6 preguntas), que se sigue aceptando y mostrando en la consola.
+const PREGUNTAS = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', ...BLOQUES.map(b => b.id)];
+const MODELO_VERIFICAR = 'claude-opus-5-5';   // revisión del checklist: pedido corto, esfuerzo bajo
 const ESTADOS_REVISION = ['vigente', 'cambio', 'no_participo', 'no_existe'];
 const PULSE_INGEST = 'https://pulse.mbc-latam.com/api/ai-usage';
 
@@ -159,19 +200,41 @@ function leerMatriz(s) {
   try { const o = JSON.parse(s || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; }
 }
 
-// Buscador del inventario: cada palabra escrita debe aparecer en el proceso (nombre, ruta,
-// código, área o descripción). Pesa más si aparece en el nombre y si es de la gerencia preferida.
+// Nombre de persona (inventario anterior, uno por línea) en el que aparecen todas las palabras buscadas al inicio de una palabra.
+function personaQueCoincide(personas, terms) {
+  if (!personas) return '';
+  for (const linea of String(personas).split('\n')) {
+    const n = normal(linea);
+    if (n && terms.every(t => n.startsWith(t) || n.includes(' ' + t))) return linea.trim();
+  }
+  return '';
+}
+
+// Dos nombres son la misma persona si las palabras del más corto (al menos dos) están todas en el otro:
+// "Yulissa Llaves" y "Yulissa Llaves Reyes" coinciden; un solo nombre de pila no basta.
+const tokensNombre = s => normal(s).split(' ').filter(t => t.length > 1 && !VACIAS.has(t));
+function mismoNombre(a, b) {
+  const x = tokensNombre(a), y = tokensNombre(b);
+  const [corto, largo] = x.length <= y.length ? [x, y] : [y, x];
+  return corto.length >= 2 && corto.every(t => largo.includes(t));
+}
+
+// Buscador del inventario: cada palabra escrita debe aparecer en el proceso (nombre, ruta, código, área o
+// descripción) o en el nombre de una persona que participa en él. Pesa más si aparece en el nombre del proceso
+// y si es de la gerencia preferida.
 function buscarProcesos(procs, q, gerenciaPreferida) {
   const nq = normal(q);
   let terms = nq.split(' ').filter(Boolean);
   if (terms.length > 1) terms = terms.filter(t => !VACIAS.has(t));
   if (!terms.length) return [];
   const gp = normal(gerenciaPreferida);
+  const buscaPersona = terms.join('').length >= 3;
   const out = [];
   for (const p of procs) {
     const nombre = normal(p.subproceso || p.proceso || p.macroproceso);
     const ruta = normal(p.proceso + ' ' + p.macroproceso);
     const resto = normal([p.codigo, p.seccion, p.gerencia, p.descripcion].join(' '));
+    const persona = buscaPersona ? personaQueCoincide(p.personas, terms) : '';
     let score = 0, ok = true;
     for (const t of terms) {
       if (nombre.startsWith(t) || nombre.includes(' ' + t)) score += 6;
@@ -180,10 +243,11 @@ function buscarProcesos(procs, q, gerenciaPreferida) {
       else if (resto.includes(t)) score += 1;
       else { ok = false; break; }
     }
+    if (!ok && persona) { ok = true; score = 3 * terms.length; }
     if (!ok) continue;
     if (p.codigo && normal(p.codigo) === nq) score += 20;
     if (gp && normal(p.gerencia) === gp) score += 3;
-    out.push({ p, score });
+    out.push({ p, score, persona });
   }
   out.sort((a, b) => b.score - a.score || normal(a.p.subproceso || a.p.proceso).localeCompare(normal(b.p.subproceso || b.p.proceso)));
   return out;
@@ -224,15 +288,18 @@ async function procesoPermitido(env, e, procesoId) {
 async function rutaSesion(env, url) {
   const e = await encuestadoPorToken(env, url.searchParams.get('k'));
   const [camp, procs, asig, revs, resps, sis] = await Promise.all([
-    env.DB.prepare('SELECT nombre, cliente FROM campanas WHERE id=?').bind(e.campana_id).first(),
+    env.DB.prepare('SELECT nombre, cliente, logo FROM campanas WHERE id=?').bind(e.campana_id).first(),
     env.DB.prepare(`SELECT id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente, creado_por, orden
       FROM procesos WHERE campana_id=?`).bind(e.campana_id).all(),
-    env.DB.prepare('SELECT proceso_id FROM asignaciones WHERE encuestado_id=?').bind(e.id).all(),
+    env.DB.prepare('SELECT proceso_id, origen FROM asignaciones WHERE encuestado_id=?').bind(e.id).all(),
     env.DB.prepare('SELECT proceso_id, estado, comentario FROM revisiones WHERE encuestado_id=?').bind(e.id).all(),
-    env.DB.prepare('SELECT proceso_id, pregunta, texto, sistemas FROM respuestas WHERE encuestado_id=?').bind(e.id).all(),
+    env.DB.prepare('SELECT proceso_id, pregunta, texto, sistemas, checklist FROM respuestas WHERE encuestado_id=?').bind(e.id).all(),
     env.DB.prepare('SELECT nombre, tipo FROM sistemas WHERE campana_id=? ORDER BY nombre').bind(e.campana_id).all()
   ]);
   const elegidos = new Set(asig.results.map(a => a.proceso_id));
+  // Procesos que el equipo le asignó o que le corresponden por su nombre en el inventario anterior.
+  const asignadoPor = {};
+  asig.results.forEach(a => { if (a.origen && a.origen !== 'encuestado') asignadoPor[a.proceso_id] = a.origen; });
   // Su sección (sin los nuevos que agregó otra persona), lo que eligió con el buscador y lo que agregó.
   // La sección se compara normalizada: una diferencia de mayúsculas o tildes en la carga no deja a nadie sin procesos.
   const enSeccion = p => p.fuente !== 'nuevo' && mismaArea(p.gerencia, e.gerencia) && mismaArea(p.seccion, e.seccion);
@@ -242,21 +309,25 @@ async function rutaSesion(env, url) {
     .map(p => Object.assign(publico(p), {
       enSeccion: enSeccion(p),
       propio: p.fuente === 'nuevo' && p.creado_por === e.id,
-      elegido: elegidos.has(p.id)
+      elegido: elegidos.has(p.id),
+      asignado: asignadoPor[p.id] || ''
     }));
   log('sesion', { campana: e.campana_id, origen: e.origen, estado: e.estado, procesos: procesos.length, k: mascara(e.token) });
   const revisiones = {};
   revs.results.forEach(r => { revisiones[r.proceso_id] = { estado: r.estado, comentario: r.comentario }; });
   const respuestas = {};
   resps.results.forEach(r => {
-    (respuestas[r.proceso_id] = respuestas[r.proceso_id] || {})[r.pregunta] = { texto: r.texto, sistemas: JSON.parse(r.sistemas || '[]') };
+    (respuestas[r.proceso_id] = respuestas[r.proceso_id] || {})[r.pregunta] = {
+      texto: r.texto, sistemas: JSON.parse(r.sistemas || '[]'), checklist: leerMatriz(r.checklist)
+    };
   });
   return {
     ok: true,
     campana: camp,
     encuestado: { nombre: e.nombre, gerencia: e.gerencia, seccion: e.seccion, rol: e.rol, estado: e.estado, origen: e.origen },
     procesos, revisiones, respuestas,
-    sistemas: sis.results
+    sistemas: sis.results,
+    bloques: BLOQUES
   };
 }
 
@@ -286,26 +357,46 @@ async function rutaProcesoNuevo(env, b) {
     subproceso: txt(b.subproceso, 200), descripcion: txt(b.descripcion, 1500), nuevo: true, enSeccion: false, propio: true, elegido: false } };
 }
 
-// Elegir un proceso del inventario (de cualquier gerencia): queda en su lista y listo para responder.
-async function rutaElegir(env, b) {
-  const e = await encuestadoPorToken(env, b.k);
-  const p = await env.DB.prepare('SELECT * FROM procesos WHERE id=? AND campana_id=?').bind(b.proceso_id, e.campana_id).first();
-  if (!p) throw new HttpError(404, 'Proceso no encontrado');
-  const t = ahora();
-  await env.DB.batch([
-    env.DB.prepare('INSERT OR IGNORE INTO asignaciones (encuestado_id, proceso_id, creado) VALUES (?,?,?)').bind(e.id, p.id, t),
+// Asigna procesos a una persona. Por tandas de 30: límite de parámetros de D1. La primera asignación manda (no se
+// sobrescribe el origen). Si la persona los eligió quedan como "participo"; si los asignó el equipo o su nombre en el
+// inventario anterior, la persona confirma su relación con cada uno.
+async function asignarProcesos(env, e, ids, origen) {
+  const t = ahora(), procesos = [];
+  for (let i = 0; i < ids.length; i += 30) {
+    const tanda = ids.slice(i, i + 30);
+    const r = await env.DB.prepare(`SELECT * FROM procesos WHERE campana_id=? AND id IN (${tanda.map(() => '?').join(',')})`)
+      .bind(e.campana_id, ...tanda).all();
+    procesos.push(...r.results);
+  }
+  const st = [];
+  procesos.forEach(p => {
+    st.push(env.DB.prepare('INSERT OR IGNORE INTO asignaciones (encuestado_id, proceso_id, creado, origen) VALUES (?,?,?,?)')
+      .bind(e.id, p.id, t, origen));
+    if (origen !== 'encuestado') return;
     // Si antes dijo "no participo" o "ya no se hace", elegirlo lo vuelve a activar.
-    env.DB.prepare(`INSERT INTO revisiones (encuestado_id, proceso_id, estado, comentario, actualizado) VALUES (?,?,'vigente','',?)
+    st.push(env.DB.prepare(`INSERT INTO revisiones (encuestado_id, proceso_id, estado, comentario, actualizado) VALUES (?,?,'vigente','',?)
       ON CONFLICT(encuestado_id, proceso_id) DO UPDATE SET
         estado=CASE WHEN revisiones.estado IN ('vigente','cambio') THEN revisiones.estado ELSE 'vigente' END, actualizado=excluded.actualizado`)
-      .bind(e.id, p.id, t)
-  ]);
+      .bind(e.id, p.id, t));
+  });
+  for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
+  return procesos;
+}
+
+// Elegir uno o varios procesos del inventario (de cualquier gerencia): quedan en su lista y listos para responder.
+async function rutaElegir(env, b) {
+  const e = await encuestadoPorToken(env, b.k);
+  const ids = [...new Set((Array.isArray(b.proceso_ids) ? b.proceso_ids : [b.proceso_id]).map(x => txt(x, 60)).filter(Boolean))].slice(0, 60);
+  if (!ids.length) throw new HttpError(400, 'No se indicó el proceso');
+  const procesos = await asignarProcesos(env, e, ids, 'encuestado');
+  if (!procesos.length) throw new HttpError(404, 'Proceso no encontrado');
   await marcarEnCurso(env, e);
-  return { ok: true, proceso: Object.assign(publico(p), {
+  const vista = p => Object.assign(publico(p), {
     enSeccion: mismaArea(p.gerencia, e.gerencia) && mismaArea(p.seccion, e.seccion) && p.fuente !== 'nuevo',
     propio: p.fuente === 'nuevo' && p.creado_por === e.id,
     elegido: true
-  }) };
+  });
+  return { ok: true, proceso: vista(procesos[0]), procesos: procesos.map(vista) };
 }
 
 // Quitar un proceso de su lista: borra solo lo de esta persona. Un proceso nuevo que nadie
@@ -391,7 +482,7 @@ async function areasDeCampana(env, campId) {
 async function rutaAbierta(env, url) {
   const camp = await campanaAbierta(env, url.searchParams.get('c'));
   log('abierta', { campana: camp.id, g: !!url.searchParams.get('g') });
-  return { ok: true, campana: { nombre: camp.nombre, cliente: camp.cliente }, dominio: camp.dominio || '', areas: await areasDeCampana(env, camp.id) };
+  return { ok: true, campana: { nombre: camp.nombre, cliente: camp.cliente, logo: camp.logo || '' }, dominio: camp.dominio || '', areas: await areasDeCampana(env, camp.id) };
 }
 
 async function rutaBuscar(env, url) {
@@ -408,10 +499,22 @@ async function rutaBuscar(env, url) {
     campId = (await campanaAbierta(env, url.searchParams.get('c'))).id;
   }
   // Mínimo 2 letras y máximo 15 resultados: el buscador ayuda a encontrar, no a descargar el inventario.
-  if (normal(q).length < 2) return { ok: true, total: 0, resultados: [] };
-  const procs = await env.DB.prepare('SELECT id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente FROM procesos WHERE campana_id=?').bind(campId).all();
+  if (normal(q).length < 2) return { ok: true, total: 0, resultados: [], personas: [] };
+  const procs = await env.DB.prepare(`SELECT id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente, personas
+    FROM procesos WHERE campana_id=?`).bind(campId).all();
   const r = buscarProcesos(procs.results, q, preferida);
-  return { ok: true, total: r.length, resultados: r.slice(0, 15).map(x => Object.assign(publico(x.p), { elegido: elegidos.has(x.p.id) })) };
+  // Quien escribe su nombre ve todos los procesos donde figura en el inventario anterior y puede elegirlos de una vez.
+  const grupos = {};
+  r.forEach(x => {
+    if (!x.persona) return;
+    const g = grupos[normal(x.persona)] = grupos[normal(x.persona)] || { nombre: x.persona, procesos: [] };
+    g.procesos.push(x.p);
+  });
+  const personas = Object.values(grupos).sort((a, b) => b.procesos.length - a.procesos.length).slice(0, 5)
+    .map(g => ({ nombre: g.nombre, total: g.procesos.length,
+      procesos: g.procesos.slice(0, 60).map(p => Object.assign(publico(p), { elegido: elegidos.has(p.id) })) }));
+  return { ok: true, total: r.length, personas,
+    resultados: r.slice(0, 15).map(x => Object.assign(publico(x.p), { elegido: elegidos.has(x.p.id), persona: x.persona || '' })) };
 }
 
 async function rutaRegistro(env, b) {
@@ -427,21 +530,18 @@ async function rutaRegistro(env, b) {
   const ya = await env.DB.prepare('SELECT id FROM encuestados WHERE campana_id=? AND lower(correo)=?').bind(camp.id, correo).first();
   if (ya) throw new HttpError(409, 'Ese correo ya está registrado en esta encuesta. Entra con tu enlace personal (el que guardaste o te llegó por correo) o pide al equipo consultor que te lo reenvíe.');
 
-  const ids = Array.isArray(b.procesos) ? b.procesos.map(x => txt(x, 60)).filter(Boolean).slice(0, 30) : [];
-  let validos = [];
-  if (ids.length) {
-    const r = await env.DB.prepare(`SELECT id FROM procesos WHERE campana_id=? AND id IN (${ids.map(() => '?').join(',')})`).bind(camp.id, ...ids).all();
-    validos = r.results.map(x => x.id);
-  }
+  const ids = [...new Set(Array.isArray(b.procesos) ? b.procesos.map(x => txt(x, 60)).filter(Boolean) : [])].slice(0, 60);
   const id = uid(), token = tokenNuevo(), t = ahora();
-  const st = [env.DB.prepare(`INSERT INTO encuestados (id, campana_id, token, nombre, correo, gerencia, seccion, rol, estado, actualizado, origen)
-    VALUES (?,?,?,?,?,?,?,?,?,?,'abierto')`).bind(id, camp.id, token, nombre, correo, gerencia, seccion, txt(b.cargo, 80), validos.length ? 'en_curso' : 'pendiente', t)];
-  validos.forEach(pid => {
-    st.push(env.DB.prepare('INSERT OR IGNORE INTO asignaciones (encuestado_id, proceso_id, creado) VALUES (?,?,?)').bind(id, pid, t));
-    st.push(env.DB.prepare(`INSERT OR IGNORE INTO revisiones (encuestado_id, proceso_id, estado, comentario, actualizado) VALUES (?,?,'vigente','',?)`).bind(id, pid, t));
-  });
-  await env.DB.batch(st);
-  log('registro', { campana: camp.id, procesos: validos.length, dominio: !!camp.dominio });
+  await env.DB.prepare(`INSERT INTO encuestados (id, campana_id, token, nombre, correo, gerencia, seccion, rol, estado, actualizado, origen)
+    VALUES (?,?,?,?,?,?,?,?,?,?,'abierto')`).bind(id, camp.id, token, nombre, correo, gerencia, seccion, txt(b.cargo, 80), ids.length ? 'en_curso' : 'pendiente', t).run();
+  const e = { id, campana_id: camp.id };
+  const elegidos = ids.length ? await asignarProcesos(env, e, ids, 'encuestado') : [];
+  // Procesos donde figura con su nombre en el inventario anterior: quedan en su lista para que confirme su relación.
+  const conNombre = await env.DB.prepare(`SELECT id, personas FROM procesos WHERE campana_id=? AND personas<>''`).bind(camp.id).all();
+  const yaElegidos = new Set(elegidos.map(p => p.id));
+  const suyos = conNombre.results.filter(p => !yaElegidos.has(p.id) && p.personas.split('\n').some(l => mismoNombre(l, nombre))).map(p => p.id).slice(0, 60);
+  if (suyos.length) await asignarProcesos(env, e, suyos, 'inventario');
+  log('registro', { campana: camp.id, procesos: elegidos.length, inventario: suyos.length, dominio: !!camp.dominio });
   return { ok: true, k: token, nombre };
 }
 
@@ -568,22 +668,25 @@ async function rutaImportar(env, b) {
     if (!gerencia || !seccion || !nombre) return;
     const matriz = limpiarMatriz(x.matriz);
     const val = VALIDACIONES.includes(x.validacion) ? x.validacion : null;
+    // Nombres del inventario anterior (columna PARTICIPANTES): alimentan el buscador por persona.
+    const personas = txt(x.personas || matriz.participantes || '', 4000);
     const id = normal(x.codigo) && porCodigo[normal(x.codigo)];
     if (id) {
       st.push(env.DB.prepare(`UPDATE procesos SET gerencia=?, seccion=?, macroproceso=?, proceso=?, subproceso=?,
-          descripcion=CASE WHEN ?<>'' THEN ? ELSE descripcion END, matriz=CASE WHEN ?<>'{}' THEN json_patch(matriz, ?) ELSE matriz END,
+          descripcion=CASE WHEN ?<>'' THEN ? ELSE descripcion END, personas=CASE WHEN ?<>'' THEN ? ELSE personas END,
+          matriz=CASE WHEN ?<>'{}' THEN json_patch(matriz, ?) ELSE matriz END,
           validacion=COALESCE(?, validacion), validado_por=CASE WHEN ?='validado' THEN ? ELSE validado_por END,
           validado_en=CASE WHEN ?='validado' THEN ? ELSE validado_en END, actualizado_en=? WHERE id=?`)
         .bind(gerencia, seccion, txt(x.macroproceso, 200), txt(x.proceso, 200), txt(x.subproceso, 200),
-          txt(x.descripcion, 1500), txt(x.descripcion, 1500), JSON.stringify(matriz), JSON.stringify(matriz),
+          txt(x.descripcion, 1500), txt(x.descripcion, 1500), personas, personas, JSON.stringify(matriz), JSON.stringify(matriz),
           val, val, txt(x.validado_por, 150), val, t, t, id));
       nPAct++;
       return;
     }
     st.push(env.DB.prepare(`INSERT INTO procesos (id, campana_id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente, orden,
-        matriz, validacion, validado_por, validado_en) VALUES (?,?,?,?,?,?,?,?,?,'inventario',?,?,?,?,?)`)
+        matriz, validacion, validado_por, validado_en, personas) VALUES (?,?,?,?,?,?,?,?,?,'inventario',?,?,?,?,?,?)`)
       .bind(uid(), camp.id, txt(x.codigo, 60), gerencia, seccion, txt(x.macroproceso, 200), txt(x.proceso, 200), txt(x.subproceso, 200),
-        txt(x.descripcion, 1500), i, JSON.stringify(matriz), val || '', val === 'validado' ? txt(x.validado_por, 150) : '', val === 'validado' ? t : null));
+        txt(x.descripcion, 1500), i, JSON.stringify(matriz), val || '', val === 'validado' ? txt(x.validado_por, 150) : '', val === 'validado' ? t : null, personas));
     nP++;
   });
 
@@ -617,9 +720,9 @@ async function rutaCampana(env, url) {
     q('SELECT proceso_id, datos, modelo, generado FROM estructurado WHERE campana_id=?')
   ]);
   estructurado.forEach(x => { x.datos = JSON.parse(x.datos); });
-  respuestas.forEach(x => { x.sistemas = JSON.parse(x.sistemas || '[]'); });
+  respuestas.forEach(x => { x.sistemas = JSON.parse(x.sistemas || '[]'); x.checklist = leerMatriz(x.checklist); });
   procesos.forEach(x => { x.matriz = leerMatriz(x.matriz); });
-  return { ok: true, campana: camp, encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado };
+  return { ok: true, campana: camp, encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, bloques: BLOQUES };
 }
 
 // Alta o edición de un proceso desde el mapa de la consola.
@@ -854,7 +957,9 @@ const ORIGEN_TEXTO = { nuevo: 'agregado por un colaborador en la encuesta', cons
 
 function textoParaClaude(camp, p, encuestados, revisiones, respuestas, sistemas) {
   const PREG = { q1: 'Objetivo, inicio y fin', q2: 'Actividades y participantes', q3: 'Sistemas y manualidad',
-    q4: 'Terceros', q5: 'Datos personales', q6: 'Indicadores, normas y frecuencia' };
+    q4: 'Terceros', q5: 'Datos personales', q6: 'Indicadores, normas y frecuencia',
+    b1: 'Bloque 1 · Objetivo, inicio y fin, responsable y áreas', b2: 'Bloque 2 · Pasos, sistemas y volumen',
+    b3: 'Bloque 3 · Terceros, datos personales, indicadores, normas y documentación' };
   const lineas = [];
   lineas.push(`CLIENTE: ${camp.cliente}`);
   lineas.push(`PROCESO (ficha de partida):`);
@@ -884,7 +989,10 @@ function textoParaClaude(camp, p, encuestados, revisiones, respuestas, sistemas)
     if (rev) lineas.push(`Vigencia marcada: ${VIGENCIA_TEXTO[rev.estado] || rev.estado}${rev.comentario ? ' — comentario: ' + rev.comentario : ''}`);
     resp.sort((a, b) => a.pregunta.localeCompare(b.pregunta)).forEach(r => {
       const sis = JSON.parse(r.sistemas || '[]');
-      lineas.push(`[${PREG[r.pregunta] || r.pregunta}] ${r.texto || '(sin texto)'}${sis.length ? ' | Sistemas marcados: ' + sis.join(', ') : ''}`);
+      const ck = leerMatriz(r.checklist);
+      const nap = Object.keys(PUNTO_TXT).filter(k => ck[k] && ck[k].estado === 'no_aplica').map(k => PUNTO_TXT[k]);
+      lineas.push(`[${PREG[r.pregunta] || r.pregunta}] ${r.texto || '(sin texto)'}${sis.length ? ' | Sistemas marcados: ' + sis.join(', ') : ''}` +
+        (nap.length ? ' | Indicó que no aplica: ' + nap.join('; ') : ''));
     });
     lineas.push('');
   });
@@ -901,13 +1009,13 @@ function normalizarSalida(s) {
   return Object.assign({}, s, { campos });
 }
 
-async function registrarGasto(uso) {
+async function registrarGasto(uso, modelo) {
   if (!uso) return;
   try {
     await fetch(PULSE_INGEST, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ tool: 'voz-relevamiento', provider: 'anthropic', model: MODELO,
+      body: JSON.stringify({ tool: 'voz-relevamiento', provider: 'anthropic', model: modelo || MODELO,
         inputTokens: uso.input_tokens || 0, outputTokens: uso.output_tokens || 0 })
     });
   } catch (e) { /* el registro de gasto nunca debe afectar al usuario */ }
@@ -962,7 +1070,7 @@ async function rutaEstructurar(env, b, ctx) {
     if (err instanceof Anthropic.APIError) throw new HttpError(502, 'La IA devolvió un error (' + (err.status || 'sin código') + '): ' + err.message);
     throw new HttpError(502, 'No se pudo contactar a la IA');
   }
-  ctx.waitUntil(registrarGasto(msg.usage));
+  ctx.waitUntil(registrarGasto(msg.usage, msg.model || MODELO));
   if (msg.stop_reason === 'refusal') throw new HttpError(422, 'La IA no pudo procesar este proceso. Revisa las respuestas manualmente.');
   if (msg.stop_reason === 'max_tokens') throw new HttpError(502, 'La respuesta de la IA quedó incompleta. Reintenta.');
   const bloque = msg.content.find(c => c.type === 'text');
@@ -973,6 +1081,177 @@ async function rutaEstructurar(env, b, ctx) {
     ON CONFLICT(proceso_id) DO UPDATE SET datos=excluded.datos, modelo=excluded.modelo, generado=excluded.generado`)
     .bind(p.id, p.campana_id, JSON.stringify(datos), msg.model || MODELO, generado).run();
   return { ok: true, proceso_id: p.id, datos, modelo: msg.model || MODELO, generado };
+}
+
+// ---------------------------------------------------------------- checklist por bloque, logo y asignaciones
+const PUNTO_TXT = {};
+BLOQUES.forEach(b => b.puntos.forEach(([k, t]) => { PUNTO_TXT[k] = t; }));
+const ESTADOS_PUNTO = ['cubierto', 'falta', 'no_aplica'];
+// Huella del texto revisado: si no cambió, no se vuelve a llamar a la IA.
+const huella = async s => aBase64(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))).slice(0, 24);
+
+function schemaVerificar(bloque) {
+  return {
+    type: 'object',
+    properties: {
+      puntos: { type: 'array', items: { type: 'object', properties: {
+        id: { type: 'string', enum: bloque.puntos.map(x => x[0]) },
+        estado: { type: 'string', enum: ESTADOS_PUNTO },
+        evidencia: { type: 'string' }
+      }, required: ['id', 'estado', 'evidencia'], additionalProperties: false } },
+      sugerencia: { type: 'string' }
+    },
+    required: ['puntos', 'sugerencia'],
+    additionalProperties: false
+  };
+}
+
+const VERIFICAR_PROMPT = `Revisas la respuesta de un colaborador a un bloque de una encuesta de relevamiento de procesos. La respuesta suele ser una transcripción de voz: puede tener muletillas y errores de reconocimiento.
+Para cada punto del checklist decide:
+- "cubierto": la respuesta da información concreta sobre ese punto, aunque sea breve. En "evidencia" cita hasta 12 palabras de la respuesta.
+- "no_aplica": la persona dijo claramente que eso no existe en su proceso ("no trabajamos con terceros", "no tenemos indicadores", "no manejamos datos de personas"). Cuenta como respondido. Los puntos que dependen de él también son "no_aplica" (si no manejan datos de personas, tampoco hay sistemas que los guarden). En "evidencia" cita la frase.
+- "falta": no lo mencionó, o lo dijo tan vago que no sirve para un inventario de procesos ("usamos varios sistemas" sin nombrarlos). "evidencia" queda vacía.
+Los sistemas marcados en la lista cuentan para el punto de qué sistemas usan, pero no para qué se usa cada uno.
+"sugerencia": una sola frase amable, en segunda persona (tú), que pida solo lo que falta, con un ejemplo corto si ayuda. Si no falta nada, cadena vacía.
+No inventes información ni opines sobre el proceso.`;
+
+async function guardarChecklist(env, e, p, bloqueId, c) {
+  await env.DB.prepare(`INSERT INTO respuestas (encuestado_id, proceso_id, pregunta, texto, sistemas, checklist, actualizado) VALUES (?,?,?,'','[]',?,?)
+    ON CONFLICT(encuestado_id, proceso_id, pregunta) DO UPDATE SET checklist=excluded.checklist`)
+    .bind(e.id, p.id, bloqueId, JSON.stringify(c), ahora()).run();
+}
+
+// La IA marca qué puntos del bloque cubrió la respuesta y sugiere qué falta. Lo que la persona marcó a mano se respeta.
+async function rutaVerificar(env, b, ctx) {
+  const e = await encuestadoPorToken(env, b.k);
+  const p = await procesoPermitido(env, e, b.proceso_id);
+  const bloque = BLOQUES.find(x => x.id === b.pregunta);
+  if (!bloque) throw new HttpError(400, 'Bloque inválido');
+  const r = await env.DB.prepare('SELECT texto, sistemas, checklist FROM respuestas WHERE encuestado_id=? AND proceso_id=? AND pregunta=?')
+    .bind(e.id, p.id, bloque.id).first();
+  const previo = leerMatriz(r && r.checklist);
+  const texto = String((r && r.texto) || '').trim();
+  let sistemas = [];
+  try { sistemas = JSON.parse((r && r.sistemas) || '[]'); } catch (x) { /* sin sistemas */ }
+  const firma = await huella(texto + '|' + sistemas.join(','));
+  if (previo._huella === firma) return { ok: true, checklist: previo };
+  const nuevo = { _huella: firma, _sugerencia: '' };
+  const manual = id => previo[id] && previo[id].fuente === 'persona';
+  if (!texto && !sistemas.length) {
+    bloque.puntos.forEach(([id]) => { nuevo[id] = manual(id) ? previo[id] : { estado: 'falta', fuente: 'ia', evidencia: '' }; });
+  } else {
+    let msg;
+    try {
+      msg = await clienteClaude(env).beta.messages.stream({
+        model: MODELO_VERIFICAR,
+        max_tokens: 4000,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        output_config: { effort: 'low', format: { type: 'json_schema', schema: schemaVerificar(bloque) } },
+        system: VERIFICAR_PROMPT,
+        messages: [{ role: 'user', content: [
+          `PROCESO: ${p.subproceso || p.proceso || p.macroproceso}`,
+          `BLOQUE: ${bloque.t}`,
+          'CHECKLIST:', ...bloque.puntos.map(([id, t]) => `- ${id}: ${t}`),
+          '', 'RESPUESTA:', texto || '(sin texto)',
+          sistemas.length ? '\nSISTEMAS MARCADOS EN LA LISTA: ' + sistemas.join(', ') : ''
+        ].join('\n') }]
+      }).finalMessage();
+    } catch (err) {
+      log('verificar_error', { campana: e.campana_id, bloque: bloque.id, error: String((err && err.message) || err).slice(0, 200) });
+      throw new HttpError(502, 'No pudimos revisar tu respuesta en este momento. Ya quedó guardada: marca a mano los puntos que mencionaste.');
+    }
+    ctx.waitUntil(registrarGasto(msg.usage, msg.model || MODELO_VERIFICAR));
+    let s = {};
+    try { s = JSON.parse((msg.content.find(c => c.type === 'text') || {}).text || '{}'); }
+    catch (x) { throw new HttpError(502, 'La revisión automática devolvió un formato inesperado. Reintenta.'); }
+    const porId = {};
+    (s.puntos || []).forEach(x => { if (x && x.id) porId[x.id] = x; });
+    bloque.puntos.forEach(([id]) => {
+      if (manual(id)) { nuevo[id] = previo[id]; return; }
+      const x = porId[id] || {};
+      nuevo[id] = { estado: ESTADOS_PUNTO.includes(x.estado) ? x.estado : 'falta', fuente: 'ia', evidencia: txt(x.evidencia, 200) };
+    });
+    nuevo._sugerencia = txt(s.sugerencia, 400);
+  }
+  await guardarChecklist(env, e, p, bloque.id, nuevo);
+  log('verificar', { campana: e.campana_id, bloque: bloque.id, faltan: bloque.puntos.filter(([id]) => nuevo[id].estado === 'falta').length });
+  return { ok: true, checklist: nuevo };
+}
+
+// La persona marca un punto como "lo mencioné" (cubierto) o "no aplica"; estado vacío deshace su marca.
+async function rutaPunto(env, b) {
+  const e = await encuestadoPorToken(env, b.k);
+  const p = await procesoPermitido(env, e, b.proceso_id);
+  const bloque = BLOQUES.find(x => x.id === b.pregunta);
+  if (!bloque || !bloque.puntos.some(x => x[0] === b.punto)) throw new HttpError(400, 'Punto inválido');
+  if (!['cubierto', 'no_aplica', ''].includes(b.estado)) throw new HttpError(400, 'Estado inválido');
+  if (b.estado === 'no_aplica' && !bloque.puntos.find(x => x[0] === b.punto)[2]) throw new HttpError(400, 'Este punto existe en todo proceso: cuéntalo en tu respuesta.');
+  const r = await env.DB.prepare('SELECT checklist FROM respuestas WHERE encuestado_id=? AND proceso_id=? AND pregunta=?').bind(e.id, p.id, bloque.id).first();
+  const c = leerMatriz(r && r.checklist);
+  if (b.estado) c[b.punto] = { estado: b.estado, fuente: 'persona', evidencia: '' };
+  else { delete c[b.punto]; delete c._huella; }   // sin huella, la próxima revisión vuelve a mirar el punto
+  await guardarChecklist(env, e, p, bloque.id, c);
+  await marcarEnCurso(env, e);
+  return { ok: true, checklist: c };
+}
+
+// Logo del cliente que se muestra en la encuesta (junto a la marca MBC). Vacío lo quita.
+async function rutaLogo(env, b) {
+  const logo = String(b.logo || '');
+  if (logo && !/^data:image\/(png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(logo)) throw new HttpError(400, 'El logo debe ser una imagen PNG, JPG, WEBP o SVG');
+  if (logo.length > 420000) throw new HttpError(413, 'El logo pesa demasiado (máximo 300 KB)');   // 300 KB en base64
+  const r = await env.DB.prepare('UPDATE campanas SET logo=? WHERE id=?').bind(logo, b.campana_id).run();
+  if (!r.meta || !r.meta.changes) throw new HttpError(404, 'Campaña no encontrada');
+  log('logo', { campana: b.campana_id, bytes: logo.length });
+  return { ok: true };
+}
+
+// Lista de procesos de una persona, armada por el equipo consultor. Quitar solo aplica a procesos que aún no respondió.
+async function rutaAsignar(env, b) {
+  const e = await env.DB.prepare('SELECT * FROM encuestados WHERE id=?').bind(b.encuestado_id).first();
+  if (!e) throw new HttpError(404, 'Persona no encontrada');
+  const lista = a => [...new Set((Array.isArray(a) ? a : []).map(x => txt(x, 60)).filter(Boolean))].slice(0, 300);
+  const agregar = lista(b.agregar), quitar = lista(b.quitar);
+  const agregados = agregar.length ? (await asignarProcesos(env, e, agregar, 'consultor')).length : 0;
+  let quitados = 0, conRespuesta = 0;
+  if (quitar.length) {
+    const resp = await env.DB.prepare(`SELECT DISTINCT proceso_id FROM respuestas WHERE encuestado_id=? AND (trim(texto)<>'' OR sistemas<>'[]')`).bind(e.id).all();
+    const respondidos = new Set(resp.results.map(x => x.proceso_id));
+    const st = [];
+    quitar.forEach(pid => {
+      if (respondidos.has(pid)) { conRespuesta++; return; }
+      st.push(env.DB.prepare('DELETE FROM asignaciones WHERE encuestado_id=? AND proceso_id=?').bind(e.id, pid));
+      st.push(env.DB.prepare('DELETE FROM revisiones WHERE encuestado_id=? AND proceso_id=?').bind(e.id, pid));
+      st.push(env.DB.prepare('DELETE FROM respuestas WHERE encuestado_id=? AND proceso_id=?').bind(e.id, pid));
+      quitados++;
+    });
+    for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
+  }
+  log('asignar', { campana: e.campana_id, agregados, quitados, con_respuesta: conRespuesta });
+  return { ok: true, agregados, quitados, con_respuesta: conRespuesta };
+}
+
+// Asigna a cada persona cargada los procesos donde figura con su nombre en el inventario anterior.
+async function rutaAsignarInventario(env, b) {
+  const camp = await env.DB.prepare('SELECT id FROM campanas WHERE id=?').bind(b.campana_id).first();
+  if (!camp) throw new HttpError(404, 'Campaña no encontrada');
+  const [procs, enc] = await Promise.all([
+    env.DB.prepare(`SELECT id, personas FROM procesos WHERE campana_id=? AND personas<>''`).bind(camp.id).all(),
+    env.DB.prepare('SELECT id, nombre FROM encuestados WHERE campana_id=?').bind(camp.id).all()
+  ]);
+  const t = ahora(), st = [];
+  let personas = 0;
+  enc.results.forEach(e => {
+    const suyos = procs.results.filter(p => p.personas.split('\n').some(l => mismoNombre(l, e.nombre)));
+    if (!suyos.length) return;
+    personas++;
+    suyos.forEach(p => st.push(env.DB.prepare('INSERT OR IGNORE INTO asignaciones (encuestado_id, proceso_id, creado, origen) VALUES (?,?,?,?)')
+      .bind(e.id, p.id, t, 'inventario')));
+  });
+  for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
+  log('asignar_inventario', { campana: camp.id, personas, vinculos: st.length });
+  return { ok: true, personas, vinculos: st.length, total_personas: enc.results.length };
 }
 
 // ---------------------------------------------------------------- router
@@ -1004,6 +1283,8 @@ export default {
         if (url.pathname === '/r/revision') return json(await rutaRevision(env, b), 200, h);
         if (url.pathname === '/r/proceso') return json(await rutaProcesoNuevo(env, b), 200, h);
         if (url.pathname === '/r/respuesta') return json(await rutaRespuesta(env, b), 200, h);
+        if (url.pathname === '/r/verificar') return json(await rutaVerificar(env, b, ctx), 200, h);
+        if (url.pathname === '/r/punto') return json(await rutaPunto(env, b), 200, h);
         if (url.pathname === '/r/enviar') return json(await rutaEnviar(env, b), 200, h);
       }
 
@@ -1015,6 +1296,9 @@ export default {
           const b = await cuerpo(req);
           if (url.pathname === '/a/campana') return json(await rutaCampanaNueva(env, b), 200, h);
           if (url.pathname === '/a/campana/glosario') return json(await rutaGlosario(env, b), 200, h);
+          if (url.pathname === '/a/campana/logo') return json(await rutaLogo(env, b), 200, h);
+          if (url.pathname === '/a/asignar') return json(await rutaAsignar(env, b), 200, h);
+          if (url.pathname === '/a/asignar-por-inventario') return json(await rutaAsignarInventario(env, b), 200, h);
           if (url.pathname === '/a/enlace') return json(await rutaEnlace(env, b), 200, h);
           if (url.pathname === '/a/importar') return json(await rutaImportar(env, b), 200, h);
           if (url.pathname === '/a/proceso') return json(await rutaProcesoAdmin(env, b), 200, h);
