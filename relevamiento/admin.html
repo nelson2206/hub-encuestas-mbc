@@ -879,14 +879,15 @@
     h += '<h3 style="font-size:14px;margin-top:6px">Personas</h3>';
     if (!Object.keys(ids).length) h += '<p class="muted">Nadie lo ha tomado todavía. Envía el enlace de la gerencia (pestaña «Plan de barrido») o pide a alguien de la sección que lo elija.</p>';
     else {
-      h += '<div class="tblwrap"><table><thead><tr><th>Persona</th><th>Área</th><th>Relación con el proceso</th><th class="num">Avance del checklist</th></tr></thead><tbody>';
+      h += '<div class="tblwrap"><table><thead><tr><th>Persona</th><th>Área</th><th>Relación con el proceso</th><th class="num">Avance del checklist</th><th></th></tr></thead><tbody>';
       Object.keys(ids).forEach(function(eid){
         var en = IX.enc[eid] || {};
         var rv = (IX.rev[pid] || []).filter(function(r){ return r.encuestado_id === eid; })[0];
         var av = avancePersona(pid, eid);
         h += '<tr><td>' + esc(en.nombre) + '<div class="muted">' + esc(en.rol || '') + '</div></td><td>' + esc(en.gerencia + ' · ' + en.seccion) + '</td>' +
           '<td>' + esc(rv ? RELACION_TXT[rv.estado] || rv.estado : 'respondió') + (rv && rv.comentario ? '<div class="muted">' + esc(rv.comentario) + '</div>' : '') + '</td>' +
-          '<td class="num">' + (av.completo ? '<span class="chip c-ok">' + esc(textoAvance(av)) + '</span>' : esc(textoAvance(av))) + '</td></tr>';
+          '<td class="num">' + (av.completo ? '<span class="chip c-ok">' + esc(textoAvance(av)) + '</span>' : esc(textoAvance(av))) + '</td>' +
+          '<td>' + (conAlgoQueBorrar(pid, eid) ? '<button class="btn-link" data-borrar-resp="' + esc(eid) + '">Borrar sus respuestas</button>' : '') + '</td></tr>';
       });
       h += '</tbody></table></div>';
     }
@@ -918,7 +919,7 @@
       h += '<h3 style="font-size:14px;margin-top:18px">Lo que contaron</h3>';
       Object.keys(contaron).forEach(function(eid){
         var en = IX.enc[eid] || {};
-        h += '<div style="margin-top:10px"><b>' + esc(en.nombre) + '</b> <span class="muted">' + esc([en.rol, en.gerencia + ' · ' + en.seccion].filter(Boolean).join(' · ')) + '</span></div>';
+        h += '<div style="margin-top:10px"><b>' + esc(en.nombre) + '</b> <span class="muted">' + esc([en.rol, en.gerencia + ' · ' + en.seccion].filter(Boolean).join(' · ')) + '</span> ' + '<button class="btn-link" data-borrar-resp="' + esc(eid) + '">Borrar sus respuestas</button>' + '</div>';
         contaron[eid].slice().sort(function(a,b){ return a.pregunta.localeCompare(b.pregunta); }).forEach(function(r){
           var ckr = resumenChecklist(r);
           h += '<div class="resp"><b>' + esc(PREG[r.pregunta] || r.pregunta) + '</b>\n' + (esc(r.texto) || '<span class="muted">(sin texto)</span>') + (r.sistemas.length ? '\nSistemas marcados: ' + esc(r.sistemas.join(', ')) : '') +
@@ -935,6 +936,11 @@
       estructurar(pid).then(function(){ pintarTodo(); detalle(pid); }).catch(function(err){ b.disabled = false; $('#dMsg').textContent = err.message; });
     });
     $('#dEditar').addEventListener('click', function(){ editarProceso(p); });
+    Array.prototype.forEach.call($('#dlgB').querySelectorAll('[data-borrar-resp]'), function(b){
+      b.addEventListener('click', function(){
+        borrarRespuestas(b.dataset.borrarResp, [pid], b).then(function(hecho){ if (hecho) detalle(pid); });
+      });
+    });
     $('#dBorrar').addEventListener('click', function(){
       if (!confirm('¿Borrar «' + nombreProc(p) + '» del mapa? También se quitará de la lista de quienes lo eligieron.')) return;
       api('/a/proceso/borrar', {proceso_id: pid}).then(function(){ $('#dlg').close(); abrir(C.campana.id); })
@@ -1196,6 +1202,26 @@
       .then(function(){ abrir(C.campana.id); })
       .catch(function(err){ if (boton) boton.disabled = false; alert(err.message); abrir(C.campana.id); });
   }
+  // Borrar las respuestas de una persona en algunos procesos, sin borrarla a ella ni lo demás que respondió.
+  // Hay que escribir BORRAR: lo que contó no se puede recuperar.
+  function conAlgoQueBorrar(pid, eid){ return !!((IX.todas[pid] || {})[eid] || (IX.rev[pid] || []).some(function(r){ return r.encuestado_id === eid; })); }
+  function borrarRespuestas(eid, pids, boton){
+    var en = IX.enc[eid]; if (!en || !pids.length) return Promise.resolve(false);
+    var nombres = pids.map(function(pid){ var p = C.procesos.filter(function(x){ return x.id === pid; })[0]; return p ? '• ' + (p.codigo ? p.codigo + ' ' : '') + nombreProc(p) : ''; }).filter(Boolean);
+    var ok = prompt('Se borrarán las respuestas de ' + en.nombre + ' en ' + (pids.length === 1 ? 'este proceso' : 'estos ' + pids.length + ' procesos') + ':\n' + nombres.slice(0, 12).join('\n') +
+      (nombres.length > 12 ? '\n… y ' + (nombres.length - 12) + ' más' : '') +
+      '\n\nLa persona y el resto de sus respuestas se conservan; el proceso sigue en su lista y puede volver a responderlo con su mismo enlace. ' +
+      'El análisis de IA de ese proceso también se borra (regenéralo). No se puede deshacer. Escribe BORRAR para confirmar.');
+    if (ok === null) return Promise.resolve(false);
+    if (ok.trim().toUpperCase() !== 'BORRAR'){ alert('No se borró nada: hay que escribir BORRAR.'); return Promise.resolve(false); }
+    if (boton) boton.disabled = true;
+    var tandas = [];
+    for (var i = 0; i < pids.length; i += 30) tandas.push(pids.slice(i, i + 30));
+    return tandas.reduce(function(prom, t){ return prom.then(function(){ return api('/a/respuesta/borrar', {encuestado_id: eid, proceso_ids: t}); }); }, Promise.resolve())
+      .then(function(){ return abrir(C.campana.id).then(function(){ return true; }); })
+      .catch(function(err){ if (boton) boton.disabled = false; alert(err.message); return abrir(C.campana.id).then(function(){ return false; }); });
+  }
+
   // Lista de procesos de una persona: la que ve en su encuesta, con su avance. Aquí se le asignan o quitan procesos.
   function procesosPersona(eid){
     var en = IX.enc[eid]; if (!en) return;
@@ -1204,16 +1230,22 @@
     $('#dlgT').textContent = 'Procesos de ' + en.nombre;
     $('#dlgS').textContent = en.gerencia + ' · ' + en.seccion + ' · ' + act.filter(function(x){ return x.avance.completo; }).length + ' de ' + act.length + ' completos';
     var h = '<p class="muted" style="margin-top:0">Es la lista que la persona ve en su encuesta. Los de su sección aparecen solos; los demás se asignan aquí o ella los elige con el buscador. ' +
-      'Un proceso asignado queda «por marcar» hasta que ella confirma su relación. Lo que ya respondió no se quita desde aquí.</p>';
-    h += '<div class="tblwrap"><table><thead><tr><th>Proceso</th><th>Por qué está en su lista</th><th>Relación</th><th>Avance</th><th></th></tr></thead><tbody>';
+      'Un proceso asignado queda «por marcar» hasta que ella confirma su relación. Para quitar uno que ya respondió, primero borra sus respuestas en ese proceso: ' +
+      'marca la casilla y pulsa «Borrar respuestas». La persona y el resto de lo que respondió se conservan.</p>';
+    var borrables = L.filter(function(x){ return conAlgoQueBorrar(x.p.id, eid); }).length;
+    if (borrables) h += '<div class="row" style="margin-bottom:8px"><button class="btn btn-xs" id="ppBorrar" disabled>Borrar respuestas</button>' +
+      '<span class="muted">' + borrables + (borrables === 1 ? ' proceso tiene' : ' procesos tienen') + ' respuestas o marcas de esta persona</span></div>';
+    h += '<div class="tblwrap"><table><thead><tr><th></th><th>Proceso</th><th>Por qué está en su lista</th><th>Relación</th><th>Avance</th><th></th></tr></thead><tbody>';
     L.forEach(function(x){
       var p = x.p, quitable = x.origen !== 'seccion' && x.origen !== 'propio' && !x.respondido;
-      h += '<tr><td>' + (p.codigo ? '<span class="muted">' + esc(p.codigo) + '</span> ' : '') + '<b>' + esc(nombreProc(p)) + '</b><div class="muted">' + esc(p.gerencia + ' · ' + p.seccion) + '</div></td>' +
+      var borrable = conAlgoQueBorrar(p.id, eid);
+      h += '<tr><td>' + (borrable ? '<input type="checkbox" data-resp-sel="' + esc(p.id) + '" aria-label="Seleccionar las respuestas de ' + esc(nombreProc(p)) + '">' : '') + '</td>' +
+        '<td>' + (p.codigo ? '<span class="muted">' + esc(p.codigo) + '</span> ' : '') + '<b>' + esc(nombreProc(p)) + '</b><div class="muted">' + esc(p.gerencia + ' · ' + p.seccion) + '</div></td>' +
         '<td>' + esc(x.porque) + '</td><td>' + (x.rev ? esc(RELACION_TXT[x.rev.estado] || x.rev.estado) : '<span class="chip c-warn">por marcar</span>') + '</td>' +
         '<td>' + (x.activo ? (x.avance.completo ? '<span class="chip c-ok">' + esc(textoAvance(x.avance)) + '</span>' : esc(textoAvance(x.avance))) : '') + '</td>' +
         '<td>' + (quitable ? '<button class="btn-link" data-quitar-proc="' + esc(p.id) + '">Quitar</button>' : '') + '</td></tr>';
     });
-    if (!L.length) h += '<tr><td colspan="5" class="muted">No tiene procesos en su lista: asígnale los suyos abajo o pídele que los busque en la encuesta.</td></tr>';
+    if (!L.length) h += '<tr><td colspan="6" class="muted">No tiene procesos en su lista: asígnale los suyos abajo o pídele que los busque en la encuesta.</td></tr>';
     h += '</tbody></table></div>';
     h += '<h3 style="font-size:14px;margin-top:18px">Asignar procesos</h3>' +
       '<input type="search" id="apBuscar" placeholder="Nombre, código, área o persona del inventario anterior…" aria-label="Buscar procesos para asignar">' +
@@ -1223,6 +1255,15 @@
     if (!$('#dlg').open) $('#dlg').showModal();
     var ya = {}; L.forEach(function(x){ ya[x.p.id] = 1; });
     var refrescar = function(){ return abrir(C.campana.id).then(function(){ procesosPersona(eid); }); };
+    $('#ppCont').addEventListener('change', function(ev){
+      if (!ev.target.dataset.respSel) return;
+      var n = document.querySelectorAll('#ppCont [data-resp-sel]:checked').length, b = $('#ppBorrar');
+      b.disabled = !n; b.textContent = n ? 'Borrar respuestas de ' + n + (n === 1 ? ' proceso' : ' procesos') : 'Borrar respuestas';
+    });
+    if ($('#ppBorrar')) $('#ppBorrar').addEventListener('click', function(){
+      var pids = Array.prototype.map.call(document.querySelectorAll('#ppCont [data-resp-sel]:checked'), function(x){ return x.dataset.respSel; });
+      borrarRespuestas(eid, pids, this).then(function(hecho){ if (hecho) procesosPersona(eid); });
+    });
     $('#apBuscar').addEventListener('input', function(){
       var ts = sinTildes(this.value.trim()).split(/\s+/).filter(Boolean);
       if (!ts.length || ts.join('').length < 2){ $('#apRes').innerHTML = ''; return; }

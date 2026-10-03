@@ -47,6 +47,7 @@
  *   POST /a/matriz               {proceso_id, matriz?, validacion?, validado_por?}   (fila de la matriz y check de validación)
  *   POST /a/validacion           {campana_id, proceso_ids[], validacion, validado_por}   (validación en bloque)
  *   POST /a/encuestado/borrar    {encuestado_id | encuestado_ids[], forzar?}   (con respuestas, solo con forzar)
+ *   POST /a/respuesta/borrar     {encuestado_id, proceso_id | proceso_ids[]}   (borra sus respuestas en esos procesos; la persona se queda)
  *   POST /a/estructurar          {proceso_id}
  *   POST /a/borrar-campana       {campana_id, confirmar}   (confirmar = nombre exacto)
  *   GET  /health
@@ -883,6 +884,35 @@ async function rutaEncuestadoBorrar(env, b) {
   return { ok: true, borrados: enc.length, con_respuestas: conResp };
 }
 
+// Borrar las respuestas de una persona en uno o varios procesos, sin borrar a la persona ni sus otras respuestas.
+// Se borran sus bloques y su marca de relación con el proceso: el proceso sigue en su lista (vuelve a «por marcar»)
+// y puede volver a responderlo con su mismo enlace. El análisis de la IA de esos procesos se borra porque incluía
+// lo que esta persona dijo; se regenera desde la consola con lo que queda.
+async function rutaRespuestaBorrar(env, b) {
+  const e = await env.DB.prepare('SELECT id, campana_id, estado FROM encuestados WHERE id=?').bind(txt(b.encuestado_id, 60)).first();
+  if (!e) throw new HttpError(404, 'Persona no encontrada');
+  const ids = [...new Set((Array.isArray(b.proceso_ids) ? b.proceso_ids : [b.proceso_id]).map(x => txt(x, 60)).filter(Boolean))];
+  if (!ids.length) throw new HttpError(400, 'No se indicaron procesos');
+  if (ids.length > MAX_BORRAR) throw new HttpError(413, 'Borra como máximo ' + MAX_BORRAR + ' procesos por vez');
+  const ph = ids.map(() => '?').join(',');
+  const procs = (await env.DB.prepare(`SELECT id FROM procesos WHERE campana_id=? AND id IN (${ph})`).bind(e.campana_id, ...ids).all()).results.map(p => p.id);
+  if (!procs.length) throw new HttpError(404, 'Proceso no encontrado');
+  const pp = procs.map(() => '?').join(',');
+  const res = await env.DB.batch([
+    env.DB.prepare(`DELETE FROM respuestas WHERE encuestado_id=? AND proceso_id IN (${pp})`).bind(e.id, ...procs),
+    env.DB.prepare(`DELETE FROM revisiones WHERE encuestado_id=? AND proceso_id IN (${pp})`).bind(e.id, ...procs),
+    env.DB.prepare(`DELETE FROM estructurado WHERE proceso_id IN (${pp})`).bind(...procs)
+  ]);
+  // Si ya no le queda nada respondido, vuelve a «sin empezar»; si le queda algo y había terminado, pasa a «en curso».
+  const queda = await env.DB.prepare(`SELECT
+      (SELECT COUNT(*) FROM respuestas WHERE encuestado_id=?) + (SELECT COUNT(*) FROM revisiones WHERE encuestado_id=?) AS n`).bind(e.id, e.id).first();
+  const estado = queda.n ? (e.estado === 'enviado' ? 'en_curso' : e.estado) : 'pendiente';
+  if (estado !== e.estado) await env.DB.prepare('UPDATE encuestados SET estado=? WHERE id=?').bind(estado, e.id).run();
+  const bloques = (res[0].meta && res[0].meta.changes) || 0, analisis = (res[2].meta && res[2].meta.changes) || 0;
+  log('respuestas_borradas', { campana: e.campana_id, procesos: procs.length, bloques, analisis_ia: analisis });
+  return { ok: true, procesos: procs.length, bloques, analisis_ia: analisis, estado };
+}
+
 async function rutaBorrarCampana(env, b) {
   const camp = await env.DB.prepare('SELECT * FROM campanas WHERE id=?').bind(b.campana_id).first();
   if (!camp) throw new HttpError(404, 'Campaña no encontrada');
@@ -1334,6 +1364,7 @@ export default {
           if (url.pathname === '/a/matriz') return json(await rutaMatriz(env, b), 200, h);
           if (url.pathname === '/a/validacion') return json(await rutaValidacion(env, b), 200, h);
           if (url.pathname === '/a/encuestado/borrar') return json(await rutaEncuestadoBorrar(env, b), 200, h);
+          if (url.pathname === '/a/respuesta/borrar') return json(await rutaRespuestaBorrar(env, b), 200, h);
           if (url.pathname === '/a/estructurar') return json(await rutaEstructurar(env, b, ctx), 200, h);
           if (url.pathname === '/a/borrar-campana') return json(await rutaBorrarCampana(env, b), 200, h);
         }
