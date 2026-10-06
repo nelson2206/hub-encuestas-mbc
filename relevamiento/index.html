@@ -980,7 +980,8 @@
   function revisarPendientes(pid){
     BLOQUES.reduce(function(prom, b){
       var ck = respuesta(pid, b.id).checklist || {};
-      if (!respondida(pid, b.id) || ck._huella) return prom;
+      // También se revisan los bloques cuyo checklist cambió (puntos nuevos sin marcar).
+      if (!respondida(pid, b.id) || (ck._huella && b.puntos.every(function(pt){ return ck[pt[0]]; }))) return prom;
       return prom.then(function(){ return verificar(pid, b.id); });
     }, Promise.resolve());
   }

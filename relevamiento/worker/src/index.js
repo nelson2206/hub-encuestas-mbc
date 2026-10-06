@@ -37,7 +37,7 @@
  *   POST /a/campana              {nombre, cliente, glosario}
  *   POST /a/campana/glosario     {campana_id, glosario}
  *   POST /a/enlace               {campana_id, abierta?, regenerar?, dominio?}
- *   POST /a/importar             {campana_id, modo, upsert?, encuestados[], procesos[] (con matriz opcional), sistemas[]}
+ *   POST /a/importar             {campana_id, modo, upsert?, encuestados[], procesos[] (con matriz opcional; con upsert se actualiza por id o código), sistemas[]}
  *   GET  /a/campana?id=          volcado completo de la campaña
  *   POST /a/proceso              {campana_id, id?, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion}
  *   POST /a/proceso/borrar       {proceso_id}   (solo si nadie lo respondió)
@@ -71,34 +71,36 @@ const MAX_TEXTO = 12000;
 // Después de cada respuesta, la IA marca qué puntos se cubrieron y pide solo lo que falta. Un punto que no existe
 // en el área (p. ej. no hay indicadores) se marca "no aplica": así ningún dato queda vacío sin explicación.
 // Tercer elemento de cada punto: 1 = puede no existir en un proceso y la persona puede marcarlo "no aplica" a mano.
-// Objetivo, inicio y fin, responsable, pasos y frecuencia existen siempre: esos solo se cumplen contándolos.
+// Objetivo, inicio y fin, pasos, frecuencia e interacción existen siempre: esos solo se cumplen contándolos.
+// Los puntos siguen los campos de la matriz que definió TDP (2026-10-06), más las aprobaciones externas que pidió.
 const BLOQUES = [
-  { id: 'b1', t: 'El proceso: para qué existe y quiénes participan',
-    g: 'Cuéntanos el objetivo, qué lo inicia y dónde termina, quién es el responsable y qué otras áreas intervienen.',
+  { id: 'b1', t: 'El proceso: objetivo, alcance y de quién depende',
+    g: 'Cuéntanos para qué existe el proceso, qué lo inicia y dónde termina, sus pasos principales y cada cuánto se ejecuta. Si para completarlo esperan la aprobación de otra área, de la casa matriz o de una entidad, dinos de quién (cargo), de qué área y en qué paso.',
     puntos: [
       ['objetivo', 'Para qué existe el proceso (su objetivo)'],
-      ['inicio_fin', 'Qué lo inicia y dónde termina (a quién le entregas el resultado)'],
-      ['dueno', 'Quién es el responsable del proceso (su cargo)'],
-      ['areas', 'Qué otras áreas participan', 1]
-    ] },
-  { id: 'b2', t: 'Cómo se hace: pasos, sistemas y volumen', sistemas: true,
-    g: 'Describe los pasos principales en orden, qué sistemas o archivos usan y para qué, qué partes se hacen a mano y cada cuánto ocurre.',
-    puntos: [
+      ['inicio_fin', 'Qué lo inicia y dónde termina'],
       ['actividades', 'Los pasos principales, en orden'],
-      ['sistemas', 'Qué sistemas, portales o Excel usan (su nombre)', 1],
-      ['uso_sistemas', 'Para qué usan cada sistema', 1],
-      ['manual', 'Qué partes se hacen a mano', 1],
-      ['frecuencia', 'Cada cuánto ocurre y qué volumen maneja']
+      ['frecuencia', 'Cada cuánto se ejecuta (y qué volumen maneja)'],
+      ['aprobaciones', 'Si dependen de aprobaciones de otras áreas: de quién, de qué área y en qué paso', 1]
     ] },
-  { id: 'b3', t: 'Control y cumplimiento: terceros, datos personales, indicadores y normas',
-    g: 'Cuéntanos con qué terceros trabajan, si manejan datos de personas y dónde se guardan, cómo miden el proceso, qué normas lo regulan y si está documentado.',
+  { id: 'b2', t: 'Sistemas, interacción y terceros', sistemas: true,
+    g: 'Cuéntanos qué ERP, aplicativos o plataformas digitales usan y para qué, si el trabajo es digital, presencial o ambos, y con qué terceros se relacionan (proveedores, concesionarios, clientes, funcionarios públicos u otros) y con qué fin.',
     puntos: [
-      ['terceros', 'Con qué terceros interactúan y por qué medio', 1],
-      ['datos_personales', 'Si manejan datos de personas: de quiénes y de qué tipo', 1],
-      ['sistemas_dp', 'En qué sistemas o archivos se guardan esos datos', 1],
-      ['kpis', 'Con qué indicadores miden el proceso', 1],
-      ['normativa', 'Qué normas o políticas lo regulan', 1],
-      ['documentacion', 'Si está documentado (procedimiento, instructivo, flujo)', 1]
+      ['sistemas', 'Qué ERP, aplicativos o plataformas digitales usan (su nombre)', 1],
+      ['uso_sistemas', 'Para qué los usan o con qué fin interactúan', 1],
+      ['interaccion', 'Si la interacción es digital, presencial o ambas'],
+      ['terceros', 'Con qué terceros se relacionan (proveedores, concesionarios, clientes, funcionarios públicos u otros)', 1],
+      ['finalidad_terceros', 'Para qué se relacionan con esos terceros o qué información les comparten', 1]
+    ] },
+  { id: 'b3', t: 'Datos personales, normas, estándares e indicadores',
+    g: 'Cuéntanos si manejan datos de personas (de quiénes, qué datos y para qué), qué normas legales peruanas lo regulan, qué estándares aplican (corporativo de TDP, global de TMC u otros como NTP o ISO), si el proceso está documentado y, si existen, con qué indicadores lo miden.',
+    puntos: [
+      ['datos_personales', 'Si manejan datos de personas: de quiénes y qué datos', 1],
+      ['finalidad_dp', 'Para qué usan esos datos personales', 1],
+      ['normativa', 'Qué normas legales peruanas lo regulan', 1],
+      ['estandares', 'Qué estándares aplican: corporativo TDP, global TMC u otros (NTP, ISO)', 1],
+      ['documentacion', 'Si está documentado (procedimiento, instructivo, flujo)', 1],
+      ['kpis', 'Con qué indicadores lo miden (opcional)', 1]
     ] }
 ];
 // q1..q6: formato anterior (6 preguntas), que se sigue aceptando y mostrando en la consola.
@@ -179,12 +181,15 @@ function log(evento, datos) {
 }
 const mascara = k => (k ? String(k).slice(0, 4) + '…' : '');
 
-// Columnas de la matriz de procesos (formato del inventario del cliente + contrato + lecciones + mapa de procesos).
+// Columnas de la matriz de procesos. La consola muestra las de la matriz que definió TDP (2026-10-06) y las aprobaciones
+// externas; las demás son del formato anterior y se siguen aceptando para no perder lo que ya está cargado.
 const MATRIZ_CLAVES = ['division', 'gerencia', 'seccion', 'participantes', 'niv0', 'macroproceso', 'niv1', 'proceso', 'niv2', 'subproceso',
   'alcance', 'objetivo', 'documentacion', 'normativa', 'crit_normativa', 'riesgos', 'crit_riesgo', 'datos_personales', 'detalle_dp',
   'terceros', 'crit_tercero', 'tecnologia', 'estandar_tdp', 'priorizacion', 'sancion', 'dueno', 'areas', 'actividades', 'kpis',
   'frecuencia', 'uso_tecnologia', 'sistemas_dp', 'automatizacion', 'cod_riesgo', 'categoria_mapa', 'proceso_mapa', 'comentarios',
-  'codigo_2021', 'division_2021', 'gerencia_2021', 'seccion_2021', 'mapeo_org', 'origen'];
+  'codigo_2021', 'division_2021', 'gerencia_2021', 'seccion_2021', 'mapeo_org', 'origen',
+  'interaccion', 'finalidad_terceros', 'finalidad_dp', 'estandar_tmc', 'otros_estandares',
+  'aprob_externa', 'aprob_area', 'aprob_responsable', 'aprob_momento'];
 const VALIDACIONES = ['', 'actualizado', 'validado'];
 
 function limpiarMatriz(m) {
@@ -684,12 +689,13 @@ async function rutaImportar(env, b) {
     nE++;
   });
 
-  // Procesos: con upsert (carga de la matriz), un código que ya existe en la campaña se actualiza en vez de duplicarse.
+  // Procesos: con upsert (carga de la matriz), una fila con el id de un proceso de la campaña (columna oculta del Excel)
+  // o con un código que ya existe se actualiza en vez de duplicarse.
   // La matriz se combina (json_patch): las columnas que trae el archivo se actualizan y las que no trae se conservan.
-  const porCodigo = {};
+  const porCodigo = {}, porId = {};
   if (b.upsert && agregar) {
-    const ya = await env.DB.prepare(`SELECT id, codigo FROM procesos WHERE campana_id=? AND codigo<>''`).bind(camp.id).all();
-    ya.results.forEach(x => { porCodigo[normal(x.codigo)] = x.id; });
+    const ya = await env.DB.prepare('SELECT id, codigo FROM procesos WHERE campana_id=?').bind(camp.id).all();
+    ya.results.forEach(x => { porId[x.id] = x.id; if (normal(x.codigo)) porCodigo[normal(x.codigo)] = x.id; });
   }
   pro.forEach((x, i) => {
     const gerencia = txt(x.gerencia, 150), seccion = txt(x.seccion, 150);
@@ -699,7 +705,7 @@ async function rutaImportar(env, b) {
     const val = VALIDACIONES.includes(x.validacion) ? x.validacion : null;
     // Nombres del inventario anterior (columna PARTICIPANTES): alimentan el buscador por persona.
     const personas = txt(x.personas || matriz.participantes || '', 4000);
-    const id = normal(x.codigo) && porCodigo[normal(x.codigo)];
+    const id = porId[txt(x.id, 60)] || (normal(x.codigo) && porCodigo[normal(x.codigo)]);
     if (id) {
       st.push(env.DB.prepare(`UPDATE procesos SET gerencia=?, seccion=?, macroproceso=?, proceso=?, subproceso=?,
           descripcion=CASE WHEN ?<>'' THEN ? ELSE descripcion END, personas=CASE WHEN ?<>'' THEN ? ELSE personas END,
@@ -932,30 +938,30 @@ async function rutaBorrarCampana(env, b) {
 }
 
 // ---------------------------------------------------------------- estructuración con Claude
-// Campos del inventario que se derivan de las respuestas (los de identificación ya vienen del catálogo).
-// Alineados con la pestaña "Estructura inventario" del data request.
+// Campos de la matriz que la IA llena a partir de las respuestas (los de identificación vienen del catálogo).
+// Son los que definió TDP (2026-10-06), con las mismas claves que la matriz de la consola, más las aprobaciones externas.
 const CAMPOS = [
-  ['tipo_proceso', 'Tipo de proceso: estratégico, core o soporte'],
-  ['dueno_proceso', 'Dueño del proceso end-to-end (cargo, no nombre de persona)'],
-  ['areas_intervienen', 'Áreas internas que participan en el flujo'],
-  ['objetivo', 'Objetivo del proceso'],
-  ['actividades', 'Actividades principales en secuencia (3 a 8), numeradas'],
-  ['inicio_fin', 'Evento que inicia el proceso y dónde termina (a qué área o tercero entrega)'],
-  ['entradas_salidas', 'Entradas y salidas principales'],
-  ['frecuencia_volumen', 'Frecuencia y volumen aproximado'],
-  ['terceros', 'Terceros involucrados (proveedores, concesionarios, clientes, entidades)'],
-  ['interaccion_terceros', 'Tipo de interacción con terceros (digital o presencial) y finalidad'],
-  ['sistemas', 'Sistemas y herramientas con su nombre exacto (ERP, portales, Excel, aplicativos internos)'],
-  ['uso_sistemas', 'Uso específico de cada sistema: para qué se usa y en qué actividad (formato "Sistema: uso")'],
-  ['sistemas_datos_personales', 'Sistemas, portales o archivos donde se guardan o procesan datos personales en este proceso'],
-  ['nivel_automatizacion', 'Nivel de automatización: manual, semiautomático o automatizado'],
-  ['actividades_manuales', 'Actividades manuales o con reproceso relevantes'],
-  ['kpis', 'Indicadores con los que se mide el proceso'],
-  ['regulacion', 'Normativa o política que regula el proceso, solo si el área la mencionó'],
-  ['trata_datos_personales', 'Si trata datos personales: Sí / No'],
-  ['titulares_datos', 'Titulares de los datos: clientes, trabajadores, proveedores u otros'],
-  ['categoria_datos', 'Categoría de datos: identificación, contacto, financieros, sensibles, otros'],
-  ['criticidad_preliminar', 'Criticidad preliminar Alta / Media / Baja con una frase de sustento']
+  ['objetivo', 'Objetivo del subproceso'],
+  ['alcance', 'Actividades principales (alcance): qué lo inicia, los pasos principales en secuencia (3 a 8, numerados) y dónde termina'],
+  ['frecuencia', 'Frecuencia de ejecución (y volumen aproximado si lo dijeron)'],
+  ['documentacion', 'Documentación del subproceso: procedimientos, instructivos, flujos o formatos que lo describen'],
+  ['tecnologia', 'ERP, aplicativos y plataformas digitales, con su nombre exacto (incluye portales y Excel)'],
+  ['interaccion', 'Interacción: "Digital", "Presencial" o "Digital y presencial"'],
+  ['uso_tecnologia', 'Finalidad de interacción: para qué se usa cada sistema o se interactúa con cada tercero (formato "Sistema o tercero: finalidad")'],
+  ['terceros', 'Terceros involucrados (proveedores, concesionarios, clientes, funcionarios públicos, otros)'],
+  ['finalidad_terceros', 'Finalidad del tratamiento con tercero: para qué se relaciona el proceso con cada tercero o qué información le comparte'],
+  ['datos_personales', 'Si trata datos personales: "Sí" o "No"'],
+  ['detalle_dp', 'Tipo/detalle de datos personales: de quiénes (clientes, trabajadores, proveedores u otros) y qué datos (identificación, contacto, financieros, sensibles u otros)'],
+  ['finalidad_dp', 'Finalidad del tratamiento de datos personales: para qué se usan'],
+  ['normativa', 'Normativa legal peruana que regula el proceso, solo si el área la mencionó'],
+  ['estandar_tdp', 'Estándar corporativo TDP: política, procedimiento o estándar interno de la empresa que aplica (cuál)'],
+  ['estandar_tmc', 'Estándar global TMC: estándar o lineamiento global de Toyota Motor Corporation que aplica (cuál)'],
+  ['otros_estandares', 'Otros estándares nacionales o internacionales (NTP, ISO u otros)'],
+  ['kpis', 'Indicadores o KPIs existentes'],
+  ['aprob_externa', 'Si para completar el proceso dependen de aprobaciones externas a la sección dueña: "Sí" o "No"'],
+  ['aprob_area', 'De dónde: gerencia, sección o entidad que aprueba (una línea por aprobación)'],
+  ['aprob_responsable', 'De quién: cargo de quien aprueba (una línea por aprobación, en el mismo orden)'],
+  ['aprob_momento', 'Cuándo: en qué paso o momento del proceso se espera esa aprobación (una línea por aprobación, en el mismo orden)']
 ];
 
 // Los campos van como LISTA de ítems con un solo esquema: un objeto con 20 o más propiedades
@@ -999,9 +1005,10 @@ Reglas:
 - Escribe en español neutro, conciso y profesional, listo para un entregable al cliente.
 - Nunca incluyas nombres de personas ni datos personales concretos (DNI, teléfonos, nombres de clientes): usa cargos y categorías.
 - Para sistemas, usa el nombre exacto del catálogo cuando coincida; si mencionan una herramienta que no está en el catálogo, inclúyela igual y dilo en la evidencia.
-- "uso_sistemas" y "sistemas_datos_personales" responden a observaciones de auditoría del cliente: el inventario anterior no decía para qué se usaba cada sistema ni cuáles guardan datos personales. Sé específico por sistema; si no lo dijeron, déjalo vacío.
+- "uso_tecnologia" (finalidad de interacción) responde a una observación de auditoría del cliente: el inventario anterior no decía para qué se usaba cada sistema. Sé específico por sistema o tercero; si no lo dijeron, déjalo vacío.
+- Aprobaciones externas: si para completar el proceso esperan la aprobación de alguien fuera de la sección dueña (otra área de la empresa, la casa matriz o una entidad), "aprob_externa" es "Sí" y cada aprobación va en una línea, en el mismo orden, en "aprob_area" (de dónde), "aprob_responsable" (de quién, por cargo) y "aprob_momento" (en qué paso). Si dijeron que no dependen de nadie, "aprob_externa" es "No" y los otros tres quedan vacíos.
+- Si la persona dijo que algo no existe en su proceso (no hay terceros, no manejan datos personales, no hay indicadores), escribe "No aplica" con estado "dicho".
 - Si hay una ficha del inventario anterior, compárala con lo que contaron: lo que cambió va en "contradicciones".
-- "criticidad_preliminar" siempre es "inferido" (salvo que lo digan) y es solo una propuesta para priorizar.
 - "vigencia": resume lo que dijeron sobre si el proceso sigue vigente. Quien marcó "existe, pero no participa" confirma que existe. Usa "contradictorio" si difieren y "sin_revision" si nadie lo marcó.
 - "contradicciones": diferencias entre lo que dijeron las distintas personas, o entre la ficha anterior y lo que contaron ahora.
 - "preguntas_validacion": 3 a 6 preguntas concretas para cerrar en la reunión los campos inferidos, vacíos o contradictorios. Nada genérico.
@@ -1016,8 +1023,8 @@ const ORIGEN_TEXTO = { nuevo: 'agregado por un colaborador en la encuesta', cons
 function textoParaClaude(camp, p, encuestados, revisiones, respuestas, sistemas) {
   const PREG = { q1: 'Objetivo, inicio y fin', q2: 'Actividades y participantes', q3: 'Sistemas y manualidad',
     q4: 'Terceros', q5: 'Datos personales', q6: 'Indicadores, normas y frecuencia',
-    b1: 'Bloque 1 · Objetivo, inicio y fin, responsable y áreas', b2: 'Bloque 2 · Pasos, sistemas y volumen',
-    b3: 'Bloque 3 · Terceros, datos personales, indicadores, normas y documentación' };
+    b1: 'Bloque 1 · Objetivo, alcance, frecuencia y aprobaciones externas', b2: 'Bloque 2 · Sistemas, interacción y terceros',
+    b3: 'Bloque 3 · Datos personales, normas, estándares, documentación e indicadores' };
   const lineas = [];
   lineas.push(`CLIENTE: ${camp.cliente}`);
   lineas.push(`PROCESO (ficha de partida):`);
@@ -1028,7 +1035,7 @@ function textoParaClaude(camp, p, encuestados, revisiones, respuestas, sistemas)
   const m = leerMatriz(p.matriz);
   const previos = [['Objetivo', m.objetivo], ['Alcance', m.alcance], ['Tecnología', m.tecnologia], ['Terceros', m.terceros],
     ['Datos personales', [m.datos_personales, m.detalle_dp].filter(Boolean).join(': ')], ['Normativa', m.normativa],
-    ['Documentación', m.documentacion]].filter(x => x[1]);
+    ['Documentación', m.documentacion], ['Estándar corporativo TDP', m.estandar_tdp]].filter(x => x[1]);
   if (previos.length) {
     lineas.push('- Ficha del inventario anterior:');
     previos.forEach(([k, v]) => lineas.push(`  · ${k}: ${String(v).replace(/\s+/g, ' ')}`));
@@ -1167,7 +1174,7 @@ function schemaVerificar(bloque) {
 const VERIFICAR_PROMPT = `Revisas la respuesta de un colaborador a un bloque de una encuesta de relevamiento de procesos. La respuesta suele ser una transcripción de voz: puede tener muletillas y errores de reconocimiento.
 Para cada punto del checklist decide:
 - "cubierto": la respuesta da información concreta sobre ese punto, aunque sea breve. En "evidencia" cita hasta 12 palabras de la respuesta.
-- "no_aplica": la persona dijo claramente que eso no existe en su proceso ("no trabajamos con terceros", "no tenemos indicadores", "no manejamos datos de personas"). Cuenta como respondido. Los puntos que dependen de él también son "no_aplica" (si no manejan datos de personas, tampoco hay sistemas que los guarden). En "evidencia" cita la frase.
+- "no_aplica": la persona dijo claramente que eso no existe en su proceso ("no trabajamos con terceros", "no tenemos indicadores", "no manejamos datos de personas"). Cuenta como respondido. Los puntos que dependen de él también son "no_aplica" (si no manejan datos de personas, tampoco hay finalidad de su tratamiento; si no se relacionan con terceros, tampoco hay finalidad con terceros). Si dijeron que no dependen de la aprobación de nadie fuera de su área, las aprobaciones son "no_aplica". En "evidencia" cita la frase.
 - "falta": no lo mencionó, o lo dijo tan vago que no sirve para un inventario de procesos ("usamos varios sistemas" sin nombrarlos). "evidencia" queda vacía.
 Los sistemas marcados en la lista cuentan para el punto de qué sistemas usan, pero no para qué se usa cada uno.
 "sugerencia": una sola frase amable, en segunda persona (tú), que pida solo lo que falta, con un ejemplo corto si ayuda. Si no falta nada, cadena vacía.
@@ -1191,7 +1198,8 @@ async function rutaVerificar(env, b, ctx) {
   const texto = String((r && r.texto) || '').trim();
   let sistemas = [];
   try { sistemas = JSON.parse((r && r.sistemas) || '[]'); } catch (x) { /* sin sistemas */ }
-  const firma = await huella(texto + '|' + sistemas.join(','));
+  // La huella incluye los puntos del bloque: si cambia el checklist, la respuesta se vuelve a revisar.
+  const firma = await huella(texto + '|' + sistemas.join(',') + '|' + bloque.puntos.map(x => x[0]).join(','));
   if (previo._huella === firma) return { ok: true, checklist: previo };
   const nuevo = { _huella: firma, _sugerencia: '' };
   const manual = id => previo[id] && previo[id].fuente === 'persona';

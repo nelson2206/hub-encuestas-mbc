@@ -126,6 +126,9 @@
   .mcampo.ancho{grid-column:1 / -1}
   .req{font-family:"Trebuchet MS","Segoe UI",sans-serif;font-weight:600;font-size:11px;color:var(--accent);margin-left:4px}
   .sug{font-size:12.5px;color:var(--muted);margin-top:4px;white-space:pre-wrap}
+  .mat table.aprob{margin:4px 0 8px}
+  .mat table.aprob th{white-space:normal}
+  .mat table.aprob td{padding:4px 6px 4px 0;border-bottom:none;vertical-align:middle}
   /* Matriz completa: todas las columnas del entregable, agrupadas como en la ficha */
   main.ancha{max-width:none}
   .seg{display:inline-flex;border:1.5px solid var(--field-line);border-radius:8px;overflow:hidden}
@@ -159,7 +162,6 @@
   .mx-nada{color:var(--field-line)}
   .mx-falta{font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--accent)}
   .mx-ia{font-style:italic;color:var(--muted);margin-top:2px}
-  .nv-a{color:var(--accent);font-weight:700} .nv-m{color:var(--warn);font-weight:700} .nv-b{color:var(--ok);font-weight:700}
   .mx tr.mx-sec td{background:var(--panel);border-top:2px solid var(--heading);padding:8px;vertical-align:middle}
   .mx tr.mx-mac td{color:var(--muted);font-family:Montserrat,sans-serif;font-weight:600;font-size:11.5px;padding:9px 8px 4px;border-bottom:none}
   .mx-pin{position:sticky;left:8px;display:flex;gap:12px;align-items:baseline;width:max-content;white-space:nowrap}
@@ -287,61 +289,83 @@
   // Carpeta de la encuesta: la misma si la consola se abrió como ".../admin.html" o como ".../admin".
   var URL_ENCUESTA = new URL('./', location.href).href;
   var PREG = {q1:'Objetivo, inicio y fin', q2:'Actividades y participantes', q3:'Sistemas y manualidad', q4:'Terceros', q5:'Datos personales', q6:'Indicadores, normas y frecuencia',
-    b1:'Bloque 1 · Objetivo, inicio y fin, responsable y áreas', b2:'Bloque 2 · Pasos, sistemas y volumen', b3:'Bloque 3 · Terceros, datos personales, indicadores y normas'};
+    b1:'Bloque 1 · Objetivo, alcance, frecuencia y aprobaciones externas', b2:'Bloque 2 · Sistemas, interacción y terceros',
+    b3:'Bloque 3 · Datos personales, normas, estándares, documentación e indicadores'};
   var PREG_ANTES = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6'];
   var ORIGEN_TXT = {encuestado:'La eligió', consultor:'Asignado por el equipo', inventario:'Inventario anterior (por nombre)'};
+  // Campos que llena la IA al estructurar un proceso (mismas claves que la matriz; ver CAMPOS en el Worker).
   var CAMPOS = [
-    ['tipo_proceso','Tipo de proceso'],['dueno_proceso','Dueño del proceso'],['areas_intervienen','Áreas que intervienen'],
-    ['objetivo','Objetivo'],['actividades','Actividades principales'],['inicio_fin','Evento de inicio y fin'],
-    ['entradas_salidas','Entradas y salidas'],['frecuencia_volumen','Frecuencia y volumen'],['terceros','Terceros involucrados'],
-    ['interaccion_terceros','Interacción con terceros'],['sistemas','Sistemas y herramientas'],['uso_sistemas','Uso específico de los sistemas'],
-    ['sistemas_datos_personales','Sistemas con datos personales'],['nivel_automatizacion','Nivel de automatización'],
-    ['actividades_manuales','Actividades manuales clave'],['kpis','KPIs'],['regulacion','Regulación aplicable'],
-    ['trata_datos_personales','¿Trata datos personales?'],['titulares_datos','Titulares de los datos'],['categoria_datos','Categoría de datos'],
-    ['criticidad_preliminar','Criticidad preliminar']
+    ['objetivo','Objetivo del subproceso'], ['alcance','Actividades principales (Alcance)'], ['frecuencia','Frecuencia de ejecución'],
+    ['documentacion','Documentación del subproceso'], ['tecnologia','ERP, aplicativos y plataformas digitales'], ['interaccion','Interacción digital / presencial'],
+    ['uso_tecnologia','Finalidad de interacción'], ['terceros','Terceros involucrados'], ['finalidad_terceros','Finalidad del tratamiento con tercero'],
+    ['datos_personales','Datos personales'], ['detalle_dp','Tipo/detalle de datos personales'], ['finalidad_dp','Finalidad del tratamiento de datos personales'],
+    ['normativa','Normativa legal peruana'], ['estandar_tdp','Estándar corporativo TDP'], ['estandar_tmc','Estándar global TMC'],
+    ['otros_estandares','Otros estándares (NTP, ISO, etc.)'], ['kpis','Indicadores / KPIs existentes'],
+    ['aprob_externa','Aprobaciones externas'], ['aprob_area','Aprobación externa: de dónde'], ['aprob_responsable','Aprobación externa: de quién'],
+    ['aprob_momento','Aprobación externa: cuándo']
   ];
   var ESTADO_TXT = {respondido:'Respondido', en_curso:'En curso', sin_cobertura:'Sin cobertura', no_vigente:'Ya no se hace'};
   var ESTADO_ORDEN = ['respondido', 'en_curso', 'sin_cobertura', 'no_vigente'];
   var RELACION_TXT = {vigente:'participa', cambio:'participa, dice que cambió', no_participo:'existe, no participa', no_existe:'dice que ya no se hace'};
   var FUENTE_TXT = {inventario:'Inventario anterior', nuevo:'Agregado en la encuesta', consultor:'Agregado por el consultor'};
 
-  // Matriz de procesos (entregable): mismas columnas del inventario del cliente + contrato + lecciones + mapa de procesos.
-  // [clave, encabezado en el Excel, grupo, etiqueta en la ficha]
+  // Matriz de procesos (entregable): los campos que definió TDP (2026-10-06), en su orden, más las aprobaciones externas.
+  // [clave, encabezado en el Excel, grupo, etiqueta en la ficha, encabezado anterior (para leer matrices exportadas antes)]
+  // Los campos que se quitaron (códigos, dueño, áreas, criticidades, mapa, comentarios, trazabilidad…) siguen guardados
+  // en cada proceso, pero ya no se muestran ni se exportan.
   var MATRIZ = [
-    ['division','DIVISIÓN','id','División'], ['gerencia','GERENCIA','id','Gerencia'], ['seccion','SECCIÓN','id','Sección'],
-    ['participantes','PARTICIPANTES','car','Participantes'], ['niv0','NIV.0','id','Código macroproceso'], ['macroproceso','MACROPROCESO (NIV.0)','id','Macroproceso'],
-    ['niv1','NIV.1','id','Código proceso'], ['proceso','PROCESO (NIV.1)','id','Proceso'], ['niv2','NIV.2','id','Código subproceso'],
-    ['subproceso','SUBPROCESO (NIV.2)','id','Subproceso'], ['alcance','ALCANCE','car','Alcance (desde / hasta)'], ['objetivo','OBJETIVO','car','Objetivo'],
-    ['documentacion','DOCUMENTACIÓN','car','Documentación'], ['normativa','NORMATIVA','rie','Normativa'],
-    ['crit_normativa','CRITICIDAD DE NORMATIVA','rie','Criticidad de normativa'], ['riesgos','RIESGOS EMPRESARIALES','rie','Riesgos empresariales'],
-    ['crit_riesgo','CRITICIDAD DE RIESGO EMPRESARIAL','rie','Criticidad de riesgo empresarial'], ['datos_personales','DATOS PERSONALES (Sí/No)','rie','Datos personales'],
-    ['detalle_dp','DETALLE DATOS PERSONALES','rie','Detalle de datos personales'], ['terceros','TERCEROS','rie','Terceros'],
-    ['crit_tercero','CRITICIDAD DE TERCERO','rie','Criticidad de tercero'], ['tecnologia','TECNOLOGÍA','car','Tecnología'],
-    ['estandar_tdp','CUENTA CON ESTÁNDAR DE TDP','rie','Cuenta con estándar'], ['priorizacion','PROPUESTA DE PRIORIZACIÓN','rie','Propuesta de priorización'],
-    ['sancion','SANCIÓN','rie','Sanción'], ['dueno','DUEÑO DEL PROCESO (CARGO)','car','Dueño del proceso (cargo)'],
-    ['areas','ÁREAS QUE INTERVIENEN','car','Áreas que intervienen'], ['actividades','ACTIVIDADES PRINCIPALES','car','Actividades principales'],
-    ['kpis','KPIs','car','KPIs'], ['frecuencia','FRECUENCIA Y VOLUMEN','car','Frecuencia y volumen'],
-    ['uso_tecnologia','USO ESPECÍFICO DE LA TECNOLOGÍA','car','Uso específico de la tecnología'], ['sistemas_dp','SISTEMAS QUE TRATAN DATOS PERSONALES','rie','Sistemas que tratan datos personales'],
-    ['automatizacion','NIVEL DE AUTOMATIZACIÓN','car','Nivel de automatización'], ['cod_riesgo','CÓDIGO DE RIESGO (TGRS)','rie','Código de riesgo (TGRS)'],
-    ['categoria_mapa','CATEGORÍA MAPA TDP','mapa','Categoría del mapa de procesos'], ['proceso_mapa','PROCESO MAPA TDP','mapa','Proceso del mapa de procesos'],
-    ['comentarios','COMENTARIOS','obs','Comentarios'],
-    ['codigo_2021','CÓDIGO 2021','traza','Código 2021'], ['division_2021','DIVISIÓN 2021','traza','División 2021'], ['gerencia_2021','GERENCIA 2021','traza','Gerencia 2021'],
-    ['seccion_2021','SECCIÓN 2021','traza','Sección 2021'], ['mapeo_org','MAPEO ORGANIZACIONAL 2021-2026','traza','Mapeo organizacional'], ['origen','ORIGEN DE LA FILA','traza','Origen de la fila']
+    ['macroproceso','Macroproceso','id','Macroproceso','MACROPROCESO (NIV.0)'],
+    ['proceso','Proceso','id','Proceso','PROCESO (NIV.1)'],
+    ['subproceso','Subproceso','id','Subproceso','SUBPROCESO (NIV.2)'],
+    ['objetivo','Objetivo del subproceso','desc','Objetivo del subproceso','OBJETIVO'],
+    ['gerencia','Gerencia involucrada de TDP','id','Gerencia involucrada de TDP','GERENCIA'],
+    ['seccion','Secciones involucradas de TDP','id','Secciones involucradas de TDP','SECCIÓN'],
+    ['documentacion','Documentación del subproceso','desc','Documentación del subproceso','DOCUMENTACIÓN'],
+    ['normativa','Normativa legal peruana','norma','Normativa legal peruana','NORMATIVA'],
+    ['datos_personales','Datos personales','dp','Datos personales','DATOS PERSONALES (Sí/No)'],
+    ['detalle_dp','Tipo/detalle de datos personales','dp','Tipo/detalle de datos personales','DETALLE DATOS PERSONALES'],
+    ['terceros','Terceros involucrados (proveedores, concesionarios, clientes, funcionarios públicos, otros)','ter',
+      'Terceros involucrados (proveedores, concesionarios, clientes, funcionarios públicos, otros)','TERCEROS'],
+    ['tecnologia','ERP, aplicativos y plataformas digitales','tec','ERP, aplicativos y plataformas digitales','TECNOLOGÍA'],
+    ['estandar_tdp','Estándar corporativo TDP','norma','Estándar corporativo TDP','CUENTA CON ESTÁNDAR DE TDP'],
+    ['alcance','Actividades principales (Alcance)','desc','Actividades principales (Alcance)','ALCANCE'],
+    ['frecuencia','Frecuencia de ejecución','desc','Frecuencia de ejecución','FRECUENCIA Y VOLUMEN'],
+    ['interaccion','Interacción Digital / presencial','tec','Interacción Digital / presencial'],
+    ['uso_tecnologia','Finalidad de interacción','tec','Finalidad de interacción','USO ESPECÍFICO DE LA TECNOLOGÍA'],
+    ['finalidad_terceros','Finalidad del tratamiento con tercero','ter','Finalidad del tratamiento con tercero'],
+    ['finalidad_dp','Finalidad del tratamiento de datos personales','dp','Finalidad del tratamiento de datos personales'],
+    ['estandar_tmc','Estándar global TMC','norma','Estándar global TMC'],
+    ['otros_estandares','Otros estándares nacionales/internacionales (NTP, ISO, etc)','norma','Otros estándares nacionales/internacionales (NTP, ISO, etc)'],
+    ['kpis','Indicadores / KPIs existentes (Opcional)','desc','Indicadores / KPIs existentes (Opcional)','KPIs'],
+    // Pedido de TDP: de quién y de dónde depende el proceso para completarse, y en qué momento.
+    ['aprob_externa','Aprobaciones externas (Sí/No)','aprob','¿Depende de aprobaciones externas?'],
+    ['aprob_area','Aprobación externa: de dónde (gerencia / sección)','aprob','De dónde (gerencia / sección)'],
+    ['aprob_responsable','Aprobación externa: de quién (cargo)','aprob','De quién (cargo)'],
+    ['aprob_momento','Aprobación externa: cuándo (momento del proceso)','aprob','Cuándo (momento del proceso)']
   ];
-  var GRUPOS = [['id','Identificación'], ['car','Caracterización'], ['rie','Riesgo, cumplimiento y datos personales'], ['mapa','Mapa de procesos'], ['obs','Comentarios'], ['traza','Trazabilidad con el inventario anterior']];
-  var OPCIONES = {crit_normativa:['Alto','Medio','Bajo'], crit_riesgo:['Alto','Medio','Bajo'], crit_tercero:['Alto','Medio','Bajo'], datos_personales:['Sí','No'],
-    estandar_tdp:['Sí','No','Parcialmente','Programado (en proceso)'], automatizacion:['Manual','Semiautomático','Automatizado'],
-    categoria_mapa:['Gestión estratégica','Gestión de operaciones','Soporte de operaciones','Monitoreo de operaciones']};
-  var LARGOS = {participantes:1, alcance:1, objetivo:1, documentacion:1, normativa:1, riesgos:1, detalle_dp:1, terceros:1, tecnologia:1, sancion:1,
-    areas:1, actividades:1, kpis:1, uso_tecnologia:1, sistemas_dp:1, comentarios:1};
-  // Datos que el contrato pide por proceso: con alguno vacío, la fila no está lista para validar.
-  var OBLIGATORIOS = [['objetivo','Objetivo'], ['areas','Áreas que intervienen'], ['dueno','Dueño del proceso'], ['actividades','Actividades principales'],
-    ['tecnologia','Tecnología'], ['kpis','KPIs (o «No aplica»)'], ['normativa','Normativa (o «No aplica»)']];
-  var ES_OBLIG = {}; OBLIGATORIOS.forEach(function(o){ ES_OBLIG[o[0]] = 1; });
-  // Campo de la IA -> columna de la matriz.
-  var IA_A_MATRIZ = {objetivo:'objetivo', inicio_fin:'alcance', actividades:'actividades', sistemas:'tecnologia', uso_sistemas:'uso_tecnologia',
-    sistemas_datos_personales:'sistemas_dp', nivel_automatizacion:'automatizacion', kpis:'kpis', frecuencia_volumen:'frecuencia', terceros:'terceros',
-    regulacion:'normativa', trata_datos_personales:'datos_personales', dueno_proceso:'dueno', areas_intervienen:'areas'};
+  var GRUPOS = [['id','Identificación'], ['desc','Descripción del subproceso'], ['tec','Tecnología e interacción'], ['ter','Terceros'],
+    ['dp','Datos personales'], ['norma','Normativa y estándares'], ['aprob','Aprobaciones externas']];
+  var ES_MATRIZ = {}; MATRIZ.forEach(function(c){ ES_MATRIZ[c[0]] = 1; });
+  var OPCIONES = {datos_personales:['Sí','No'], estandar_tdp:['Sí','No','Parcialmente','Programado (en proceso)'],
+    interaccion:['Digital','Presencial','Digital y presencial'], aprob_externa:['Sí','No']};
+  var LARGOS = {objetivo:1, documentacion:1, alcance:1, normativa:1, detalle_dp:1, terceros:1, tecnologia:1, uso_tecnologia:1,
+    finalidad_terceros:1, finalidad_dp:1, estandar_tmc:1, otros_estandares:1, kpis:1, aprob_area:1, aprob_momento:1};
+  // Datos que pide la matriz de TDP: con alguno vacío, la fila no está lista para validar («No aplica» cuenta como respuesta).
+  // KPIs es opcional. El tercer elemento es la pregunta Sí/No de la que depende: ese dato solo se pide si la respuesta es «Sí».
+  var OBLIGATORIOS = [['objetivo','Objetivo'], ['documentacion','Documentación'], ['normativa','Normativa legal peruana'],
+    ['datos_personales','Datos personales'], ['detalle_dp','Tipo/detalle de datos personales','datos_personales'], ['terceros','Terceros involucrados'],
+    ['tecnologia','ERP, aplicativos y plataformas'], ['estandar_tdp','Estándar corporativo TDP'], ['alcance','Actividades principales (Alcance)'],
+    ['frecuencia','Frecuencia de ejecución'], ['interaccion','Interacción digital / presencial'], ['uso_tecnologia','Finalidad de interacción'],
+    ['finalidad_terceros','Finalidad del tratamiento con tercero'], ['finalidad_dp','Finalidad del tratamiento de datos personales','datos_personales'],
+    ['estandar_tmc','Estándar global TMC'], ['otros_estandares','Otros estándares'], ['aprob_externa','Aprobaciones externas (Sí/No)'],
+    ['aprob_area','Aprobación externa: de dónde','aprob_externa'], ['aprob_responsable','Aprobación externa: de quién','aprob_externa'],
+    ['aprob_momento','Aprobación externa: cuándo','aprob_externa']];
+  var ES_OBLIG = {}; OBLIGATORIOS.forEach(function(o){ ES_OBLIG[o[0]] = o[2] ? 'si' : 1; });
+  function etiquetaOblig(k){ return ES_OBLIG[k] ? ' <span class="req">' + (ES_OBLIG[k] === 1 ? 'obligatorio' : 'si aplica') + '</span>' : ''; }
+  // Campo de la IA -> columna de la matriz: los análisis nuevos usan las mismas claves que la matriz; los generados
+  // antes del cambio de campos (2026-10-06) usaban otros nombres y se leen con estos alias.
+  var IA_ALIAS = {actividades:'alcance', inicio_fin:'alcance', sistemas:'tecnologia', uso_sistemas:'uso_tecnologia',
+    frecuencia_volumen:'frecuencia', regulacion:'normativa', trata_datos_personales:'datos_personales'};
   var ACT_TXT = {validado:'Validado', actualizado:'Actualizado', respondido:'Respondido', en_levantamiento:'En levantamiento',
     por_actualizar:'Por actualizar', por_relevar:'Por relevar (nuevo)', no_vigente:'Ya no se hace'};
   var ACT_CHIP = {validado:'c-ok', actualizado:'c-warn', respondido:'c-inf', en_levantamiento:'c-inf', por_actualizar:'c-mut', por_relevar:'c-acc', no_vigente:'c-mut'};
@@ -668,15 +692,21 @@
     if (cb === 'en_curso') return 'en_levantamiento';
     return (p.matriz || {}).mapeo_org === 'Nuevo 2026' ? 'por_relevar' : 'por_actualizar';
   }
-  function faltantes(p){ var m = p.matriz || {}; return OBLIGATORIOS.filter(function(o){ return !String(m[o[0]] || '').trim(); }); }
+  // Obligatorios que aplican a la fila: los que dependen de una pregunta Sí/No, solo si la respuesta es «Sí».
+  function esSi(v){ return /^si\b/.test(sinTildes(v).trim()); }
+  function obligatoriosDe(p){ var m = p.matriz || {}; return OBLIGATORIOS.filter(function(o){ return !o[2] || esSi(m[o[2]]); }); }
+  function faltantes(p){ var m = p.matriz || {}; return obligatoriosDe(p).filter(function(o){ return !String(m[o[0]] || '').trim(); }); }
   function sugerencias(pid){
     var e = estructuradoDe(pid), out = {};
     if (!e) return out;
     var c = e.datos.campos || {};
-    Object.keys(IA_A_MATRIZ).forEach(function(k){ if (c[k] && c[k].valor) out[IA_A_MATRIZ[k]] = {valor: c[k].valor, estado: c[k].estado}; });
-    var t = c.titulares_datos || {}, d = c.categoria_datos || {};
+    Object.keys(c).forEach(function(k){
+      var dest = ES_MATRIZ[k] ? k : IA_ALIAS[k];
+      if (dest && c[k] && c[k].valor && !out[dest]) out[dest] = {valor: c[k].valor, estado: c[k].estado};
+    });
+    var t = c.titulares_datos || {}, d = c.categoria_datos || {};   // análisis con el formato anterior
     var det = [t.valor ? 'Titulares: ' + t.valor : '', d.valor ? 'Datos: ' + d.valor : ''].filter(Boolean).join('. ');
-    if (det) out.detalle_dp = {valor: det, estado: t.estado || d.estado || 'inferido'};
+    if (det && !out.detalle_dp) out.detalle_dp = {valor: det, estado: t.estado || d.estado || 'inferido'};
     return out;
   }
   function aplicarProceso(np){
@@ -713,7 +743,7 @@
     C.procesos.forEach(function(p){ gers[p.gerencia] = 1; });
     if (FM.ger && !gers[FM.ger]) FM.ger = '';
     $('#tMatriz').innerHTML =
-      '<p class="muted" style="margin-top:0">Cada fila es un proceso de la matriz final, con las columnas del inventario anterior y las que pide el contrato. ' +
+      '<p class="muted" style="margin-top:0">Cada fila es un proceso de la matriz final, con los campos que definió TDP y las aprobaciones externas de las que depende. ' +
       'Marca el check cuando la gerencia dueña dé su conformidad; el Excel que exportas es el entregable.</p>' +
       '<div class="filtros">' +
         '<div><label for="mTexto">Buscar</label><input type="search" id="mTexto" placeholder="Código, proceso, subproceso…" value="' + esc(FM.texto) + '"></div>' +
@@ -756,11 +786,11 @@
         '<button type="button" data-vista="completa" aria-pressed="' + (FM.vista === 'completa') + '">Matriz completa</button>' +
         '<button type="button" data-vista="resumen" aria-pressed="' + (FM.vista !== 'completa') + '">Resumen</button></div>' +
       '<span class="muted">' + lista.length + ' de ' + total + ' filas</span>' +
-      '<label class="chk"><input type="checkbox" id="mFalt"' + (FM.falt ? ' checked' : '') + '> Solo filas con datos del contrato pendientes</label>' +
+      '<label class="chk"><input type="checkbox" id="mFalt"' + (FM.falt ? ' checked' : '') + '> Solo filas con datos obligatorios pendientes</label>' +
       (pendientes.length ? '<button class="btn btn-ghost btn-xs" id="mValidarTodo" type="button">Validar las ' + pendientes.length + ' filas filtradas</button>' : '') + '</div>';
     if (FM.vista === 'completa') h += barraMx() + gridMatriz(lista);
     else {
-      h += '<div class="tblwrap"><table class="mtabla"><thead><tr><th>Validado</th><th>Código</th><th>Gerencia · sección</th><th>Proceso</th><th>Actualización</th><th>Datos del contrato</th><th>Validación</th><th></th></tr></thead><tbody>';
+      h += '<div class="tblwrap"><table class="mtabla"><thead><tr><th>Validado</th><th>Código</th><th>Gerencia · sección</th><th>Proceso</th><th>Actualización</th><th>Datos obligatorios</th><th>Validación</th><th></th></tr></thead><tbody>';
       lista.slice(0, 400).forEach(function(p){
         var st = actualizacion(p), f = faltantes(p), ok = p.validacion === 'validado';
         var ruta = [p.macroproceso, p.proceso !== nombreProc(p) ? p.proceso : ''].filter(Boolean).join(' › ');
@@ -768,7 +798,7 @@
           '<td>' + esc(p.codigo || '') + '</td><td>' + esc(p.gerencia) + '<div class="muted">' + esc(p.seccion) + '</div></td>' +
           '<td>' + (ruta ? '<div class="muted">' + esc(ruta) + '</div>' : '') + '<b>' + esc(nombreProc(p)) + '</b></td>' +
           '<td><span class="chip ' + ACT_CHIP[st] + '">' + ACT_TXT[st] + '</span></td>' +
-          '<td>' + (f.length ? '<span title="Faltan: ' + esc(f.map(function(x){ return x[1]; }).join(', ')) + '">' + (OBLIGATORIOS.length - f.length) + ' de ' + OBLIGATORIOS.length + '</span>' : '<span class="chip c-ok">Completos</span>') + '</td>' +
+          '<td>' + (f.length ? '<span title="Faltan: ' + esc(f.map(function(x){ return x[1]; }).join(', ')) + '">' + (obligatoriosDe(p).length - f.length) + ' de ' + obligatoriosDe(p).length + '</span>' : '<span class="chip c-ok">Completos</span>') + '</td>' +
           '<td>' + (ok ? esc(p.validado_por || '—') + '<div class="muted">' + esc(fecha(p.validado_en)) + '</div>' : '') + '</td>' +
           '<td><button class="btn btn-ghost btn-xs" type="button" data-m="' + esc(p.id) + '">Abrir fila</button></td></tr>';
       });
@@ -794,10 +824,8 @@
   }
 
   // ---- Matriz completa: las columnas del entregable agrupadas como en la ficha; las filas, por sección y macroproceso.
-  var CORTOS_MX = {niv0:1, niv1:1, niv2:1, crit_normativa:1, crit_riesgo:1, crit_tercero:1, datos_personales:1, estandar_tdp:1,
-    priorizacion:1, automatizacion:1, cod_riesgo:1, codigo_2021:1, mapeo_org:1};
+  var CORTOS_MX = {datos_personales:1, estandar_tdp:1, interaccion:1, aprob_externa:1};
   var ANCHO_MX = {s:108, m:165, l:270, grupo:190};
-  var NIVEL_MX = {Alto:'nv-a', Medio:'nv-m', Bajo:'nv-b'};
   function anchoMx(k){ return LARGOS[k] ? ANCHO_MX.l : CORTOS_MX[k] ? ANCHO_MX.s : ANCHO_MX.m; }
   function lleno(v){ return String(v == null ? '' : v).trim() !== ''; }
   function barraLleno(n, total, contrato, texto){
@@ -809,10 +837,10 @@
     var w = anchoMx(k), lim = w >= ANCHO_MX.l ? 110 : w >= ANCHO_MX.m ? 60 : 36;
     return completo || t.length <= lim ? t : t.slice(0, lim).replace(/\s+\S*$/, '') + '…';
   }
-  // Celda vacía: «Falta» si es un dato que pide el contrato; debajo, lo que la IA dedujo de la encuesta y aún no se pasó a la matriz.
-  function celdaMx(k, v, s, completo){
-    if (lleno(v)){ var t = String(v).trim(); return '<div class="mx-t' + (NIVEL_MX[t] ? ' ' + NIVEL_MX[t] : '') + '">' + esc(recorteMx(k, t, completo)) + '</div>'; }
-    return (ES_OBLIG[k] ? '<span class="mx-falta">Falta</span>' : '<span class="mx-nada">—</span>') +
+  // Celda vacía: «Falta» si es un dato obligatorio para esa fila; debajo, lo que la IA dedujo de la encuesta y aún no se pasó a la matriz.
+  function celdaMx(k, v, s, completo, falta){
+    if (lleno(v)) return '<div class="mx-t">' + esc(recorteMx(k, String(v).trim(), completo)) + '</div>';
+    return (falta ? '<span class="mx-falta">Falta</span>' : '<span class="mx-nada">—</span>') +
       (s && s.valor ? '<div class="mx-t mx-ia">IA: ' + esc(recorteMx(k, String(s.valor), completo)) + '</div>' : '');
   }
   function barraMx(){
@@ -821,9 +849,9 @@
       '<div class="row mx-barra"><span class="muted">Secciones:</span><button type="button" class="btn btn-ghost btn-xs" data-secs="abrir">Expandir todas</button>' +
       '<button type="button" class="btn btn-ghost btn-xs" data-secs="cerrar">Contraer todas</button>' +
       '<label class="chk"><input type="checkbox" id="mxLargo"' + (FM.largo ? ' checked' : '') + '> Ver el texto completo de todas las filas</label></div>' +
-      '<p class="definicion" style="margin:0 0 8px">Las barras indican qué parte de los procesos tiene el dato: arriba, de todas las filas filtradas; en cada sección, de sus procesos (en rosado, los datos que pide el contrato). ' +
+      '<p class="definicion" style="margin:0 0 8px">Las barras indican qué parte de los procesos tiene el dato: arriba, de todas las filas filtradas; en cada sección, de sus procesos (en rosado, los datos obligatorios). ' +
       'Abre una sección con «+» para ver sus procesos. ' +
-      '<span class="mx-falta">Falta</span>: dato del contrato vacío; «—»: vacío. <i>En cursiva</i>: lo que la IA dedujo de la encuesta y aún no está en la matriz (ábrela para usarlo). ' +
+      '<span class="mx-falta">Falta</span>: dato obligatorio vacío; «—»: vacío o no aplica. <i>En cursiva</i>: lo que la IA dedujo de la encuesta y aún no está en la matriz (ábrela para usarlo). ' +
       'Haz clic en una fila para leer su texto completo; el nombre del proceso abre la ficha para editarla.</p>';
   }
   function gruposMx(){
@@ -832,15 +860,16 @@
   function datosFilaMx(p){
     var v = {};
     MATRIZ.forEach(function(c){ v[c[0]] = valorMatriz(p, c[0]); });
-    return {p: p, v: v, sug: sugerencias(p.id), falta: faltantes(p)};
+    return {p: p, v: v, sug: sugerencias(p.id), falta: faltantes(p), oblig: obligatoriosDe(p).length};
   }
   function filaMx(f, grupos, si, cerrada){
-    var p = f.p, st = actualizacion(p), ok = p.validacion === 'validado', abierta = !!FM.abiertas[p.id];
+    var p = f.p, st = actualizacion(p), ok = p.validacion === 'validado', abierta = !!FM.abiertas[p.id], faltaK = {};
+    f.falta.forEach(function(o){ faltaK[o[0]] = 1; });
     var h = '<tr class="mx-fila' + (ok ? ' fila-ok' : '') + (abierta ? ' mx-abierta' : '') + (cerrada ? ' hidden' : '') + '" data-s="' + si + '" data-p="' + esc(p.id) + '">' +
       '<td class="fijo0"><input type="checkbox" data-v="' + esc(p.id) + '"' + (ok ? ' checked' : '') + ' aria-label="Validado: ' + esc(nombreProc(p)) + '"></td>' +
       '<td class="fijo1"><div class="mx-proc"><span class="mx-cod">' + esc(p.codigo || '') + '</span><button type="button" class="mx-abrir" data-m="' + esc(p.id) + '">' + esc(nombreProc(p)) + '</button></div></td>' +
       '<td class="g-ini"><span class="chip ' + ACT_CHIP[st] + '">' + ACT_TXT[st] + '</span></td>' +
-      '<td>' + (f.falta.length ? '<span title="Faltan: ' + esc(f.falta.map(function(x){ return x[1]; }).join(', ')) + '">' + (OBLIGATORIOS.length - f.falta.length) + ' de ' + OBLIGATORIOS.length + '</span>' : '<span class="chip c-ok">Completos</span>') + '</td>' +
+      '<td>' + (f.falta.length ? '<span title="Faltan: ' + esc(f.falta.map(function(x){ return x[1]; }).join(', ')) + '">' + (f.oblig - f.falta.length) + ' de ' + f.oblig + '</span>' : '<span class="chip c-ok">Completos</span>') + '</td>' +
       '<td>' + (ok ? esc(p.validado_por || '—') + '<div class="muted">' + esc(fecha(p.validado_en)) + '</div>' : '') + '</td>';
     grupos.forEach(function(g){
       if (g.oculto){
@@ -848,7 +877,7 @@
         h += '<td class="g-ini">' + barraLleno(n, g.cols.length, false, n + ' de ' + g.cols.length) + '</td>';
         return;
       }
-      g.cols.forEach(function(c, i){ h += '<td' + (i ? '' : ' class="g-ini"') + '>' + celdaMx(c[0], f.v[c[0]], f.sug[c[0]], FM.largo || abierta) + '</td>'; });
+      g.cols.forEach(function(c, i){ h += '<td' + (i ? '' : ' class="g-ini"') + '>' + celdaMx(c[0], f.v[c[0]], f.sug[c[0]], FM.largo || abierta, faltaK[c[0]]) + '</td>'; });
     });
     return h + '</tr>';
   }
@@ -884,15 +913,15 @@
         (g.oculto ? 'ver sus ' + g.cols.length + ' columnas' : 'ocultar') + '</button></span></th>';
     });
     h += '</tr><tr class="nombres"><th class="fijo0">Validado</th><th class="fijo1">Código y proceso</th>' +
-      '<th class="g-ini">Actualización</th><th>Datos del contrato</th><th>Validado por</th>';
+      '<th class="g-ini">Actualización</th><th>Datos obligatorios</th><th>Validado por</th>';
     grupos.forEach(function(g){
       if (g.oculto){ h += '<th class="g-ini">Columnas con dato</th>'; return; }
       g.cols.forEach(function(c, i){
-        h += '<th' + (i ? '' : ' class="g-ini"') + ' title="Columna del Excel: ' + esc(c[1]) + '">' + esc(c[3]) + (ES_OBLIG[c[0]] ? ' <span class="req">contrato</span>' : '') + '</th>';
+        h += '<th' + (i ? '' : ' class="g-ini"') + ' title="Columna del Excel: ' + esc(c[1]) + '">' + esc(c[3]) + etiquetaOblig(c[0]) + '</th>';
       });
     });
     h += '</tr><tr class="llenado"><th class="fijo01" colspan="2">Filas con dato (de ' + total + ')</th><th class="g-ini"></th>' +
-      '<th title="Filas con los ' + OBLIGATORIOS.length + ' datos del contrato">' + barraLleno(comp, total, true) + '</th><th title="Filas validadas">' + barraLleno(val, total) + '</th>';
+      '<th title="Filas con todos sus datos obligatorios">' + barraLleno(comp, total, true) + '</th><th title="Filas validadas">' + barraLleno(val, total) + '</th>';
     grupos.forEach(function(g){
       if (g.oculto){
         var n = 0;
@@ -908,14 +937,14 @@
 
     var secAnt = null, macAnt = null, si = -1, cerrada = false;
     filas.forEach(function(f){
-      var p = f.p, m = p.matriz || {}, ks = p.gerencia + '|' + p.seccion;
+      var p = f.p, ks = p.gerencia + '|' + p.seccion;
       if (ks !== secAnt){
         var s = secs[ks];
         secAnt = ks; macAnt = null; si++; cerrada = ks in FM.cerradas ? FM.cerradas[ks] : cerradaPorDefecto;
         h += '<tr class="mx-sec"><td class="fijo01" colspan="2"><button type="button" class="mx-plegar" data-sec="' + si + '" data-sk="' + esc(ks) + '" aria-expanded="' + !cerrada + '">' +
           '<span class="mx-signo">' + (cerrada ? '+' : '−') + '</span><span>' + esc(p.gerencia) + ' · ' + esc(p.seccion) + '</span></button></td>' +
           '<td class="g-ini">' + s.n + (s.n === 1 ? ' proceso' : ' procesos') + '</td>' +
-          '<td title="' + s.comp + ' de ' + s.n + ' con los datos del contrato">' + barraLleno(s.comp, s.n, true) + '</td>' +
+          '<td title="' + s.comp + ' de ' + s.n + ' con todos sus datos obligatorios">' + barraLleno(s.comp, s.n, true) + '</td>' +
           '<td title="' + s.val + ' de ' + s.n + ' validados">' + barraLleno(s.val, s.n) + '</td>';
         grupos.forEach(function(g){
           if (g.oculto){
@@ -933,8 +962,7 @@
       var km = p.macroproceso + '|' + p.proceso;
       if (km !== macAnt){
         macAnt = km;
-        var ruta = [(m.niv0 ? m.niv0 + ' ' : '') + (p.macroproceso || ''), p.proceso !== nombreProc(p) ? (m.niv1 ? m.niv1 + ' ' : '') + p.proceso : '']
-          .filter(function(x){ return x.trim(); }).join(' › ');
+        var ruta = [p.macroproceso, p.proceso !== nombreProc(p) ? p.proceso : ''].filter(Boolean).join(' › ');
         if (ruta) h += '<tr class="mx-mac' + (cerrada ? ' hidden' : '') + '" data-s="' + si + '"><td colspan="' + ncols + '"><div class="mx-pin">' + esc(ruta) + '</div></td></tr>';
       }
       h += filaMx(f, grupos, si, cerrada);
@@ -996,7 +1024,7 @@
     var body;
     if (cb.checked){
       var f = faltantes(p);
-      if (f.length && !confirm('A esta fila le faltan datos del contrato (' + f.map(function(x){ return x[1]; }).join(', ') + '). ¿Validarla igual?')){ cb.checked = false; return; }
+      if (f.length && !confirm('A esta fila le faltan datos obligatorios (' + f.map(function(x){ return x[1]; }).join(', ') + '). ¿Validarla igual?')){ cb.checked = false; return; }
       var por = pedirValidador(); if (por === null){ cb.checked = false; return; }
       body = {proceso_id: p.id, validacion: 'validado', validado_por: por};
     } else {
@@ -1017,34 +1045,34 @@
     return Object.keys(ids).map(function(id){ var en = IX.enc[id] || {}; return en.nombre ? en.nombre + (en.rol ? ' (' + en.rol + ')' : '') : ''; }).filter(Boolean).join('\n');
   }
   // Valor de una columna tal como sale en el entregable: si la fila de la matriz está vacía, se usa el dato del proceso.
-  var DESDE_PROCESO = {gerencia:'gerencia', seccion:'seccion', macroproceso:'macroproceso', proceso:'proceso', subproceso:'subproceso', niv2:'codigo'};
+  var DESDE_PROCESO = {gerencia:'gerencia', seccion:'seccion', macroproceso:'macroproceso', proceso:'proceso', subproceso:'subproceso'};
   function valorMatriz(p, k){
     var v = (p.matriz || {})[k] || '';
     if (!v && DESDE_PROCESO[k]) v = p[DESDE_PROCESO[k]] || '';
-    if (!v && k === 'participantes') v = participantesDe(p.id);
-    if (!v && k === 'origen') v = FUENTE_TXT[p.fuente] || '';
     return v;
   }
-  // Filas del entregable: columnas del inventario anterior + nuevas + estado + trazabilidad.
+  // Columna oculta del Excel con el ID del proceso en la herramienta: permite volver a cargar el archivo editado
+  // (la matriz ya no lleva códigos). Al cliente no se le muestra.
+  var COL_ID = 'ID herramienta (no modificar)';
+  // Filas del entregable: los campos de la matriz de TDP + estado de actualización y validación.
   function filasMatriz(){
     return C.procesos.slice().sort(porCodigo).map(function(p){
-      var fila = {}, st = actualizacion(p);
-      MATRIZ.forEach(function(c){
-        if (c[0] === 'comentarios'){
-          fila['ESTADO DE ACTUALIZACIÓN'] = ACT_TXT[st];
-          fila['VALIDADO'] = p.validacion === 'validado' ? 'Sí' : 'No';
-          fila['VALIDADO POR (CARGO)'] = p.validado_por || '';
-          fila['FECHA DE VALIDACIÓN'] = p.validado_en ? String(p.validado_en).slice(0, 10) : '';
-        }
-        fila[c[1]] = valorMatriz(p, c[0]);
-      });
+      var fila = {};
+      MATRIZ.forEach(function(c){ fila[c[1]] = valorMatriz(p, c[0]); });
+      fila['Estado de actualización'] = ACT_TXT[actualizacion(p)];
+      fila['Validado'] = p.validacion === 'validado' ? 'Sí' : 'No';
+      fila['Validado por (cargo)'] = p.validado_por || '';
+      fila['Fecha de validación'] = p.validado_en ? String(p.validado_en).slice(0, 10) : '';
+      fila[COL_ID] = p.id;
       return fila;
     });
   }
   function hojaMatriz(){
     var filas = filasMatriz();
     var ws = XLSX.utils.json_to_sheet(filas.length ? filas : [{'(sin datos)': ''}]);
-    ws['!cols'] = Object.keys(filas[0] || {}).map(function(k){ return {wch: /ALCANCE|OBJETIVO|ACTIVIDADES|USO ESP|DETALLE|TERCEROS|NORMATIVA|TECNOLOG|COMENTARIOS|SISTEMAS|PARTICIPANTES|DOCUMENT/.test(k) ? 40 : 16}; });
+    var anchos = {};
+    MATRIZ.forEach(function(c){ anchos[c[1]] = LARGOS[c[0]] ? 40 : 18; });
+    ws['!cols'] = Object.keys(filas[0] || {}).map(function(k){ return k === COL_ID ? {wch: 38, hidden: true} : {wch: anchos[k] || 16}; });
     if (ws['!ref']) ws['!autofilter'] = {ref: ws['!ref']};
     return ws;
   }
@@ -1054,35 +1082,66 @@
     XLSX.writeFile(wb, 'Matriz de procesos - ' + C.campana.nombre + ' - ' + new Date().toISOString().slice(0,10) + '.xlsx');
   }
 
+  // Aprobaciones externas: en la matriz son tres columnas con una línea por aprobación, en el mismo orden;
+  // en la ficha se editan como una tabla (una fila por aprobación). Una celda vacía se guarda como «—» para no desalinear.
+  var APROB_COLS = [['aprob_area','De dónde (gerencia / sección)'], ['aprob_responsable','De quién (cargo)'], ['aprob_momento','Cuándo (momento del proceso)']];
+  var ES_APROB_COL = {aprob_area:1, aprob_responsable:1, aprob_momento:1};
+  function filasAprob(m){
+    var cols = APROB_COLS.map(function(c){ return String(m[c[0]] || '').split('\n').map(function(x){ x = x.trim(); return x === '—' ? '' : x; }); });
+    var n = Math.max.apply(null, cols.map(function(x){ return x.length; })), out = [];
+    for (var i = 0; i < n; i++) out.push(cols.map(function(x){ return x[i] || ''; }));
+    return out.filter(function(f){ return f.some(Boolean); });
+  }
+  function aprobIA(sug){ var m = {}; APROB_COLS.forEach(function(c){ m[c[0]] = (sug[c[0]] || {}).valor || ''; }); return filasAprob(m); }
+  function filaAprobHtml(f){
+    return '<tr>' + APROB_COLS.map(function(c, i){ return '<td><input type="text" data-ap="' + i + '" value="' + esc(f[i] || '') + '" aria-label="' + esc(c[1]) + '"></td>'; }).join('') +
+      '<td><button type="button" class="btn-link" data-ap-quitar>Quitar</button></td></tr>';
+  }
+  function tablaAprob(m, sug){
+    var filas = filasAprob(m), ia = aprobIA(sug);
+    var h = '<div class="mcampo ancho"><label>Aprobaciones de las que depende (una fila por aprobación)' + etiquetaOblig('aprob_area') + '</label>' +
+      '<table class="aprob"><thead><tr>' + APROB_COLS.map(function(c){ return '<th>' + esc(c[1]) + '</th>'; }).join('') + '<th></th></tr></thead>' +
+      '<tbody id="mAprob">' + (filas.length ? filas : [['', '', '']]).map(filaAprobHtml).join('') + '</tbody></table>' +
+      '<button type="button" class="btn btn-ghost btn-xs" id="mAprobMas">+ Agregar aprobación</button>';
+    if (ia.length && JSON.stringify(ia) !== JSON.stringify(filas))
+      h += '<div class="sug"><span class="chip c-inf">IA</span> ' + esc(ia.map(function(f){ return f.filter(Boolean).join(' · '); }).join(' | ')) +
+        ' <button type="button" class="btn-link" id="mAprobIA">Usar</button></div>';
+    return h + '</div>';
+  }
+  function leerAprob(){
+    return Array.prototype.map.call(document.querySelectorAll('#mAprob tr'), function(tr){
+      return Array.prototype.map.call(tr.querySelectorAll('[data-ap]'), function(x){ return x.value.trim(); });
+    }).filter(function(f){ return f.some(Boolean); });
+  }
+
   // Editor de la fila de la matriz dentro de la ficha del proceso.
   function editorMatriz(p){
     var m = p.matriz || {}, sug = sugerencias(p.id), st = actualizacion(p), f = faltantes(p);
     var h = '<section class="mat" id="fMatriz"><div class="row" style="justify-content:space-between"><h3 style="font-size:14px">Fila de la matriz</h3>' +
       '<div class="row"><span class="chip ' + ACT_CHIP[st] + '">' + ACT_TXT[st] + '</span>' +
       (p.validacion === 'validado' ? '<span class="muted">Validado por ' + esc(p.validado_por || '—') + ' · ' + esc(fecha(p.validado_en)) + '</span>' : '') + '</div></div>';
-    if (f.length) h += '<p class="msg warn" style="margin:8px 0">Faltan datos del contrato: ' + esc(f.map(function(x){ return x[1]; }).join(', ')) + '.</p>';
+    if (f.length) h += '<p class="msg warn" style="margin:8px 0">Faltan datos obligatorios: ' + esc(f.map(function(x){ return x[1]; }).join(', ')) + '.</p>';
     if (Object.keys(sug).length) h += '<div class="row" style="margin:8px 0"><button class="btn btn-ghost btn-xs" type="button" id="mUsarIA">Completar los campos vacíos con la IA</button>' +
       '<span class="muted">Las sugerencias aparecen bajo cada campo; revísalas antes de guardar.</span></div>';
     GRUPOS.forEach(function(g){
-      var campos = MATRIZ.filter(function(c){ return c[2] === g[0]; });
-      var ro = g[0] === 'traza';
-      h += '<details class="mgrupo"' + (g[0] === 'car' || g[0] === 'rie' ? ' open' : '') + '><summary>' + esc(g[1]) + '</summary><div class="mgrid">';
+      var campos = MATRIZ.filter(function(c){ return c[2] === g[0] && !ES_APROB_COL[c[0]]; });
+      h += '<details class="mgrupo"' + (g[0] !== 'id' ? ' open' : '') + '><summary>' + esc(g[1]) + '</summary><div class="mgrid">';
       campos.forEach(function(c){
         var k = c[0], v = m[k] || '', id = 'mf-' + k, s = sug[k], campo;
-        if (!v && !ro && {gerencia:1, seccion:1, macroproceso:1, proceso:1, subproceso:1}[k]) v = p[k] || '';
-        if (!v && k === 'niv2') v = p.codigo || '';
-        if (OPCIONES[k] && !ro){
+        if (!v && {gerencia:1, seccion:1, macroproceso:1, proceso:1, subproceso:1}[k]) v = p[k] || '';
+        if (OPCIONES[k]){
           campo = '<select id="' + id + '" data-k="' + k + '"><option value=""></option>' + OPCIONES[k].map(function(o){ return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') +
             (v && OPCIONES[k].indexOf(v) < 0 ? '<option selected>' + esc(v) + '</option>' : '') + '</select>';
         } else if (LARGOS[k]){
-          campo = '<textarea id="' + id + '" data-k="' + k + '" rows="3"' + (ro ? ' readonly' : '') + '>' + esc(v) + '</textarea>';
+          campo = '<textarea id="' + id + '" data-k="' + k + '" rows="3">' + esc(v) + '</textarea>';
         } else {
-          campo = '<input type="text" id="' + id + '" data-k="' + k + '" value="' + esc(v) + '"' + (ro ? ' readonly' : '') + '>';
+          campo = '<input type="text" id="' + id + '" data-k="' + k + '" value="' + esc(v) + '">';
         }
-        h += '<div class="mcampo' + (LARGOS[k] ? ' ancho' : '') + '"><label for="' + id + '">' + esc(c[3]) + (ES_OBLIG[k] ? '<span class="req">contrato</span>' : '') + '</label>' + campo +
+        h += '<div class="mcampo' + (LARGOS[k] ? ' ancho' : '') + '"><label for="' + id + '">' + esc(c[3]) + etiquetaOblig(k) + '</label>' + campo +
           (s && s.valor && s.valor !== v ? '<div class="sug"><span class="chip ' + (s.estado === 'dicho' ? 'c-ok' : 'c-inf') + '">IA · ' + esc(s.estado) + '</span> ' + esc(s.valor) +
             ' <button type="button" class="btn-link" data-usar="' + k + '">Usar</button></div>' : '') + '</div>';
       });
+      if (g[0] === 'aprob') h += tablaAprob(m, sug);
       h += '</div></details>';
     });
     h += '<div class="row" style="margin-top:12px"><button class="btn" type="button" id="mGuardar">Guardar fila</button>' +
@@ -1094,6 +1153,10 @@
   function leerEditor(){
     var o = {};
     Array.prototype.forEach.call(document.querySelectorAll('#fMatriz [data-k]'), function(el){ if (!el.readOnly && !el.disabled) o[el.dataset.k] = el.value; });
+    if ($('#mAprob')){
+      var filas = leerAprob();
+      APROB_COLS.forEach(function(c, i){ o[c[0]] = filas.map(function(f){ return f[i] || '—'; }).join('\n'); });
+    }
     return o;
   }
   function activarEditor(p){
@@ -1106,8 +1169,21 @@
       el.value = valor;
     };
     $('#fMatriz').addEventListener('click', function(e){ var b = e.target.closest('[data-usar]'); if (b && sug[b.dataset.usar]) poner(b.dataset.usar, sug[b.dataset.usar].valor); });
+    // Aprobaciones externas: filas que se agregan y quitan; la sugerencia de la IA reemplaza la tabla.
+    var usarAprob = function(){
+      $('#mAprob').innerHTML = aprobIA(sug).map(filaAprobHtml).join('');
+      if (!$('#mf-aprob_externa').value) poner('aprob_externa', 'Sí');
+    };
+    $('#mAprobMas').addEventListener('click', function(){ $('#mAprob').insertAdjacentHTML('beforeend', filaAprobHtml(['', '', ''])); });
+    $('#mAprob').addEventListener('click', function(e){
+      if (!e.target.closest('[data-ap-quitar]')) return;
+      var tr = e.target.closest('tr');
+      if ($('#mAprob').rows.length > 1) tr.remove(); else Array.prototype.forEach.call(tr.querySelectorAll('input'), function(x){ x.value = ''; });
+    });
+    if ($('#mAprobIA')) $('#mAprobIA').addEventListener('click', usarAprob);
     if ($('#mUsarIA')) $('#mUsarIA').addEventListener('click', function(){
       Object.keys(sug).forEach(function(k){ var el = document.getElementById('mf-' + k); if (el && !el.value.trim()) poner(k, sug[k].valor); });
+      if (!leerAprob().length && aprobIA(sug).length) usarAprob();
     });
     var guardar = function(extra, boton){
       boton.disabled = true; $('#mMsg').textContent = 'Guardando…';
@@ -1595,14 +1671,16 @@
       var o = {}; Object.keys(r).forEach(function(k){ o[k.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')] = String(r[k]).trim(); }); return o;
     });
   }
-  // Matriz en Excel (formato del entregable): la hoja cuyos encabezados incluyen "SUBPROCESO (NIV.2)".
+  // Matriz en Excel (formato del entregable): la hoja con «Subproceso» y «Objetivo del subproceso», o con «SUBPROCESO (NIV.2)»
+  // (formato anterior). Cada fila se reconoce por el ID de la herramienta (columna oculta) o, en archivos anteriores, por su código.
   function normEnc(s){ return sinTildes(String(s == null ? '' : s).split('\n')[0]).replace(/\s+/g, ' ').trim(); }
   function leerMatrizExcel(wb){
     for (var i = 0; i < wb.SheetNames.length; i++){
       var filas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[i]], {header: 1, defval: ''});
       var hi = -1;
       for (var r = 0; r < Math.min(filas.length, 6); r++){
-        if (filas[r].some(function(v){ return normEnc(v) === 'subproceso (niv.2)'; })){ hi = r; break; }
+        var encs = filas[r].map(normEnc);
+        if (encs.indexOf('subproceso (niv.2)') >= 0 || (encs.indexOf('subproceso') >= 0 && encs.indexOf('objetivo del subproceso') >= 0)){ hi = r; break; }
       }
       if (hi < 0) continue;
       var idx = {};
@@ -1611,13 +1689,14 @@
       var out = [];
       filas.slice(hi + 1).forEach(function(row){
         var m = {};
-        MATRIZ.forEach(function(c){ var v = celda(row, c[1]); if (v) m[c[0]] = v; });
+        MATRIZ.forEach(function(c){ var v = celda(row, c[1]) || (c[4] ? celda(row, c[4]) : ''); if (v) m[c[0]] = v; });
         if (!m.subproceso && !m.proceso) return;
-        var validado = normEnc(celda(row, 'VALIDADO')) === 'si';
-        var estado = normEnc(celda(row, 'ESTADO DE ACTUALIZACIÓN'));
-        out.push({codigo: m.niv2 || '', gerencia: m.gerencia || '', seccion: m.seccion || '', macroproceso: m.macroproceso || '',
+        var validado = normEnc(celda(row, 'Validado')) === 'si';
+        var estado = normEnc(celda(row, 'Estado de actualización'));
+        out.push({id: celda(row, COL_ID), codigo: celda(row, 'NIV.2'), personas: celda(row, 'PARTICIPANTES'),
+          gerencia: m.gerencia || '', seccion: m.seccion || '', macroproceso: m.macroproceso || '',
           proceso: m.proceso || '', subproceso: m.subproceso || '', matriz: m,
-          validacion: validado ? 'validado' : (estado === 'actualizado' ? 'actualizado' : undefined), validado_por: celda(row, 'VALIDADO POR (CARGO)')});
+          validacion: validado ? 'validado' : (estado === 'actualizado' ? 'actualizado' : undefined), validado_por: celda(row, 'Validado por (cargo)')});
       });
       return {hoja: wb.SheetNames[i], procesos: out};
     }
@@ -1630,13 +1709,13 @@
       var wb = XLSX.read(buf, {type:'array'});
       var mx = leerMatrizExcel(wb);
       if (mx){
-        var cods = {};
-        C.procesos.forEach(function(p){ if (p.codigo) cods[sinTildes(p.codigo)] = 1; });
-        var act = mx.procesos.filter(function(x){ return x.codigo && cods[sinTildes(x.codigo)]; }).length;
+        var ids = {}, cods = {};
+        C.procesos.forEach(function(p){ ids[p.id] = 1; if (p.codigo) cods[sinTildes(p.codigo)] = 1; });
+        var act = mx.procesos.filter(function(x){ return (x.id && ids[x.id]) || (x.codigo && cods[sinTildes(x.codigo)]); }).length;
         CARGA = {encuestados: [], procesos: mx.procesos, sistemas: [], upsert: true};
         $('#modoCarga').value = 'agregar';
         $('#prevCarga').innerHTML = 'Matriz detectada en la hoja «' + esc(mx.hoja) + '»: <b>' + mx.procesos.length + '</b> filas. ' +
-          '<b>' + act + '</b> actualizan procesos existentes (por código) y <b>' + (mx.procesos.length - act) + '</b> se agregan. ' +
+          '<b>' + act + '</b> actualizan procesos existentes (por su ID o código) y <b>' + (mx.procesos.length - act) + '</b> se agregan. ' +
           'Las respuestas y validaciones que ya están en la herramienta se conservan; una fila con VALIDADO = Sí queda validada.';
         $('#btnImportar').disabled = false;
         return;
