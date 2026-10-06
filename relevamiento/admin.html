@@ -126,6 +126,49 @@
   .mcampo.ancho{grid-column:1 / -1}
   .req{font-family:"Trebuchet MS","Segoe UI",sans-serif;font-weight:600;font-size:11px;color:var(--accent);margin-left:4px}
   .sug{font-size:12.5px;color:var(--muted);margin-top:4px;white-space:pre-wrap}
+  /* Matriz completa: todas las columnas del entregable, agrupadas como en la ficha */
+  main.ancha{max-width:none}
+  .seg{display:inline-flex;border:1.5px solid var(--field-line);border-radius:8px;overflow:hidden}
+  .seg button{appearance:none;background:none;border:none;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;color:var(--muted);padding:6px 12px}
+  .seg button[aria-pressed=true]{background:var(--navy);color:#fff}
+  .mx-barra{margin:0 0 8px;gap:6px 16px}
+  .mx-scroll{overflow:auto;max-height:calc(100vh - 110px);border:1px solid var(--line);border-radius:10px;background:var(--card)}
+  table.mx{border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:12.5px;line-height:1.35}
+  .mx th,.mx td{background:var(--card);border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:6px 8px}
+  .mx thead th{position:sticky;top:0;z-index:2;white-space:normal;vertical-align:bottom;color:var(--heading)}
+  .mx thead tr.banda th{background:var(--panel);vertical-align:middle}
+  .mx thead tr.banda .btn-link{font-size:11.5px}
+  .mx thead tr.llenado th{font-weight:600;color:var(--muted);vertical-align:middle;border-bottom:1.5px solid var(--field-line)}
+  .mx .g-ini{border-left:2px solid var(--field-line)}
+  .mx .fijo0,.mx .fijo1,.mx .fijo01{position:sticky;z-index:1}
+  .mx thead .fijo0,.mx thead .fijo1,.mx thead .fijo01{z-index:3}
+  .mx .fijo0,.mx .fijo01{left:0}
+  .mx .fijo0{text-align:center}
+  .mx .fijo1{left:72px}
+  .mx .fijo1,.mx .fijo01{border-right:2px solid var(--field-line)}
+  .mx input[type=checkbox]{width:18px;height:18px;accent-color:var(--ok);cursor:pointer}
+  .mx-t{white-space:pre-line;overflow-wrap:anywhere}
+  .mx tr.mx-fila{cursor:pointer}
+  .mx tr.fila-ok td{background:var(--ok-bg)}
+  .mx tr.mx-fila:hover td,.mx tr.mx-abierta td{background:var(--panel)}
+  .mx-proc{display:flex;gap:6px;align-items:baseline}
+  .mx-cod{flex:none;min-width:42px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .mx thead tr.banda .mx-gnom{position:sticky;left:380px;display:inline-block}
+  .mx-abrir{appearance:none;background:none;border:none;padding:0;font:inherit;font-weight:700;color:var(--heading);text-align:left;cursor:pointer}
+  .mx-abrir:hover{text-decoration:underline}
+  .mx-nada{color:var(--field-line)}
+  .mx-falta{font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--accent)}
+  .mx-ia{font-style:italic;color:var(--muted);margin-top:2px}
+  .nv-a{color:var(--accent);font-weight:700} .nv-m{color:var(--warn);font-weight:700} .nv-b{color:var(--ok);font-weight:700}
+  .mx tr.mx-sec td{background:var(--panel);border-top:2px solid var(--heading);padding:8px;vertical-align:middle}
+  .mx tr.mx-mac td{color:var(--muted);font-family:Montserrat,sans-serif;font-weight:600;font-size:11.5px;padding:9px 8px 4px;border-bottom:none}
+  .mx-pin{position:sticky;left:8px;display:flex;gap:12px;align-items:baseline;width:max-content;white-space:nowrap}
+  .mx-plegar{appearance:none;background:none;border:none;padding:0;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;color:var(--heading);text-align:left;display:flex;gap:4px}
+  .mx-signo{flex:none;width:14px}
+  .mx-llen{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:11.5px;color:var(--muted)}
+  .mx-llen span{flex:1;min-width:28px;height:5px;border-radius:9px;background:var(--line);overflow:hidden}
+  .mx-llen i{display:block;height:100%;background:var(--inf)}
+  .mx-llen.contrato i{background:var(--accent)}
 </style>
 </head>
 <body>
@@ -324,7 +367,7 @@
       });
     });
   }
-  function ver(id){ ['vLogin','vCampanas','vCampana'].forEach(function(v){ $('#'+v).classList.toggle('hidden', v !== id); }); }
+  function ver(id){ ['vLogin','vCampanas','vCampana'].forEach(function(v){ $('#'+v).classList.toggle('hidden', v !== id); }); ajustarAncho(); }
   function copiar(texto, boton){
     navigator.clipboard.writeText(texto).then(function(){
       if (!boton) return;
@@ -495,6 +538,7 @@
     [['mapa','#tMapa'], ['matriz','#tMatriz'], ['barrido','#tBarrido'], ['encuestados','#tEncuestados'], ['carga','#tCarga']].forEach(function(k){
       $(k[1]).classList.toggle('hidden', t.dataset.tab !== k[0]);
     });
+    ajustarAncho();
   });
 
   // ------------------------------------------------------------ mapa de procesos
@@ -652,7 +696,18 @@
     return ULTIMO_VALIDADOR;
   }
 
-  var FM = {texto:'', ger:'', act:'', falt:false};   // filtros de la pestaña Matriz
+  var FM = {texto:'', ger:'', act:'', falt:false,   // filtros de la pestaña Matriz
+    vista:'completa', ocultos:{id:1}, largo:false, cerradas:{}, abiertas:{}};   // matriz completa: grupos ocultos, texto completo, secciones abiertas o cerradas a mano, filas desplegadas
+  // La vista y los grupos ocultos se recuerdan en este navegador (comodidad de quien usa la consola, no datos).
+  try {
+    var PM = JSON.parse(localStorage.getItem('relev-matriz') || 'null');
+    if (PM && typeof PM === 'object'){
+      if (PM.vista === 'completa' || PM.vista === 'resumen') FM.vista = PM.vista;
+      if (PM.ocultos && typeof PM.ocultos === 'object') FM.ocultos = PM.ocultos;
+      FM.largo = !!PM.largo;
+    }
+  } catch(e){}
+  function guardarPrefMx(){ try { localStorage.setItem('relev-matriz', JSON.stringify({vista: FM.vista, ocultos: FM.ocultos, largo: FM.largo})); } catch(e){} }
   function pintarMatriz(){
     var gers = {};
     C.procesos.forEach(function(p){ gers[p.gerencia] = 1; });
@@ -697,25 +752,35 @@
       return true;
     }).sort(porCodigo);
     var pendientes = lista.filter(function(p){ return p.validacion !== 'validado'; });
-    var h = '<div class="row" style="margin:8px 0 10px"><span class="muted">' + lista.length + ' de ' + total + ' filas</span>' +
+    var h = '<div class="row" style="margin:8px 0 10px"><div class="seg" role="group" aria-label="Vista de la matriz">' +
+        '<button type="button" data-vista="completa" aria-pressed="' + (FM.vista === 'completa') + '">Matriz completa</button>' +
+        '<button type="button" data-vista="resumen" aria-pressed="' + (FM.vista !== 'completa') + '">Resumen</button></div>' +
+      '<span class="muted">' + lista.length + ' de ' + total + ' filas</span>' +
       '<label class="chk"><input type="checkbox" id="mFalt"' + (FM.falt ? ' checked' : '') + '> Solo filas con datos del contrato pendientes</label>' +
       (pendientes.length ? '<button class="btn btn-ghost btn-xs" id="mValidarTodo" type="button">Validar las ' + pendientes.length + ' filas filtradas</button>' : '') + '</div>';
-    h += '<div class="tblwrap"><table class="mtabla"><thead><tr><th>Validado</th><th>Código</th><th>Gerencia · sección</th><th>Proceso</th><th>Actualización</th><th>Datos del contrato</th><th>Validación</th><th></th></tr></thead><tbody>';
-    lista.slice(0, 400).forEach(function(p){
-      var st = actualizacion(p), f = faltantes(p), ok = p.validacion === 'validado';
-      var ruta = [p.macroproceso, p.proceso !== nombreProc(p) ? p.proceso : ''].filter(Boolean).join(' › ');
-      h += '<tr' + (ok ? ' class="fila-ok"' : '') + '><td><input type="checkbox" data-v="' + esc(p.id) + '"' + (ok ? ' checked' : '') + ' aria-label="Validado: ' + esc(nombreProc(p)) + '"></td>' +
-        '<td>' + esc(p.codigo || '') + '</td><td>' + esc(p.gerencia) + '<div class="muted">' + esc(p.seccion) + '</div></td>' +
-        '<td>' + (ruta ? '<div class="muted">' + esc(ruta) + '</div>' : '') + '<b>' + esc(nombreProc(p)) + '</b></td>' +
-        '<td><span class="chip ' + ACT_CHIP[st] + '">' + ACT_TXT[st] + '</span></td>' +
-        '<td>' + (f.length ? '<span title="Faltan: ' + esc(f.map(function(x){ return x[1]; }).join(', ')) + '">' + (OBLIGATORIOS.length - f.length) + ' de ' + OBLIGATORIOS.length + '</span>' : '<span class="chip c-ok">Completos</span>') + '</td>' +
-        '<td>' + (ok ? esc(p.validado_por || '—') + '<div class="muted">' + esc(fecha(p.validado_en)) + '</div>' : '') + '</td>' +
-        '<td><button class="btn btn-ghost btn-xs" type="button" data-m="' + esc(p.id) + '">Abrir fila</button></td></tr>';
-    });
-    if (lista.length > 400) h += '<tr><td colspan="8" class="muted">Se muestran 400 de ' + lista.length + ': usa los filtros para ver el resto.</td></tr>';
-    if (!lista.length) h += '<tr><td colspan="8" class="muted">Ninguna fila coincide con el filtro.</td></tr>';
-    h += '</tbody></table></div>';
+    if (FM.vista === 'completa') h += barraMx() + gridMatriz(lista);
+    else {
+      h += '<div class="tblwrap"><table class="mtabla"><thead><tr><th>Validado</th><th>Código</th><th>Gerencia · sección</th><th>Proceso</th><th>Actualización</th><th>Datos del contrato</th><th>Validación</th><th></th></tr></thead><tbody>';
+      lista.slice(0, 400).forEach(function(p){
+        var st = actualizacion(p), f = faltantes(p), ok = p.validacion === 'validado';
+        var ruta = [p.macroproceso, p.proceso !== nombreProc(p) ? p.proceso : ''].filter(Boolean).join(' › ');
+        h += '<tr' + (ok ? ' class="fila-ok"' : '') + '><td><input type="checkbox" data-v="' + esc(p.id) + '"' + (ok ? ' checked' : '') + ' aria-label="Validado: ' + esc(nombreProc(p)) + '"></td>' +
+          '<td>' + esc(p.codigo || '') + '</td><td>' + esc(p.gerencia) + '<div class="muted">' + esc(p.seccion) + '</div></td>' +
+          '<td>' + (ruta ? '<div class="muted">' + esc(ruta) + '</div>' : '') + '<b>' + esc(nombreProc(p)) + '</b></td>' +
+          '<td><span class="chip ' + ACT_CHIP[st] + '">' + ACT_TXT[st] + '</span></td>' +
+          '<td>' + (f.length ? '<span title="Faltan: ' + esc(f.map(function(x){ return x[1]; }).join(', ')) + '">' + (OBLIGATORIOS.length - f.length) + ' de ' + OBLIGATORIOS.length + '</span>' : '<span class="chip c-ok">Completos</span>') + '</td>' +
+          '<td>' + (ok ? esc(p.validado_por || '—') + '<div class="muted">' + esc(fecha(p.validado_en)) + '</div>' : '') + '</td>' +
+          '<td><button class="btn btn-ghost btn-xs" type="button" data-m="' + esc(p.id) + '">Abrir fila</button></td></tr>';
+      });
+      if (lista.length > 400) h += '<tr><td colspan="8" class="muted">Se muestran 400 de ' + lista.length + ': usa los filtros para ver el resto.</td></tr>';
+      if (!lista.length) h += '<tr><td colspan="8" class="muted">Ninguna fila coincide con el filtro.</td></tr>';
+      h += '</tbody></table></div>';
+    }
+    // Al repintar (validar una fila, ocultar un grupo) la matriz completa conserva la posición del desplazamiento.
+    var sc = $('#mLista .mx-scroll'), pos = sc ? [sc.scrollLeft, sc.scrollTop] : null;
     $('#mLista').innerHTML = h;
+    sc = $('#mLista .mx-scroll');
+    if (sc){ fijarEncabezado(); if (pos){ sc.scrollLeft = pos[0]; sc.scrollTop = pos[1]; } }
     $('#mFalt').addEventListener('change', function(){ FM.falt = this.checked; pintarMatrizLista(); });
     if ($('#mValidarTodo')) $('#mValidarTodo').addEventListener('click', function(){
       if (!confirm('Se marcarán como validadas ' + pendientes.length + ' filas (las que ves con este filtro). Hazlo solo si la gerencia dio su conformidad a todas. ¿Continuar?')) return;
@@ -727,6 +792,203 @@
       }).catch(function(err){ b.disabled = false; alert(err.message); });
     });
   }
+
+  // ---- Matriz completa: las columnas del entregable agrupadas como en la ficha; las filas, por sección y macroproceso.
+  var CORTOS_MX = {niv0:1, niv1:1, niv2:1, crit_normativa:1, crit_riesgo:1, crit_tercero:1, datos_personales:1, estandar_tdp:1,
+    priorizacion:1, automatizacion:1, cod_riesgo:1, codigo_2021:1, mapeo_org:1};
+  var ANCHO_MX = {s:108, m:165, l:270, grupo:190};
+  var NIVEL_MX = {Alto:'nv-a', Medio:'nv-m', Bajo:'nv-b'};
+  function anchoMx(k){ return LARGOS[k] ? ANCHO_MX.l : CORTOS_MX[k] ? ANCHO_MX.s : ANCHO_MX.m; }
+  function lleno(v){ return String(v == null ? '' : v).trim() !== ''; }
+  function barraLleno(n, total, contrato, texto){
+    var pc = total ? Math.round(100 * n / total) : 0;
+    return '<div class="mx-llen' + (contrato ? ' contrato' : '') + '"><span><i style="width:' + pc + '%"></i></span>' + (texto || pc + '%') + '</div>';
+  }
+  // Texto de una celda: recortado a unas tres líneas según el ancho de la columna, salvo que se pida completo.
+  function recorteMx(k, t, completo){
+    var w = anchoMx(k), lim = w >= ANCHO_MX.l ? 110 : w >= ANCHO_MX.m ? 60 : 36;
+    return completo || t.length <= lim ? t : t.slice(0, lim).replace(/\s+\S*$/, '') + '…';
+  }
+  // Celda vacía: «Falta» si es un dato que pide el contrato; debajo, lo que la IA dedujo de la encuesta y aún no se pasó a la matriz.
+  function celdaMx(k, v, s, completo){
+    if (lleno(v)){ var t = String(v).trim(); return '<div class="mx-t' + (NIVEL_MX[t] ? ' ' + NIVEL_MX[t] : '') + '">' + esc(recorteMx(k, t, completo)) + '</div>'; }
+    return (ES_OBLIG[k] ? '<span class="mx-falta">Falta</span>' : '<span class="mx-nada">—</span>') +
+      (s && s.valor ? '<div class="mx-t mx-ia">IA: ' + esc(recorteMx(k, String(s.valor), completo)) + '</div>' : '');
+  }
+  function barraMx(){
+    return '<div class="row mx-barra"><span class="muted">Grupos de columnas:</span>' +
+      GRUPOS.map(function(g){ return '<label class="chk"><input type="checkbox" data-grp="' + g[0] + '"' + (FM.ocultos[g[0]] ? '' : ' checked') + '> ' + esc(g[1]) + '</label>'; }).join('') + '</div>' +
+      '<div class="row mx-barra"><span class="muted">Secciones:</span><button type="button" class="btn btn-ghost btn-xs" data-secs="abrir">Expandir todas</button>' +
+      '<button type="button" class="btn btn-ghost btn-xs" data-secs="cerrar">Contraer todas</button>' +
+      '<label class="chk"><input type="checkbox" id="mxLargo"' + (FM.largo ? ' checked' : '') + '> Ver el texto completo de todas las filas</label></div>' +
+      '<p class="definicion" style="margin:0 0 8px">Las barras indican qué parte de los procesos tiene el dato: arriba, de todas las filas filtradas; en cada sección, de sus procesos (en rosado, los datos que pide el contrato). ' +
+      'Abre una sección con «+» para ver sus procesos. ' +
+      '<span class="mx-falta">Falta</span>: dato del contrato vacío; «—»: vacío. <i>En cursiva</i>: lo que la IA dedujo de la encuesta y aún no está en la matriz (ábrela para usarlo). ' +
+      'Haz clic en una fila para leer su texto completo; el nombre del proceso abre la ficha para editarla.</p>';
+  }
+  function gruposMx(){
+    return GRUPOS.map(function(g){ return {id: g[0], nombre: g[1], cols: MATRIZ.filter(function(c){ return c[2] === g[0]; }), oculto: !!FM.ocultos[g[0]]}; });
+  }
+  function datosFilaMx(p){
+    var v = {};
+    MATRIZ.forEach(function(c){ v[c[0]] = valorMatriz(p, c[0]); });
+    return {p: p, v: v, sug: sugerencias(p.id), falta: faltantes(p)};
+  }
+  function filaMx(f, grupos, si, cerrada){
+    var p = f.p, st = actualizacion(p), ok = p.validacion === 'validado', abierta = !!FM.abiertas[p.id];
+    var h = '<tr class="mx-fila' + (ok ? ' fila-ok' : '') + (abierta ? ' mx-abierta' : '') + (cerrada ? ' hidden' : '') + '" data-s="' + si + '" data-p="' + esc(p.id) + '">' +
+      '<td class="fijo0"><input type="checkbox" data-v="' + esc(p.id) + '"' + (ok ? ' checked' : '') + ' aria-label="Validado: ' + esc(nombreProc(p)) + '"></td>' +
+      '<td class="fijo1"><div class="mx-proc"><span class="mx-cod">' + esc(p.codigo || '') + '</span><button type="button" class="mx-abrir" data-m="' + esc(p.id) + '">' + esc(nombreProc(p)) + '</button></div></td>' +
+      '<td class="g-ini"><span class="chip ' + ACT_CHIP[st] + '">' + ACT_TXT[st] + '</span></td>' +
+      '<td>' + (f.falta.length ? '<span title="Faltan: ' + esc(f.falta.map(function(x){ return x[1]; }).join(', ')) + '">' + (OBLIGATORIOS.length - f.falta.length) + ' de ' + OBLIGATORIOS.length + '</span>' : '<span class="chip c-ok">Completos</span>') + '</td>' +
+      '<td>' + (ok ? esc(p.validado_por || '—') + '<div class="muted">' + esc(fecha(p.validado_en)) + '</div>' : '') + '</td>';
+    grupos.forEach(function(g){
+      if (g.oculto){
+        var n = g.cols.filter(function(c){ return lleno(f.v[c[0]]); }).length;
+        h += '<td class="g-ini">' + barraLleno(n, g.cols.length, false, n + ' de ' + g.cols.length) + '</td>';
+        return;
+      }
+      g.cols.forEach(function(c, i){ h += '<td' + (i ? '' : ' class="g-ini"') + '>' + celdaMx(c[0], f.v[c[0]], f.sug[c[0]], FM.largo || abierta) + '</td>'; });
+    });
+    return h + '</tr>';
+  }
+  function gridMatriz(lista){
+    var grupos = gruposMx();
+    var ncols = 5, anchos = [72, 300, ANCHO_MX.m, ANCHO_MX.s, ANCHO_MX.m];
+    grupos.forEach(function(g){
+      ncols += g.oculto ? 1 : g.cols.length;
+      if (g.oculto) anchos.push(ANCHO_MX.grupo); else g.cols.forEach(function(c){ anchos.push(anchoMx(c[0])); });
+    });
+    var filas = lista.slice(0, 400).map(datosFilaMx);
+    var total = filas.length, llenas = {}, secs = {}, comp = 0, val = 0;
+    MATRIZ.forEach(function(c){ llenas[c[0]] = 0; });
+    filas.forEach(function(f){
+      var k = f.p.gerencia + '|' + f.p.seccion, s = secs[k];
+      if (!s){ s = secs[k] = {n: 0, val: 0, comp: 0, llenas: {}}; MATRIZ.forEach(function(c){ s.llenas[c[0]] = 0; }); }
+      s.n++;
+      if (f.p.validacion === 'validado'){ s.val++; val++; }
+      if (!f.falta.length){ s.comp++; comp++; }
+      MATRIZ.forEach(function(c){ if (lleno(f.v[c[0]])){ s.llenas[c[0]]++; llenas[c[0]]++; } });
+    });
+    // Con muchas filas, las secciones empiezan cerradas (así la tabla carga rápido y se lee como resumen por área);
+    // con pocas (un filtro), abiertas. Lo que se abre o cierra a mano se respeta.
+    var cerradaPorDefecto = total > 60;
+
+    // Anchos fijos: el navegador no mide el texto de miles de celdas para decidir el ancho de cada columna.
+    var h = '<div class="mx-scroll"><table class="mx" style="width:' + anchos.reduce(function(a, w){ return a + w; }, 0) + 'px" aria-label="Matriz de procesos con todas las columnas"><colgroup>' +
+      anchos.map(function(w){ return '<col style="width:' + w + 'px">'; }).join('');
+    // Encabezado en tres filas: grupo, columna y cuánto está lleno cada columna.
+    h += '</colgroup><thead><tr class="banda"><th class="fijo01" colspan="2">Proceso</th><th class="g-ini" colspan="3">Estado y validación</th>';
+    grupos.forEach(function(g){
+      h += '<th class="g-ini" colspan="' + (g.oculto ? 1 : g.cols.length) + '"><span class="mx-gnom">' + esc(g.nombre) + ' <button type="button" class="btn-link" data-grp="' + g.id + '" aria-expanded="' + !g.oculto + '">' +
+        (g.oculto ? 'ver sus ' + g.cols.length + ' columnas' : 'ocultar') + '</button></span></th>';
+    });
+    h += '</tr><tr class="nombres"><th class="fijo0">Validado</th><th class="fijo1">Código y proceso</th>' +
+      '<th class="g-ini">Actualización</th><th>Datos del contrato</th><th>Validado por</th>';
+    grupos.forEach(function(g){
+      if (g.oculto){ h += '<th class="g-ini">Columnas con dato</th>'; return; }
+      g.cols.forEach(function(c, i){
+        h += '<th' + (i ? '' : ' class="g-ini"') + ' title="Columna del Excel: ' + esc(c[1]) + '">' + esc(c[3]) + (ES_OBLIG[c[0]] ? ' <span class="req">contrato</span>' : '') + '</th>';
+      });
+    });
+    h += '</tr><tr class="llenado"><th class="fijo01" colspan="2">Filas con dato (de ' + total + ')</th><th class="g-ini"></th>' +
+      '<th title="Filas con los ' + OBLIGATORIOS.length + ' datos del contrato">' + barraLleno(comp, total, true) + '</th><th title="Filas validadas">' + barraLleno(val, total) + '</th>';
+    grupos.forEach(function(g){
+      if (g.oculto){
+        var n = 0;
+        g.cols.forEach(function(c){ n += llenas[c[0]]; });
+        h += '<th class="g-ini">' + barraLleno(n, total * g.cols.length) + '</th>';
+        return;
+      }
+      g.cols.forEach(function(c, i){
+        h += '<th' + (i ? '' : ' class="g-ini"') + ' title="' + llenas[c[0]] + ' de ' + total + ' filas">' + barraLleno(llenas[c[0]], total, ES_OBLIG[c[0]]) + '</th>';
+      });
+    });
+    h += '</tr></thead><tbody>';
+
+    var secAnt = null, macAnt = null, si = -1, cerrada = false;
+    filas.forEach(function(f){
+      var p = f.p, m = p.matriz || {}, ks = p.gerencia + '|' + p.seccion;
+      if (ks !== secAnt){
+        var s = secs[ks];
+        secAnt = ks; macAnt = null; si++; cerrada = ks in FM.cerradas ? FM.cerradas[ks] : cerradaPorDefecto;
+        h += '<tr class="mx-sec"><td class="fijo01" colspan="2"><button type="button" class="mx-plegar" data-sec="' + si + '" data-sk="' + esc(ks) + '" aria-expanded="' + !cerrada + '">' +
+          '<span class="mx-signo">' + (cerrada ? '+' : '−') + '</span><span>' + esc(p.gerencia) + ' · ' + esc(p.seccion) + '</span></button></td>' +
+          '<td class="g-ini">' + s.n + (s.n === 1 ? ' proceso' : ' procesos') + '</td>' +
+          '<td title="' + s.comp + ' de ' + s.n + ' con los datos del contrato">' + barraLleno(s.comp, s.n, true) + '</td>' +
+          '<td title="' + s.val + ' de ' + s.n + ' validados">' + barraLleno(s.val, s.n) + '</td>';
+        grupos.forEach(function(g){
+          if (g.oculto){
+            var n = 0;
+            g.cols.forEach(function(c){ n += s.llenas[c[0]]; });
+            h += '<td class="g-ini">' + barraLleno(n, s.n * g.cols.length) + '</td>';
+            return;
+          }
+          g.cols.forEach(function(c, i){
+            h += '<td' + (i ? '' : ' class="g-ini"') + ' title="' + s.llenas[c[0]] + ' de ' + s.n + '">' + barraLleno(s.llenas[c[0]], s.n, ES_OBLIG[c[0]]) + '</td>';
+          });
+        });
+        h += '</tr>';
+      }
+      var km = p.macroproceso + '|' + p.proceso;
+      if (km !== macAnt){
+        macAnt = km;
+        var ruta = [(m.niv0 ? m.niv0 + ' ' : '') + (p.macroproceso || ''), p.proceso !== nombreProc(p) ? (m.niv1 ? m.niv1 + ' ' : '') + p.proceso : '']
+          .filter(function(x){ return x.trim(); }).join(' › ');
+        if (ruta) h += '<tr class="mx-mac' + (cerrada ? ' hidden' : '') + '" data-s="' + si + '"><td colspan="' + ncols + '"><div class="mx-pin">' + esc(ruta) + '</div></td></tr>';
+      }
+      h += filaMx(f, grupos, si, cerrada);
+    });
+    if (lista.length > 400) h += '<tr><td colspan="' + ncols + '" class="muted">Se muestran 400 de ' + lista.length + ': usa los filtros para ver el resto.</td></tr>';
+    if (!lista.length) h += '<tr><td colspan="' + ncols + '" class="muted">Ninguna fila coincide con el filtro.</td></tr>';
+    return h + '</tbody></table></div>';
+  }
+  // Las tres filas del encabezado quedan fijas una debajo de otra (su alto depende del texto, por eso se mide).
+  function fijarEncabezado(){
+    var t = document.querySelector('#mLista table.mx');
+    if (!t || !t.offsetParent) return;
+    var y = 0;
+    Array.prototype.forEach.call(t.tHead.rows, function(tr){
+      Array.prototype.forEach.call(tr.cells, function(c){ c.style.top = y + 'px'; });
+      y += Math.floor(tr.getBoundingClientRect().height);
+    });
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ fijarEncabezado(); });
+  window.addEventListener('resize', function(){ fijarEncabezado(); });   // también al cambiar el zoom del navegador
+  // Con la matriz completa a la vista, la página usa todo el ancho de la pantalla.
+  function ajustarAncho(){
+    var t = document.querySelector('.tab[aria-selected=true]');
+    var on = !$('#vCampana').classList.contains('hidden') && !!t && t.dataset.tab === 'matriz' && typeof FM === 'object' && FM.vista === 'completa';
+    document.querySelector('main').classList.toggle('ancha', on);
+    if (on) fijarEncabezado();
+  }
+  function plegarSeccion(b, cerrar){
+    b.setAttribute('aria-expanded', String(!cerrar));
+    b.querySelector('.mx-signo').textContent = cerrar ? '+' : '−';
+    FM.cerradas[b.dataset.sk] = cerrar;
+    Array.prototype.forEach.call(document.querySelectorAll('#mLista tr[data-s="' + b.dataset.sec + '"]'), function(tr){ tr.classList.toggle('hidden', cerrar); });
+  }
+  $('#tMatriz').addEventListener('click', function(e){
+    var b = e.target.closest('button[data-vista]');
+    if (b){ FM.vista = b.dataset.vista; guardarPrefMx(); ajustarAncho(); pintarMatrizLista(); return; }
+    b = e.target.closest('button[data-grp]');
+    if (b){ FM.ocultos[b.dataset.grp] = !FM.ocultos[b.dataset.grp]; guardarPrefMx(); pintarMatrizLista(); return; }
+    b = e.target.closest('[data-sec]');
+    if (b){ plegarSeccion(b, b.getAttribute('aria-expanded') === 'true'); return; }
+    b = e.target.closest('[data-secs]');
+    if (b){ Array.prototype.forEach.call(document.querySelectorAll('#mLista [data-sec]'), function(x){ plegarSeccion(x, b.dataset.secs === 'cerrar'); }); return; }
+    // Clic en una fila: muestra u oculta su texto completo (no si se está seleccionando texto para copiarlo).
+    var fila = e.target.closest('tr.mx-fila');
+    if (!fila || e.target.closest('input, button, a, label') || String(window.getSelection ? window.getSelection() : '')) return;
+    var p = C.procesos.filter(function(x){ return x.id === fila.dataset.p; })[0];
+    if (!p) return;
+    if (FM.abiertas[p.id]) delete FM.abiertas[p.id]; else FM.abiertas[p.id] = 1;
+    fila.outerHTML = filaMx(datosFilaMx(p), gruposMx(), fila.dataset.s, false);
+  });
+  $('#tMatriz').addEventListener('change', function(e){
+    if (e.target.dataset.grp){ FM.ocultos[e.target.dataset.grp] = !e.target.checked; guardarPrefMx(); pintarMatrizLista(); }
+    else if (e.target.id === 'mxLargo'){ FM.largo = e.target.checked; guardarPrefMx(); pintarMatrizLista(); }
+  });
 
   $('#tMatriz').addEventListener('change', function(e){
     var cb = e.target.closest('[data-v]'); if (!cb) return;
@@ -754,11 +1016,19 @@
     Object.keys(IX.resp[pid] || {}).forEach(function(k){ ids[k] = 1; });
     return Object.keys(ids).map(function(id){ var en = IX.enc[id] || {}; return en.nombre ? en.nombre + (en.rol ? ' (' + en.rol + ')' : '') : ''; }).filter(Boolean).join('\n');
   }
+  // Valor de una columna tal como sale en el entregable: si la fila de la matriz está vacía, se usa el dato del proceso.
+  var DESDE_PROCESO = {gerencia:'gerencia', seccion:'seccion', macroproceso:'macroproceso', proceso:'proceso', subproceso:'subproceso', niv2:'codigo'};
+  function valorMatriz(p, k){
+    var v = (p.matriz || {})[k] || '';
+    if (!v && DESDE_PROCESO[k]) v = p[DESDE_PROCESO[k]] || '';
+    if (!v && k === 'participantes') v = participantesDe(p.id);
+    if (!v && k === 'origen') v = FUENTE_TXT[p.fuente] || '';
+    return v;
+  }
   // Filas del entregable: columnas del inventario anterior + nuevas + estado + trazabilidad.
   function filasMatriz(){
-    var desdeProceso = {gerencia:'gerencia', seccion:'seccion', macroproceso:'macroproceso', proceso:'proceso', subproceso:'subproceso', niv2:'codigo'};
     return C.procesos.slice().sort(porCodigo).map(function(p){
-      var m = p.matriz || {}, fila = {}, st = actualizacion(p);
+      var fila = {}, st = actualizacion(p);
       MATRIZ.forEach(function(c){
         if (c[0] === 'comentarios'){
           fila['ESTADO DE ACTUALIZACIÓN'] = ACT_TXT[st];
@@ -766,11 +1036,7 @@
           fila['VALIDADO POR (CARGO)'] = p.validado_por || '';
           fila['FECHA DE VALIDACIÓN'] = p.validado_en ? String(p.validado_en).slice(0, 10) : '';
         }
-        var v = m[c[0]] || '';
-        if (!v && desdeProceso[c[0]]) v = p[desdeProceso[c[0]]] || '';
-        if (!v && c[0] === 'participantes') v = participantesDe(p.id);
-        if (!v && c[0] === 'origen') v = FUENTE_TXT[p.fuente] || '';
-        fila[c[1]] = v;
+        fila[c[1]] = valorMatriz(p, c[0]);
       });
       return fila;
     });
