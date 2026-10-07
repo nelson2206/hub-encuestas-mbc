@@ -31,6 +31,7 @@
  *   POST /r/verificar            {k, proceso_id, pregunta}   (la IA marca el checklist del bloque)
  *   POST /r/punto                {k, proceso_id, pregunta, punto, estado}   (la persona marca "lo mencioné" / "no aplica")
  *   POST /r/transcribir?k=       cuerpo: audio WAV (bytes) -> {texto}
+ *   POST /r/imagen?k=&proceso_id=&pregunta=   cuerpo: imagen JPEG/PNG/WEBP (bytes) -> {texto}   (la IA la lee; no se guarda)
  *   POST /r/enviar               {k}
  * Rutas de la consola (cabecera x-admin-code):
  *   GET  /a/campanas
@@ -42,6 +43,7 @@
  *   POST /a/proceso              {campana_id, id?, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion}
  *   POST /a/proceso/borrar       {proceso_id}   (solo si nadie lo respondió)
  *   POST /a/campana/logo         {campana_id, logo}   (data URI; vacío lo quita)
+ *   POST /a/campana/ia           {campana_id, ia_auto}   (la tarea programada completa la matriz con la IA)
  *   POST /a/asignar              {encuestado_id, agregar[], quitar[]}   (lista de procesos de una persona)
  *   POST /a/asignar-por-inventario {campana_id}   (asigna por el nombre en el inventario anterior)
  *   POST /a/matriz               {proceso_id, matriz?, validacion?, validado_por?}   (fila de la matriz y check de validación)
@@ -51,6 +53,7 @@
  *   POST /a/estructurar          {proceso_id}
  *   POST /a/borrar-campana       {campana_id, confirmar}   (confirmar = nombre exacto)
  *   GET  /health
+ * Tarea programada (cada 15 minutos, wrangler.toml): la IA estructura los procesos con respuestas nuevas y completa la matriz.
  *
  * La matriz (procesos.matriz, JSON) replica las columnas del inventario del cliente y agrega las del contrato;
  * procesos.validacion guarda el check: '' (sin tocar), 'actualizado' o 'validado'.
@@ -66,6 +69,7 @@ import Anthropic from '@anthropic-ai/sdk';
 const MODELO = 'claude-opus-5';
 const WHISPER = '@cf/openai/whisper-large-v3-turbo';
 const MAX_AUDIO = 8 * 1024 * 1024;       // por tramo; el navegador corta en tramos de 2 min
+const MAX_IMAGEN = 6 * 1024 * 1024;      // el navegador la reduce antes (máx. 1600 px, JPEG)
 const MAX_TEXTO = 12000;
 // Encuesta por bloques: cada bloque se responde con una grabación y trae el checklist de lo que la matriz necesita.
 // Después de cada respuesta, la IA marca qué puntos se cubrieron y pide solo lo que falta. Un punto que no existe
@@ -692,10 +696,10 @@ async function rutaImportar(env, b) {
   // Procesos: con upsert (carga de la matriz), una fila con el id de un proceso de la campaña (columna oculta del Excel)
   // o con un código que ya existe se actualiza en vez de duplicarse.
   // La matriz se combina (json_patch): las columnas que trae el archivo se actualizan y las que no trae se conservan.
-  const porCodigo = {}, porId = {};
+  const porCodigo = {}, porId = {}, actual = {};
   if (b.upsert && agregar) {
-    const ya = await env.DB.prepare('SELECT id, codigo FROM procesos WHERE campana_id=?').bind(camp.id).all();
-    ya.results.forEach(x => { porId[x.id] = x.id; if (normal(x.codigo)) porCodigo[normal(x.codigo)] = x.id; });
+    const ya = await env.DB.prepare('SELECT id, codigo, matriz, matriz_ia FROM procesos WHERE campana_id=?').bind(camp.id).all();
+    ya.results.forEach(x => { porId[x.id] = x.id; actual[x.id] = x; if (normal(x.codigo)) porCodigo[normal(x.codigo)] = x.id; });
   }
   pro.forEach((x, i) => {
     const gerencia = txt(x.gerencia, 150), seccion = txt(x.seccion, 150);
@@ -707,13 +711,16 @@ async function rutaImportar(env, b) {
     const personas = txt(x.personas || matriz.participantes || '', 4000);
     const id = porId[txt(x.id, 60)] || (normal(x.codigo) && porCodigo[normal(x.codigo)]);
     if (id) {
+      // Un campo que el archivo cambia deja de ser de la IA: lo escribió el equipo.
+      const mPrev = leerMatriz((actual[id] || {}).matriz), iaPrev = leerMatriz((actual[id] || {}).matriz_ia);
+      Object.keys(matriz).forEach(k => { if (matriz[k] !== String(mPrev[k] || '')) delete iaPrev[k]; });
       st.push(env.DB.prepare(`UPDATE procesos SET gerencia=?, seccion=?, macroproceso=?, proceso=?, subproceso=?,
           descripcion=CASE WHEN ?<>'' THEN ? ELSE descripcion END, personas=CASE WHEN ?<>'' THEN ? ELSE personas END,
-          matriz=CASE WHEN ?<>'{}' THEN json_patch(matriz, ?) ELSE matriz END,
+          matriz=CASE WHEN ?<>'{}' THEN json_patch(matriz, ?) ELSE matriz END, matriz_ia=?,
           validacion=COALESCE(?, validacion), validado_por=CASE WHEN ?='validado' THEN ? ELSE validado_por END,
           validado_en=CASE WHEN ?='validado' THEN ? ELSE validado_en END, actualizado_en=? WHERE id=?`)
         .bind(gerencia, seccion, txt(x.macroproceso, 200), txt(x.proceso, 200), txt(x.subproceso, 200),
-          txt(x.descripcion, 1500), txt(x.descripcion, 1500), personas, personas, JSON.stringify(matriz), JSON.stringify(matriz),
+          txt(x.descripcion, 1500), txt(x.descripcion, 1500), personas, personas, JSON.stringify(matriz), JSON.stringify(matriz), JSON.stringify(iaPrev),
           val, val, txt(x.validado_por, 150), val, t, t, id));
       nPAct++;
       return;
@@ -756,7 +763,7 @@ async function rutaCampana(env, url) {
   ]);
   estructurado.forEach(x => { x.datos = JSON.parse(x.datos); });
   respuestas.forEach(x => { x.sistemas = JSON.parse(x.sistemas || '[]'); x.checklist = leerMatriz(x.checklist); });
-  procesos.forEach(x => { x.matriz = leerMatriz(x.matriz); });
+  procesos.forEach(x => { x.matriz = leerMatriz(x.matriz); x.matriz_ia = leerMatriz(x.matriz_ia); });
   return { ok: true, campana: camp, encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, bloques: BLOQUES };
 }
 
@@ -805,12 +812,13 @@ async function rutaProcesoBorrar(env, b) {
 async function rutaMatriz(env, b) {
   const p = await env.DB.prepare('SELECT * FROM procesos WHERE id=?').bind(b.proceso_id).first();
   if (!p) throw new HttpError(404, 'Proceso no encontrado');
-  const m = leerMatriz(p.matriz);
+  const m = leerMatriz(p.matriz), ia = leerMatriz(p.matriz_ia);
   const edita = b.matriz && typeof b.matriz === 'object';
   if (edita) {
     MATRIZ_CLAVES.forEach(k => {
       if (!Object.prototype.hasOwnProperty.call(b.matriz, k)) return;
       const v = String(b.matriz[k] == null ? '' : b.matriz[k]).trim().slice(0, 4000);
+      if (v !== String(m[k] || '')) delete ia[k];   // lo que cambia el equipo deja de ser de la IA
       if (v) m[k] = v; else delete m[k];
     });
   }
@@ -829,11 +837,11 @@ async function rutaMatriz(env, b) {
     macroproceso: txt(m.macroproceso || p.macroproceso, 200), proceso: txt(m.proceso || p.proceso, 200), subproceso: txt(m.subproceso || p.subproceso, 200)
   };
   const t = ahora();
-  await env.DB.prepare(`UPDATE procesos SET matriz=?, validacion=?, validado_por=?, validado_en=?, actualizado_en=?,
+  await env.DB.prepare(`UPDATE procesos SET matriz=?, matriz_ia=?, validacion=?, validado_por=?, validado_en=?, actualizado_en=?,
       codigo=?, gerencia=?, seccion=?, macroproceso=?, proceso=?, subproceso=? WHERE id=?`)
-    .bind(JSON.stringify(m), validacion, validadoPor, validadoEn, t, f.codigo, f.gerencia, f.seccion, f.macroproceso, f.proceso, f.subproceso, p.id).run();
+    .bind(JSON.stringify(m), JSON.stringify(ia), validacion, validadoPor, validadoEn, t, f.codigo, f.gerencia, f.seccion, f.macroproceso, f.proceso, f.subproceso, p.id).run();
   log('matriz', { campana: p.campana_id, proceso: p.id, validacion, campos: edita ? Object.keys(b.matriz).length : 0 });
-  return { ok: true, proceso: Object.assign({}, p, f, { matriz: m, validacion, validado_por: validadoPor, validado_en: validadoEn, actualizado_en: t }) };
+  return { ok: true, proceso: Object.assign({}, p, f, { matriz: m, matriz_ia: ia, validacion, validado_por: validadoPor, validado_en: validadoEn, actualizado_en: t }) };
 }
 
 // Validación en bloque (p. ej. la gerencia da conformidad a todo su inventario en la reunión de cierre).
@@ -1102,8 +1110,12 @@ function clienteClaude(env) {
   });
 }
 
-async function rutaEstructurar(env, b, ctx) {
-  const p = await env.DB.prepare('SELECT * FROM procesos WHERE id=?').bind(b.proceso_id).first();
+async function rutaEstructurar(env, b, ctx) { return estructurarProceso(env, b.proceso_id, ctx, 'consola'); }
+
+// La IA lee todo lo que contaron del proceso (voz transcrita, texto y lo que leyó de las imágenes), arma el análisis
+// y completa la matriz. La usa la consola ("Estructurar con IA") y la tarea programada.
+async function estructurarProceso(env, procesoId, ctx, origen) {
+  const p = await env.DB.prepare('SELECT * FROM procesos WHERE id=?').bind(procesoId).first();
   if (!p) throw new HttpError(404, 'Proceso no encontrado');
   const camp = await env.DB.prepare('SELECT * FROM campanas WHERE id=?').bind(p.campana_id).first();
   const [enc, revs, resps, sis] = await Promise.all([
@@ -1145,7 +1157,76 @@ async function rutaEstructurar(env, b, ctx) {
   await env.DB.prepare(`INSERT INTO estructurado (proceso_id, campana_id, datos, modelo, generado) VALUES (?,?,?,?,?)
     ON CONFLICT(proceso_id) DO UPDATE SET datos=excluded.datos, modelo=excluded.modelo, generado=excluded.generado`)
     .bind(p.id, p.campana_id, JSON.stringify(datos), msg.model || MODELO, generado).run();
-  return { ok: true, proceso_id: p.id, datos, modelo: msg.model || MODELO, generado };
+  const c = await completarMatriz(env, p, datos);
+  log('estructurado', { campana: p.campana_id, proceso: p.id, origen, completados: c.n });
+  return { ok: true, proceso_id: p.id, datos, modelo: msg.model || MODELO, generado, completados: c.n,
+    proceso: { id: p.id, matriz: c.matriz, matriz_ia: c.matriz_ia } };
+}
+
+// ---------------------------------------------------------------- la IA completa la matriz
+// Con lo que estructuró la IA se completa la fila: se llenan los campos vacíos y se actualizan los que la IA misma
+// llenó antes (procesos.matriz_ia los registra). Nunca se pisa un dato del inventario anterior ni uno que escribió el
+// equipo, y una fila validada no se toca: ahí la versión de la IA queda como sugerencia en la ficha.
+const APROB_CAMPOS = ['aprob_area', 'aprob_responsable', 'aprob_momento'];
+async function completarMatriz(env, p, datos) {
+  const m = leerMatriz(p.matriz), ia = leerMatriz(p.matriz_ia);
+  if (p.validacion === 'validado') return { n: 0, matriz: m, matriz_ia: ia };
+  const c = (datos && datos.campos) || {}, t = ahora();
+  const libre = k => !String(m[k] || '').trim() || !!ia[k];   // vacío, o lo llenó la IA y nadie lo editó
+  const valor = k => { const x = c[k]; return x && x.estado !== 'vacio' ? String(x.valor || '').trim().slice(0, 4000) : ''; };
+  let n = 0;
+  const poner = (k, v, estado) => { if (m[k] === v) return; m[k] = v; ia[k] = { estado, en: t }; n++; };
+  CAMPOS.forEach(([k]) => {
+    if (APROB_CAMPOS.includes(k) || !MATRIZ_CLAVES.includes(k)) return;
+    const v = valor(k);
+    if (v && libre(k)) poner(k, v, c[k].estado);
+  });
+  // Aprobaciones: las tres columnas van juntas, una línea por aprobación y en el mismo orden («—» si falta un dato).
+  if (APROB_CAMPOS.every(libre)) {
+    const cols = APROB_CAMPOS.map(k => valor(k).split('\n').map(x => x.trim()));
+    const filas = Math.max(...cols.map(x => (x.some(Boolean) ? x.length : 0)));
+    if (filas) APROB_CAMPOS.forEach((k, i) => poner(k, Array.from({ length: filas }, (_, j) => cols[i][j] || '—').join('\n'),
+      valor(k) ? c[k].estado : 'inferido'));
+  }
+  if (n) await env.DB.prepare('UPDATE procesos SET matriz=?, matriz_ia=?, actualizado_en=? WHERE id=?')
+    .bind(JSON.stringify(m), JSON.stringify(ia), t, p.id).run();
+  return { n, matriz: m, matriz_ia: ia };
+}
+
+// Tarea programada (cada 15 minutos): la IA estructura los procesos con respuestas nuevas y completa la matriz.
+// Espera 10 minutos sin cambios (la persona puede seguir respondiendo) y hace como máximo 6 por pasada (~1 min cada
+// uno, dentro de los 15 minutos que Cloudflare da a una tarea programada). Un proceso que falla no se reintenta hasta
+// que llegue una respuesta nueva. Solo en campañas con ia_auto = 1 y nunca en filas validadas.
+const AUTO_ESPERA_MIN = 10, AUTO_MAX = 6;
+async function completarPendientes(env, ctx) {
+  const hasta = new Date(Date.now() - AUTO_ESPERA_MIN * 60000).toISOString();
+  const pend = (await env.DB.prepare(`SELECT p.id, MAX(r.actualizado) AS ultima, MAX(e.generado) AS generado,
+        json_extract(p.matriz_ia, '$._fallo') AS fallo
+      FROM procesos p
+      JOIN campanas c ON c.id = p.campana_id AND c.ia_auto = 1
+      JOIN respuestas r ON r.proceso_id = p.id AND trim(r.texto) <> ''
+      LEFT JOIN estructurado e ON e.proceso_id = p.id
+      WHERE p.validacion <> 'validado'
+      GROUP BY p.id
+      HAVING ultima <= ? AND (generado IS NULL OR ultima > generado) AND (fallo IS NULL OR ultima > fallo)
+      ORDER BY ultima LIMIT ?`).bind(hasta, AUTO_MAX).all()).results;
+  let ok = 0;
+  for (const x of pend) {
+    try { await estructurarProceso(env, x.id, ctx, 'automatico'); ok++; }
+    catch (err) {
+      log('auto_error', { proceso: x.id, error: String((err && err.message) || err).slice(0, 200) });
+      await env.DB.prepare(`UPDATE procesos SET matriz_ia=json_set(matriz_ia, '$._fallo', ?) WHERE id=?`).bind(ahora(), x.id).run();
+    }
+  }
+  if (pend.length) log('auto', { pendientes: pend.length, estructurados: ok });
+}
+
+async function rutaCampanaIA(env, b) {
+  const v = b.ia_auto ? 1 : 0;
+  const r = await env.DB.prepare('UPDATE campanas SET ia_auto=? WHERE id=?').bind(v, b.campana_id).run();
+  if (!r.meta || !r.meta.changes) throw new HttpError(404, 'Campaña no encontrada');
+  log('ia_auto', { campana: b.campana_id, ia_auto: v });
+  return { ok: true, ia_auto: v };
 }
 
 // ---------------------------------------------------------------- checklist por bloque, logo y asignaciones
@@ -1245,6 +1326,59 @@ async function rutaVerificar(env, b, ctx) {
   return { ok: true, checklist: nuevo };
 }
 
+// Imagen subida en un bloque (un flujo, un procedimiento, un formato, una pantalla, una pizarra): la IA la lee y
+// devuelve en texto lo útil para el bloque. La imagen no se guarda; el texto se agrega a la respuesta y la persona lo revisa.
+const IMAGEN_SCHEMA = {
+  type: 'object',
+  properties: { relevante: { type: 'boolean' }, texto: { type: 'string' }, motivo: { type: 'string' } },
+  required: ['relevante', 'texto', 'motivo'],
+  additionalProperties: false
+};
+const IMAGEN_PROMPT = `Recibes una imagen que un colaborador subió al responder un bloque de una encuesta de relevamiento de procesos: puede ser un diagrama de flujo, un procedimiento, un formato, una pantalla de un sistema, un correo o una pizarra.
+Extrae solo la información útil para ese bloque y su checklist: pasos, áreas y cargos que participan, aprobaciones (de quién, de qué área y en qué paso), sistemas y para qué se usan, terceros, datos personales que se manejan, normas, estándares, documentos, frecuencias e indicadores que se vean.
+Escribe en español, en texto corrido y breve (máximo 200 palabras), como si el colaborador lo contara. No inventes lo que no se ve.
+Nunca copies datos personales concretos (nombres de personas, DNI, teléfonos, correos, direcciones, montos de clientes): usa cargos y categorías.
+Si la imagen no tiene información de un proceso de trabajo, "relevante" es false, "texto" queda vacío y en "motivo" dices en una frase qué se ve.`;
+
+async function rutaImagen(env, req, url, ctx) {
+  const e = await encuestadoPorToken(env, url.searchParams.get('k'));
+  const p = await procesoPermitido(env, e, url.searchParams.get('proceso_id'));
+  const bloque = BLOQUES.find(x => x.id === url.searchParams.get('pregunta'));
+  if (!bloque) throw new HttpError(400, 'Bloque inválido');
+  const tipo = (req.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(tipo)) throw new HttpError(415, 'Sube una imagen JPG, PNG o WEBP');
+  const buf = await req.arrayBuffer();
+  if (!buf.byteLength) throw new HttpError(400, 'Imagen vacía');
+  if (buf.byteLength > MAX_IMAGEN) throw new HttpError(413, 'La imagen pesa demasiado (máximo 6 MB)');
+  let msg;
+  try {
+    msg = await clienteClaude(env).beta.messages.stream({
+      model: MODELO_VERIFICAR,
+      max_tokens: 4000,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: 'medium', format: { type: 'json_schema', schema: IMAGEN_SCHEMA } },
+      system: IMAGEN_PROMPT,
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: tipo, data: aBase64(buf) } },
+        { type: 'text', text: [`PROCESO: ${p.subproceso || p.proceso || p.macroproceso}`, `BLOQUE: ${bloque.t}`,
+          'CHECKLIST:', ...bloque.puntos.map(([, t]) => '- ' + t)].join('\n') }
+      ] }]
+    }).finalMessage();
+  } catch (err) {
+    log('imagen_error', { campana: e.campana_id, bloque: bloque.id, error: String((err && err.message) || err).slice(0, 200) });
+    throw new HttpError(502, 'No pudimos leer la imagen en este momento. Intenta de nuevo en un minuto o cuéntalo con tu voz.');
+  }
+  ctx.waitUntil(registrarGasto(msg.usage, msg.model || MODELO_VERIFICAR));
+  if (msg.stop_reason === 'refusal') throw new HttpError(422, 'No pudimos procesar esa imagen. Cuéntalo con tu voz o por escrito.');
+  if (msg.stop_reason === 'max_tokens') throw new HttpError(502, 'La lectura de la imagen quedó incompleta. Reintenta.');
+  let s = {};
+  try { s = JSON.parse((msg.content.find(c => c.type === 'text') || {}).text || '{}'); }
+  catch (x) { throw new HttpError(502, 'La lectura de la imagen devolvió un formato inesperado. Reintenta.'); }
+  log('imagen', { campana: e.campana_id, bloque: bloque.id, relevante: !!s.relevante, bytes: buf.byteLength });
+  return { ok: true, texto: s.relevante ? txt(s.texto, 3000) : '', motivo: s.relevante ? '' : txt(s.motivo, 300) };
+}
+
 // La persona marca un punto como "lo mencioné" (cubierto) o "no aplica"; estado vacío deshace su marca.
 async function rutaPunto(env, b) {
   const e = await encuestadoPorToken(env, b.k);
@@ -1322,6 +1456,11 @@ async function rutaAsignarInventario(env, b) {
 
 // ---------------------------------------------------------------- router
 export default {
+  // Tarea programada (wrangler.toml [triggers]): la IA completa la matriz con las respuestas nuevas.
+  async scheduled(event, env, ctx) {
+    await completarPendientes(env, ctx);
+  },
+
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
     const h = cors(req, env);
@@ -1341,6 +1480,7 @@ export default {
       if (ruta === 'GET /r/abierta') return json(await rutaAbierta(env, url), 200, h);
       if (ruta === 'GET /r/buscar') return json(await rutaBuscar(env, url), 200, h);
       if (ruta === 'POST /r/transcribir') return json(await rutaTranscribir(env, req, url), 200, h);
+      if (ruta === 'POST /r/imagen') return json(await rutaImagen(env, req, url, ctx), 200, h);
       if (url.pathname.startsWith('/r/') && req.method === 'POST') {
         const b = await cuerpo(req);
         if (url.pathname === '/r/registro') return json(await rutaRegistro(env, b), 200, h);
@@ -1363,6 +1503,7 @@ export default {
           if (url.pathname === '/a/campana') return json(await rutaCampanaNueva(env, b), 200, h);
           if (url.pathname === '/a/campana/glosario') return json(await rutaGlosario(env, b), 200, h);
           if (url.pathname === '/a/campana/logo') return json(await rutaLogo(env, b), 200, h);
+          if (url.pathname === '/a/campana/ia') return json(await rutaCampanaIA(env, b), 200, h);
           if (url.pathname === '/a/asignar') return json(await rutaAsignar(env, b), 200, h);
           if (url.pathname === '/a/asignar-por-inventario') return json(await rutaAsignarInventario(env, b), 200, h);
           if (url.pathname === '/a/enlace') return json(await rutaEnlace(env, b), 200, h);

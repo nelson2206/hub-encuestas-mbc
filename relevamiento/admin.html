@@ -162,6 +162,7 @@
   .mx-nada{color:var(--field-line)}
   .mx-falta{font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;color:var(--accent)}
   .mx-ia{font-style:italic;color:var(--muted);margin-top:2px}
+  .mx-de-ia{border-left:2px solid var(--inf);padding-left:6px}
   .mx tr.mx-sec td{background:var(--panel);border-top:2px solid var(--heading);padding:8px;vertical-align:middle}
   .mx tr.mx-mac td{color:var(--muted);font-family:Montserrat,sans-serif;font-weight:600;font-size:11.5px;padding:9px 8px 4px;border-bottom:none}
   .mx-pin{position:sticky;left:8px;display:flex;gap:12px;align-items:baseline;width:max-content;white-space:nowrap}
@@ -260,6 +261,9 @@
             <p class="muted">Ayuda al reconocimiento de voz con siglas y nombres propios. Los nombres de la hoja Sistemas se agregan solos.</p>
             <input type="text" id="inGlosario">
             <div class="row" style="margin-top:8px"><button class="btn btn-ghost btn-xs" id="btnGlosario">Guardar glosario</button><span class="muted" id="msgGlosario"></span></div>
+            <h3 style="font-size:14px;margin-top:22px">La IA completa la matriz</h3>
+            <p class="muted">Cada 15 minutos, la IA lee lo nuevo que respondieron (voz, texto o imágenes) y llena los campos vacíos de la matriz. Lo que completa queda marcado como «IA» hasta la validación; nunca reemplaza un dato que ya estaba ni lo que escribió el equipo, y no toca filas validadas.</p>
+            <div class="row"><label class="chk"><input type="checkbox" id="inIaAuto"> Completar la matriz automáticamente</label><span class="muted" id="msgIaAuto"></span></div>
             <h3 style="font-size:14px;margin-top:22px;color:var(--accent)">Borrar la campaña</h3>
             <p class="muted">Elimina de forma definitiva personas, respuestas y resultados. Hazlo al cierre del proyecto, después de exportar el inventario. Escribe el nombre exacto de la campaña para confirmar.</p>
             <input type="text" id="inBorrar" placeholder="Nombre exacto de la campaña">
@@ -471,6 +475,7 @@
       $('#cSub').textContent = C.campana.cliente + ' · creada el ' + C.campana.creada.slice(0,10);
       $('#inGlosario').value = C.campana.glosario || '';
       pintarLogo();
+      $('#inIaAuto').checked = !!C.campana.ia_auto;
       llenarFiltros();
       pintarTodo();
     }).catch(function(err){ alert(err.message); });
@@ -672,12 +677,15 @@
   });
   $('#btnNuevoProc').addEventListener('click', function(){ editarProceso(null, $('#fGer').value, ''); });
 
+  // La IA estructura el proceso y completa la matriz (los campos vacíos y los que ella misma llenó antes).
   function estructurar(pid){
     return api('/a/estructurar', {proceso_id: pid}).then(function(j){
       C.estructurado = C.estructurado.filter(function(x){ return x.proceso_id !== pid; });
       var nuevo = {proceso_id: pid, datos: j.datos, modelo: j.modelo, generado: j.generado};
       C.estructurado.push(nuevo);
       IX.est[pid] = nuevo;
+      if (j.proceso) aplicarProceso(j.proceso);
+      return j;
     });
   }
 
@@ -838,8 +846,10 @@
     return completo || t.length <= lim ? t : t.slice(0, lim).replace(/\s+\S*$/, '') + '…';
   }
   // Celda vacía: «Falta» si es un dato obligatorio para esa fila; debajo, lo que la IA dedujo de la encuesta y aún no se pasó a la matriz.
-  function celdaMx(k, v, s, completo, falta){
-    if (lleno(v)) return '<div class="mx-t">' + esc(recorteMx(k, String(v).trim(), completo)) + '</div>';
+  // Lo que completó la IA va con una línea azul a la izquierda: se confirma en la validación.
+  function celdaMx(k, v, s, completo, falta, ia){
+    if (lleno(v)) return '<div class="mx-t' + (ia ? ' mx-de-ia" title="Lo completó la IA con lo que contaron en la encuesta (' + esc(ia.estado || '') + '). Se confirma en la validación.' : '') + '">' +
+      esc(recorteMx(k, String(v).trim(), completo)) + '</div>';
     return (falta ? '<span class="mx-falta">Falta</span>' : '<span class="mx-nada">—</span>') +
       (s && s.valor ? '<div class="mx-t mx-ia">IA: ' + esc(recorteMx(k, String(s.valor), completo)) + '</div>' : '');
   }
@@ -851,7 +861,9 @@
       '<label class="chk"><input type="checkbox" id="mxLargo"' + (FM.largo ? ' checked' : '') + '> Ver el texto completo de todas las filas</label></div>' +
       '<p class="definicion" style="margin:0 0 8px">Las barras indican qué parte de los procesos tiene el dato: arriba, de todas las filas filtradas; en cada sección, de sus procesos (en rosado, los datos obligatorios). ' +
       'Abre una sección con «+» para ver sus procesos. ' +
-      '<span class="mx-falta">Falta</span>: dato obligatorio vacío; «—»: vacío o no aplica. <i>En cursiva</i>: lo que la IA dedujo de la encuesta y aún no está en la matriz (ábrela para usarlo). ' +
+      '<span class="mx-falta">Falta</span>: dato obligatorio vacío; «—»: vacío o no aplica. <span class="mx-de-ia">Con línea azul</span>: lo completó la IA con lo que contaron en la encuesta (se confirma en la validación). ' +
+      '<i>En cursiva</i>: lo que la IA dedujo pero no reemplazó porque ya había un dato (ábrela para usarlo). ' +
+      (C.campana.ia_auto ? 'La IA completa esta matriz sola cada 15 minutos con lo nuevo que responden por voz, texto o imagen. ' : 'El completado automático con IA está apagado (Carga y configuración). ') +
       'Haz clic en una fila para leer su texto completo; el nombre del proceso abre la ficha para editarla.</p>';
   }
   function gruposMx(){
@@ -863,7 +875,7 @@
     return {p: p, v: v, sug: sugerencias(p.id), falta: faltantes(p), oblig: obligatoriosDe(p).length};
   }
   function filaMx(f, grupos, si, cerrada){
-    var p = f.p, st = actualizacion(p), ok = p.validacion === 'validado', abierta = !!FM.abiertas[p.id], faltaK = {};
+    var p = f.p, st = actualizacion(p), ok = p.validacion === 'validado', abierta = !!FM.abiertas[p.id], faltaK = {}, iaK = p.matriz_ia || {};
     f.falta.forEach(function(o){ faltaK[o[0]] = 1; });
     var h = '<tr class="mx-fila' + (ok ? ' fila-ok' : '') + (abierta ? ' mx-abierta' : '') + (cerrada ? ' hidden' : '') + '" data-s="' + si + '" data-p="' + esc(p.id) + '">' +
       '<td class="fijo0"><input type="checkbox" data-v="' + esc(p.id) + '"' + (ok ? ' checked' : '') + ' aria-label="Validado: ' + esc(nombreProc(p)) + '"></td>' +
@@ -877,7 +889,7 @@
         h += '<td class="g-ini">' + barraLleno(n, g.cols.length, false, n + ' de ' + g.cols.length) + '</td>';
         return;
       }
-      g.cols.forEach(function(c, i){ h += '<td' + (i ? '' : ' class="g-ini"') + '>' + celdaMx(c[0], f.v[c[0]], f.sug[c[0]], FM.largo || abierta, faltaK[c[0]]) + '</td>'; });
+      g.cols.forEach(function(c, i){ h += '<td' + (i ? '' : ' class="g-ini"') + '>' + celdaMx(c[0], f.v[c[0]], f.sug[c[0]], FM.largo || abierta, faltaK[c[0]], iaK[c[0]]) + '</td>'; });
     });
     return h + '</tr>';
   }
@@ -1097,9 +1109,10 @@
     return '<tr>' + APROB_COLS.map(function(c, i){ return '<td><input type="text" data-ap="' + i + '" value="' + esc(f[i] || '') + '" aria-label="' + esc(c[1]) + '"></td>'; }).join('') +
       '<td><button type="button" class="btn-link" data-ap-quitar>Quitar</button></td></tr>';
   }
-  function tablaAprob(m, sug){
+  function marcaIA(x){ return x ? ' <span class="chip c-inf" title="Lo completó la IA con lo que contaron en la encuesta; se confirma en la validación">IA · ' + esc(x.estado || '') + '</span>' : ''; }
+  function tablaAprob(m, sug, deIA){
     var filas = filasAprob(m), ia = aprobIA(sug);
-    var h = '<div class="mcampo ancho"><label>Aprobaciones de las que depende (una fila por aprobación)' + etiquetaOblig('aprob_area') + '</label>' +
+    var h = '<div class="mcampo ancho"><label>Aprobaciones de las que depende (una fila por aprobación)' + etiquetaOblig('aprob_area') + marcaIA(deIA.aprob_area) + '</label>' +
       '<table class="aprob"><thead><tr>' + APROB_COLS.map(function(c){ return '<th>' + esc(c[1]) + '</th>'; }).join('') + '<th></th></tr></thead>' +
       '<tbody id="mAprob">' + (filas.length ? filas : [['', '', '']]).map(filaAprobHtml).join('') + '</tbody></table>' +
       '<button type="button" class="btn btn-ghost btn-xs" id="mAprobMas">+ Agregar aprobación</button>';
@@ -1116,7 +1129,7 @@
 
   // Editor de la fila de la matriz dentro de la ficha del proceso.
   function editorMatriz(p){
-    var m = p.matriz || {}, sug = sugerencias(p.id), st = actualizacion(p), f = faltantes(p);
+    var m = p.matriz || {}, ia = p.matriz_ia || {}, sug = sugerencias(p.id), st = actualizacion(p), f = faltantes(p);
     var h = '<section class="mat" id="fMatriz"><div class="row" style="justify-content:space-between"><h3 style="font-size:14px">Fila de la matriz</h3>' +
       '<div class="row"><span class="chip ' + ACT_CHIP[st] + '">' + ACT_TXT[st] + '</span>' +
       (p.validacion === 'validado' ? '<span class="muted">Validado por ' + esc(p.validado_por || '—') + ' · ' + esc(fecha(p.validado_en)) + '</span>' : '') + '</div></div>';
@@ -1137,11 +1150,11 @@
         } else {
           campo = '<input type="text" id="' + id + '" data-k="' + k + '" value="' + esc(v) + '">';
         }
-        h += '<div class="mcampo' + (LARGOS[k] ? ' ancho' : '') + '"><label for="' + id + '">' + esc(c[3]) + etiquetaOblig(k) + '</label>' + campo +
+        h += '<div class="mcampo' + (LARGOS[k] ? ' ancho' : '') + '"><label for="' + id + '">' + esc(c[3]) + etiquetaOblig(k) + marcaIA(ia[k]) + '</label>' + campo +
           (s && s.valor && s.valor !== v ? '<div class="sug"><span class="chip ' + (s.estado === 'dicho' ? 'c-ok' : 'c-inf') + '">IA · ' + esc(s.estado) + '</span> ' + esc(s.valor) +
             ' <button type="button" class="btn-link" data-usar="' + k + '">Usar</button></div>' : '') + '</div>';
       });
-      if (g[0] === 'aprob') h += tablaAprob(m, sug);
+      if (g[0] === 'aprob') h += tablaAprob(m, sug, ia);
       h += '</div></details>';
     });
     h += '<div class="row" style="margin-top:12px"><button class="btn" type="button" id="mGuardar">Guardar fila</button>' +
@@ -1275,7 +1288,10 @@
     if (irAMatriz) $('#fMatriz').scrollIntoView({block: 'start'});
     $('#dEstr').addEventListener('click', function(){
       var b = this; b.disabled = true; $('#dMsg').textContent = 'La IA está leyendo las respuestas (suele tardar menos de un minuto)…';
-      estructurar(pid).then(function(){ pintarTodo(); detalle(pid); }).catch(function(err){ b.disabled = false; $('#dMsg').textContent = err.message; });
+      estructurar(pid).then(function(j){
+        pintarTodo(); detalle(pid);
+        $('#dMsg').textContent = j.completados ? 'La IA completó ' + j.completados + (j.completados === 1 ? ' campo' : ' campos') + ' de la matriz.' : 'La IA no tenía datos nuevos para los campos vacíos de la matriz.';
+      }).catch(function(err){ b.disabled = false; $('#dMsg').textContent = err.message; });
     });
     $('#dEditar').addEventListener('click', function(){ editarProceso(p); });
     Array.prototype.forEach.call($('#dlgB').querySelectorAll('[data-borrar-resp]'), function(b){
@@ -1771,6 +1787,15 @@
     rd.readAsDataURL(f);
   });
   $('#btnLogoQuitar').addEventListener('click', function(){ if (confirm('¿Quitar el logo de la encuesta?')) guardarLogo(''); });
+  $('#inIaAuto').addEventListener('change', function(){
+    var cb = this, v = cb.checked;
+    cb.disabled = true; $('#msgIaAuto').textContent = 'Guardando…';
+    api('/a/campana/ia', {campana_id: C.campana.id, ia_auto: v}).then(function(){
+      C.campana.ia_auto = v ? 1 : 0; cb.disabled = false;
+      $('#msgIaAuto').textContent = v ? 'Activado: la IA completa la matriz cada 15 minutos.' : 'Desactivado: solo con «Estructurar con IA».';
+      pintarMatrizLista();
+    }).catch(function(err){ cb.checked = !v; cb.disabled = false; $('#msgIaAuto').textContent = err.message; });
+  });
 
   $('#btnGlosario').addEventListener('click', function(){
     api('/a/campana/glosario', {campana_id: C.campana.id, glosario: $('#inGlosario').value}).then(function(){ $('#msgGlosario').textContent = 'Guardado'; })

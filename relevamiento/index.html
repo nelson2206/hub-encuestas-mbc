@@ -634,7 +634,7 @@
     // Paso 2: respuestas
     var p2 = document.createElement('section');
     p2.innerHTML = '<div class="card" style="margin-bottom:14px"><div class="paso"><span class="n">2</span><div><h2>Cuéntanos cómo funciona cada proceso</h2>' +
-      '<p class="lead" style="margin:0">Abre cada proceso y responde sus 3 bloques. Cada bloque trae la lista de lo que necesitamos saber: pulsa <strong>Grabar</strong> y cuéntalo como si se lo explicaras a un colega nuevo; el texto aparece solo y lo puedes corregir. ' +
+      '<p class="lead" style="margin:0">Abre cada proceso y responde sus 3 bloques. Cada bloque trae la lista de lo que necesitamos saber: pulsa <strong>Grabar</strong> y cuéntalo como si se lo explicaras a un colega nuevo, o escríbelo. También puedes <strong>subir una imagen</strong> (un flujo, un formato, una pantalla): la IA escribe lo que ve. El texto aparece solo y lo puedes corregir; la imagen no se guarda. ' +
       'Al terminar revisamos tu respuesta y marcamos lo que ya cubriste. Lo que no exista en tu proceso (por ejemplo, si no hay indicadores) márcalo como «No aplica». ' +
       'Un proceso queda <strong>completo</strong> cuando todos sus puntos están marcados.</p></div></div></div>' +
       '<div id="listaProc" style="display:flex;flex-direction:column;gap:12px"></div>';
@@ -869,11 +869,13 @@
         '<ul class="ck" id="ck-' + esc(key) + '" aria-labelledby="ckt-' + esc(key) + '"></ul>' +
         '<div class="rec-row">' +
           '<button class="btn btn-rec btn-sm btn-ico" type="button" data-rec="' + esc(key) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3" fill="currentColor" stroke="none"></rect><path d="M5 10.5a7 7 0 0 0 14 0M12 17.5V21"></path></svg><span>Grabar</span></button>' +
+          '<button class="btn btn-ghost btn-sm btn-ico" type="button" data-img="' + esc(key) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 16l-5-5-9 9"></path></svg><span>Subir imagen</span></button>' +
+          '<input type="file" accept="image/*" class="hidden" id="im-' + esc(key) + '" aria-label="Subir una imagen para el bloque ' + (i+1) + '">' +
           '<span class="rec-dot hidden" id="dot-' + esc(key) + '" aria-hidden="true"></span>' +
           '<span class="rec-timer hidden" id="tm-' + esc(key) + '">0:00</span>' +
           '<span class="estado" id="st-' + esc(key) + '" aria-live="polite"></span>' +
         '</div>' +
-        '<textarea id="tx-' + esc(key) + '" maxlength="12000" aria-label="Respuesta al bloque ' + (i+1) + '" placeholder="Pulsa Grabar y habla, o escribe aquí…">' + esc(r.texto) + '</textarea>';
+        '<textarea id="tx-' + esc(key) + '" maxlength="12000" aria-label="Respuesta al bloque ' + (i+1) + '" placeholder="Pulsa Grabar y habla, escribe aquí o sube una imagen…">' + esc(r.texto) + '</textarea>';
       if (q.sistemas && S.sistemas.length){
         html += '<div class="sis-t">Marca los sistemas que usan en este proceso</div><div class="pillbox">' +
           S.sistemas.map(function(s){
@@ -893,6 +895,9 @@
       // Al salir del texto se revisa qué puntos cubrió (solo si cambió desde la última revisión).
       ta.addEventListener('blur', function(){ if (porRevisar[key]) verificar(p.id, q.id); });
       d.querySelector('[data-rec="' + CSS.escape(key) + '"]').addEventListener('click', function(){ alternarGrabacion(p.id, q.id); });
+      var inImg = d.querySelector('#im-' + CSS.escape(key));
+      d.querySelector('[data-img="' + CSS.escape(key) + '"]').addEventListener('click', function(){ if (!grab[key]) inImg.click(); });
+      inImg.addEventListener('change', function(){ var fi = inImg.files && inImg.files[0]; inImg.value = ''; leerImagen(p.id, q.id, fi); });
       d.querySelector('[data-verif="' + CSS.escape(key) + '"]').addEventListener('click', function(){ verificar(p.id, q.id, true); });
       Array.prototype.forEach.call(d.querySelectorAll('[data-sis="' + CSS.escape(key) + '"]'), function(c){
         c.addEventListener('change', function(){ programarGuardado(p.id, q.id, 0); programarRevision(p.id, q.id, 4000); });
@@ -1177,6 +1182,56 @@
         transcribir(key, f);
       });
       st.appendChild(r);
+    });
+  }
+
+  // ------------------------------------------------------------ imagen
+  // Una foto o captura (un flujo, un formato, una pantalla, una pizarra) se reduce en el navegador (máx. 1600 px, JPEG)
+  // y la IA escribe lo que ve, útil para el bloque. La imagen no se guarda en ningún servidor: solo queda el texto,
+  // que se agrega a la respuesta y la persona revisa, igual que la transcripción de voz.
+  function botonImg(key){ return document.querySelector('[data-img="' + CSS.escape(key) + '"]'); }
+  function leerImagen(pid, qid, file){
+    var key = pid + '-' + qid;
+    if (!file || grab[key]) return;
+    if (!/^image\//.test(file.type)){ estado(key, 'Ese archivo no es una imagen: sube una foto o captura (JPG o PNG).', 'warn'); return; }
+    grab[key] = {pid: pid, qid: qid, fase: 'imagen'};
+    var b = botonImg(key), rec = botonRec(key);
+    if (b) b.disabled = true; if (rec) rec.disabled = true;
+    var fin = function(){ delete grab[key]; if (b) b.disabled = false; if (rec) rec.disabled = false; };
+    estado(key, 'La IA está leyendo la imagen…');
+    reducirImagen(file).then(function(jpg){
+      return fetch(API + '/r/imagen?k=' + encodeURIComponent(K) + '&proceso_id=' + encodeURIComponent(pid) + '&pregunta=' + encodeURIComponent(qid),
+        {method: 'POST', headers: {'content-type': 'image/jpeg'}, body: jpg})
+        .then(function(r){ return r.json().then(function(j){ if (!r.ok || !j.ok) throw new Error(j.error || 'Error ' + r.status); return j; }); });
+    }).then(function(j){
+      fin();
+      if (!j.texto){ estado(key, (j.motivo ? j.motivo + ' ' : '') + 'No encontramos información del proceso en esa imagen.', 'warn'); return; }
+      var ta = document.getElementById('tx-' + key);
+      ta.value = (ta.value.trim() ? ta.value.trim() + '\n\n' : '') + 'Según la imagen: ' + j.texto;
+      return guardar(pid, qid).then(function(){
+        estado(key, 'Listo. Revisa lo que la IA leyó de la imagen y corrige lo que haga falta (la imagen no se guardó).', 'ok');
+        verificar(pid, qid);
+      });
+    }).catch(function(err){
+      fin();
+      estado(key, /^No pudimos/.test(err.message) ? err.message : 'No pudimos leer la imagen: ' + err.message, 'warn');
+    });
+  }
+  function reducirImagen(file){
+    return new Promise(function(ok, ko){
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function(){
+        var f = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+        var c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.naturalWidth * f)); c.height = Math.max(1, Math.round(img.naturalHeight * f));
+        var x = c.getContext('2d');
+        x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);   // fondo blanco para PNG transparentes
+        x.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function(b){ if (b) ok(b); else ko(new Error('tu navegador no pudo convertirla; prueba con otra imagen')); }, 'image/jpeg', 0.85);
+      };
+      img.onerror = function(){ URL.revokeObjectURL(url); ko(new Error('tu navegador no puede abrir ese formato; usa JPG o PNG')); };
+      img.src = url;
     });
   }
 

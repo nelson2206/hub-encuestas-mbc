@@ -2,6 +2,7 @@
 -- Base nueva: npx wrangler d1 execute voz-relevamiento --remote --file=schema.sql
 -- Base creada antes del 2026-09-28: aplicar en su lugar migracion-002.sql y migracion-003.sql
 -- Base creada antes del 2026-09-29: aplicar migracion-003.sql y migracion-004.sql
+-- Base creada antes del 2026-10-06: aplicar migracion-005.sql
 -- El audio NUNCA se guarda: solo el texto que el encuestado revisa y confirma.
 
 CREATE TABLE IF NOT EXISTS campanas (
@@ -13,7 +14,8 @@ CREATE TABLE IF NOT EXISTS campanas (
   codigo_publico TEXT,                 -- código del enlace abierto (?c=)
   abierta INTEGER NOT NULL DEFAULT 0,  -- 1 = el enlace abierto acepta registros
   dominio TEXT NOT NULL DEFAULT '',    -- dominio de correo exigido al registrarse (opcional)
-  logo TEXT NOT NULL DEFAULT ''        -- logo del cliente (data URI) que se muestra en la encuesta
+  logo TEXT NOT NULL DEFAULT '',       -- logo del cliente (data URI) que se muestra en la encuesta
+  ia_auto INTEGER NOT NULL DEFAULT 1   -- 1 = la tarea programada completa la matriz con la IA
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_camp_codigo ON campanas(codigo_publico);
 
@@ -51,7 +53,8 @@ CREATE TABLE IF NOT EXISTS procesos (
   validado_por TEXT NOT NULL DEFAULT '',        -- cargo de quien validó
   validado_en TEXT,
   actualizado_en TEXT,
-  personas TEXT NOT NULL DEFAULT ''             -- nombres del inventario anterior, uno por línea (buscador por persona)
+  personas TEXT NOT NULL DEFAULT '',            -- nombres del inventario anterior, uno por línea (buscador por persona)
+  matriz_ia TEXT NOT NULL DEFAULT '{}'          -- campos de la matriz que llenó la IA: {campo: {estado, en}}
 );
 CREATE INDEX IF NOT EXISTS ix_proc_campana ON procesos(campana_id, gerencia, seccion);
 
