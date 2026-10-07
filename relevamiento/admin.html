@@ -262,7 +262,7 @@
             <input type="text" id="inGlosario">
             <div class="row" style="margin-top:8px"><button class="btn btn-ghost btn-xs" id="btnGlosario">Guardar glosario</button><span class="muted" id="msgGlosario"></span></div>
             <h3 style="font-size:14px;margin-top:22px">La IA completa la matriz</h3>
-            <p class="muted">Cada 15 minutos, la IA lee lo nuevo que respondieron (voz, texto o imágenes) y llena los campos vacíos de la matriz. Lo que completa queda marcado como «IA» hasta la validación; nunca reemplaza un dato que ya estaba ni lo que escribió el equipo, y no toca filas validadas.</p>
+            <p class="muted">Cada 15 minutos, la IA lee lo nuevo que respondieron (voz, texto o imágenes) y llena los campos vacíos de la matriz con lo que la persona dijo. Lo que la IA solo deduce queda como sugerencia en la ficha. Lo que completa queda marcado como «IA» hasta la validación; nunca reemplaza un dato que ya estaba ni lo que escribió el equipo, y no toca filas validadas.</p>
             <div class="row"><label class="chk"><input type="checkbox" id="inIaAuto"> Completar la matriz automáticamente</label><span class="muted" id="msgIaAuto"></span></div>
             <h3 style="font-size:14px;margin-top:22px;color:var(--accent)">Borrar la campaña</h3>
             <p class="muted">Elimina de forma definitiva personas, respuestas y resultados. Hazlo al cierre del proyecto, después de exportar el inventario. Escribe el nombre exacto de la campaña para confirmar.</p>
@@ -862,7 +862,7 @@
       '<p class="definicion" style="margin:0 0 8px">Las barras indican qué parte de los procesos tiene el dato: arriba, de todas las filas filtradas; en cada sección, de sus procesos (en rosado, los datos obligatorios). ' +
       'Abre una sección con «+» para ver sus procesos. ' +
       '<span class="mx-falta">Falta</span>: dato obligatorio vacío; «—»: vacío o no aplica. <span class="mx-de-ia">Con línea azul</span>: lo completó la IA con lo que contaron en la encuesta (se confirma en la validación). ' +
-      '<i>En cursiva</i>: lo que la IA dedujo pero no reemplazó porque ya había un dato (ábrela para usarlo). ' +
+      '<i>En cursiva</i>: lo que la IA propone y no se escribió, porque lo dedujo o porque ya había un dato (ábrela para usarlo). ' +
       (C.campana.ia_auto ? 'La IA completa esta matriz sola cada 15 minutos con lo nuevo que responden por voz, texto o imagen. ' : 'El completado automático con IA está apagado (Carga y configuración). ') +
       'Haz clic en una fila para leer su texto completo; el nombre del proceso abre la ficha para editarla.</p>';
   }

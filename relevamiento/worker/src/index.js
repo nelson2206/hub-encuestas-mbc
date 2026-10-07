@@ -66,7 +66,15 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 
-const MODELO = 'claude-opus-5';
+// Modelo de IA y esfuerzo por tarea: se cambian en wrangler.toml [vars] sin tocar el código (por defecto, Claude Sonnet 5.5).
+// estructurar = completar la matriz; revision = checklist de cada bloque; imagen = leer imágenes (con el modelo de revisión).
+const IA_POR_DEFECTO = { estructurar: ['claude-sonnet-5-5', 'medium'], revision: ['claude-sonnet-5-5', 'low'], imagen: ['claude-sonnet-5-5', 'low'] };
+function iaDe(env, tarea) {
+  const v = { estructurar: [env.IA_MODELO_ESTRUCTURAR, env.IA_ESFUERZO_ESTRUCTURAR], revision: [env.IA_MODELO_REVISION, env.IA_ESFUERZO_REVISION],
+    imagen: [env.IA_MODELO_REVISION, env.IA_ESFUERZO_IMAGEN] }[tarea];
+  const d = IA_POR_DEFECTO[tarea];
+  return { modelo: String(v[0] || d[0]).trim(), esfuerzo: String(v[1] || d[1]).trim() };
+}
 const WHISPER = '@cf/openai/whisper-large-v3-turbo';
 const MAX_AUDIO = 8 * 1024 * 1024;       // por tramo; el navegador corta en tramos de 2 min
 const MAX_IMAGEN = 6 * 1024 * 1024;      // el navegador la reduce antes (máx. 1600 px, JPEG)
@@ -109,7 +117,6 @@ const BLOQUES = [
 ];
 // q1..q6: formato anterior (6 preguntas), que se sigue aceptando y mostrando en la consola.
 const PREGUNTAS = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', ...BLOQUES.map(b => b.id)];
-const MODELO_VERIFICAR = 'claude-opus-5-5';   // revisión del checklist: pedido corto, esfuerzo bajo
 const ESTADOS_REVISION = ['vigente', 'cambio', 'no_participo', 'no_existe'];
 const PULSE_INGEST = 'https://pulse.mbc-latam.com/api/ai-usage';
 
@@ -1082,13 +1089,22 @@ function normalizarSalida(s) {
   return Object.assign({}, s, { campos });
 }
 
+// Cada llamada a la IA: gasto a Pulse y una línea en Workers Logs con tokens y tiempo (para comparar modelos).
+function registrarIA(ctx, tarea, msg, cfg, t0) {
+  const u = msg.usage || {};
+  const uso = { tarea, modelo: msg.model || cfg.modelo, esfuerzo: cfg.esfuerzo, entrada: u.input_tokens || 0, salida: u.output_tokens || 0, ms: Date.now() - t0 };
+  log('ia', uso);
+  ctx.waitUntil(registrarGasto(u, uso.modelo));
+  return uso;
+}
+
 async function registrarGasto(uso, modelo) {
   if (!uso) return;
   try {
     await fetch(PULSE_INGEST, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ tool: 'voz-relevamiento', provider: 'anthropic', model: modelo || MODELO,
+      body: JSON.stringify({ tool: 'voz-relevamiento', provider: 'anthropic', model: modelo,
         inputTokens: uso.input_tokens || 0, outputTokens: uso.output_tokens || 0 })
     });
   } catch (e) { /* el registro de gasto nunca debe afectar al usuario */ }
@@ -1128,16 +1144,16 @@ async function estructurarProceso(env, procesoId, ctx, origen) {
   ]);
   if (!resps.results.some(r => (r.texto || '').trim())) throw new HttpError(409, 'Este proceso todavía no tiene respuestas');
 
-  const client = clienteClaude(env);
+  const client = clienteClaude(env), cfg = iaDe(env, 'estructurar'), t0 = Date.now();
   let msg;
   try {
     msg = await client.beta.messages.stream({
-      model: MODELO,
+      model: cfg.modelo,
       max_tokens: 16000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
       thinking: { type: 'adaptive' },
-      output_config: { format: { type: 'json_schema', schema: SALIDA_SCHEMA } },
+      output_config: { effort: cfg.esfuerzo, format: { type: 'json_schema', schema: SALIDA_SCHEMA } },
       system: SISTEMA_PROMPT,
       messages: [{ role: 'user', content: textoParaClaude(camp, p, enc.results, revs.results, resps.results, sis.results) }]
     }).finalMessage();
@@ -1147,7 +1163,7 @@ async function estructurarProceso(env, procesoId, ctx, origen) {
     if (err instanceof Anthropic.APIError) throw new HttpError(502, 'La IA devolvió un error (' + (err.status || 'sin código') + '): ' + err.message);
     throw new HttpError(502, 'No se pudo contactar a la IA');
   }
-  ctx.waitUntil(registrarGasto(msg.usage, msg.model || MODELO));
+  const uso = registrarIA(ctx, 'estructurar', msg, cfg, t0);
   if (msg.stop_reason === 'refusal') throw new HttpError(422, 'La IA no pudo procesar este proceso. Revisa las respuestas manualmente.');
   if (msg.stop_reason === 'max_tokens') throw new HttpError(502, 'La respuesta de la IA quedó incompleta. Reintenta.');
   const bloque = msg.content.find(c => c.type === 'text');
@@ -1156,17 +1172,18 @@ async function estructurarProceso(env, procesoId, ctx, origen) {
   const generado = ahora();
   await env.DB.prepare(`INSERT INTO estructurado (proceso_id, campana_id, datos, modelo, generado) VALUES (?,?,?,?,?)
     ON CONFLICT(proceso_id) DO UPDATE SET datos=excluded.datos, modelo=excluded.modelo, generado=excluded.generado`)
-    .bind(p.id, p.campana_id, JSON.stringify(datos), msg.model || MODELO, generado).run();
+    .bind(p.id, p.campana_id, JSON.stringify(datos), msg.model || cfg.modelo, generado).run();
   const c = await completarMatriz(env, p, datos);
   log('estructurado', { campana: p.campana_id, proceso: p.id, origen, completados: c.n });
-  return { ok: true, proceso_id: p.id, datos, modelo: msg.model || MODELO, generado, completados: c.n,
+  return { ok: true, proceso_id: p.id, datos, modelo: msg.model || cfg.modelo, generado, completados: c.n, uso,
     proceso: { id: p.id, matriz: c.matriz, matriz_ia: c.matriz_ia } };
 }
 
 // ---------------------------------------------------------------- la IA completa la matriz
 // Con lo que estructuró la IA se completa la fila: se llenan los campos vacíos y se actualizan los que la IA misma
-// llenó antes (procesos.matriz_ia los registra). Nunca se pisa un dato del inventario anterior ni uno que escribió el
-// equipo, y una fila validada no se toca: ahí la versión de la IA queda como sugerencia en la ficha.
+// llenó antes (procesos.matriz_ia los registra). Solo se escribe lo que la persona DIJO (estado "dicho"): lo que la IA
+// deduce queda como sugerencia en la ficha. Nunca se pisa un dato del inventario anterior ni uno que escribió el
+// equipo, y una fila validada no se toca.
 const APROB_CAMPOS = ['aprob_area', 'aprob_responsable', 'aprob_momento'];
 async function completarMatriz(env, p, datos) {
   const m = leerMatriz(p.matriz), ia = leerMatriz(p.matriz_ia);
@@ -1174,15 +1191,16 @@ async function completarMatriz(env, p, datos) {
   const c = (datos && datos.campos) || {}, t = ahora();
   const libre = k => !String(m[k] || '').trim() || !!ia[k];   // vacío, o lo llenó la IA y nadie lo editó
   const valor = k => { const x = c[k]; return x && x.estado !== 'vacio' ? String(x.valor || '').trim().slice(0, 4000) : ''; };
+  const dicho = k => c[k] && c[k].estado === 'dicho' && !!valor(k);
   let n = 0;
   const poner = (k, v, estado) => { if (m[k] === v) return; m[k] = v; ia[k] = { estado, en: t }; n++; };
   CAMPOS.forEach(([k]) => {
     if (APROB_CAMPOS.includes(k) || !MATRIZ_CLAVES.includes(k)) return;
-    const v = valor(k);
-    if (v && libre(k)) poner(k, v, c[k].estado);
+    if (dicho(k) && libre(k)) poner(k, valor(k), 'dicho');
   });
   // Aprobaciones: las tres columnas van juntas, una línea por aprobación y en el mismo orden («—» si falta un dato).
-  if (APROB_CAMPOS.every(libre)) {
+  // Se escriben cuando la persona dijo de dónde depende; cada columna guarda si fue dicha o deducida.
+  if (dicho('aprob_area') && APROB_CAMPOS.every(libre)) {
     const cols = APROB_CAMPOS.map(k => valor(k).split('\n').map(x => x.trim()));
     const filas = Math.max(...cols.map(x => (x.some(Boolean) ? x.length : 0)));
     if (filas) APROB_CAMPOS.forEach((k, i) => poner(k, Array.from({ length: filas }, (_, j) => cols[i][j] || '—').join('\n'),
@@ -1288,13 +1306,14 @@ async function rutaVerificar(env, b, ctx) {
     bloque.puntos.forEach(([id]) => { nuevo[id] = manual(id) ? previo[id] : { estado: 'falta', fuente: 'ia', evidencia: '' }; });
   } else {
     let msg;
+    const cfg = iaDe(env, 'revision'), t0 = Date.now();
     try {
       msg = await clienteClaude(env).beta.messages.stream({
-        model: MODELO_VERIFICAR,
+        model: cfg.modelo,
         max_tokens: 4000,
         betas: ['server-side-fallback-2026-07-01'],
         fallbacks: 'default',
-        output_config: { effort: 'low', format: { type: 'json_schema', schema: schemaVerificar(bloque) } },
+        output_config: { effort: cfg.esfuerzo, format: { type: 'json_schema', schema: schemaVerificar(bloque) } },
         system: VERIFICAR_PROMPT,
         messages: [{ role: 'user', content: [
           `PROCESO: ${p.subproceso || p.proceso || p.macroproceso}`,
@@ -1308,7 +1327,7 @@ async function rutaVerificar(env, b, ctx) {
       log('verificar_error', { campana: e.campana_id, bloque: bloque.id, error: String((err && err.message) || err).slice(0, 200) });
       throw new HttpError(502, 'No pudimos revisar tu respuesta en este momento. Ya quedó guardada: marca a mano los puntos que mencionaste.');
     }
-    ctx.waitUntil(registrarGasto(msg.usage, msg.model || MODELO_VERIFICAR));
+    registrarIA(ctx, 'revision', msg, cfg, t0);
     let s = {};
     try { s = JSON.parse((msg.content.find(c => c.type === 'text') || {}).text || '{}'); }
     catch (x) { throw new HttpError(502, 'La revisión automática devolvió un formato inesperado. Reintenta.'); }
@@ -1351,13 +1370,14 @@ async function rutaImagen(env, req, url, ctx) {
   if (!buf.byteLength) throw new HttpError(400, 'Imagen vacía');
   if (buf.byteLength > MAX_IMAGEN) throw new HttpError(413, 'La imagen pesa demasiado (máximo 6 MB)');
   let msg;
+  const cfg = iaDe(env, 'imagen'), t0 = Date.now();
   try {
     msg = await clienteClaude(env).beta.messages.stream({
-      model: MODELO_VERIFICAR,
+      model: cfg.modelo,
       max_tokens: 4000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: 'medium', format: { type: 'json_schema', schema: IMAGEN_SCHEMA } },
+      output_config: { effort: cfg.esfuerzo, format: { type: 'json_schema', schema: IMAGEN_SCHEMA } },
       system: IMAGEN_PROMPT,
       messages: [{ role: 'user', content: [
         { type: 'image', source: { type: 'base64', media_type: tipo, data: aBase64(buf) } },
@@ -1369,7 +1389,7 @@ async function rutaImagen(env, req, url, ctx) {
     log('imagen_error', { campana: e.campana_id, bloque: bloque.id, error: String((err && err.message) || err).slice(0, 200) });
     throw new HttpError(502, 'No pudimos leer la imagen en este momento. Intenta de nuevo en un minuto o cuéntalo con tu voz.');
   }
-  ctx.waitUntil(registrarGasto(msg.usage, msg.model || MODELO_VERIFICAR));
+  registrarIA(ctx, 'imagen', msg, cfg, t0);
   if (msg.stop_reason === 'refusal') throw new HttpError(422, 'No pudimos procesar esa imagen. Cuéntalo con tu voz o por escrito.');
   if (msg.stop_reason === 'max_tokens') throw new HttpError(502, 'La lectura de la imagen quedó incompleta. Reintenta.');
   let s = {};
@@ -1472,7 +1492,8 @@ export default {
     try {
       if (ruta === 'GET /health') {
         const ia = (env.ANTHROPIC_API_KEY || '').trim() ? 'clave propia' : (env.PROCESSIQ && (env.INTERNAL_CODE || '').trim() ? 'via processiq-api' : 'sin configurar');
-        return json({ ok: true, servicio: 'voz-relevamiento-api', ia, admin: !!(env.ADMIN_CODE || '').trim() }, 200, h);
+        const modelos = { estructurar: iaDe(env, 'estructurar'), revision: iaDe(env, 'revision'), imagen: iaDe(env, 'imagen') };
+        return json({ ok: true, servicio: 'voz-relevamiento-api', ia, modelos, admin: !!(env.ADMIN_CODE || '').trim() }, 200, h);
       }
       if (!h['Access-Control-Allow-Origin']) throw new HttpError(403, 'Origen no permitido');
 

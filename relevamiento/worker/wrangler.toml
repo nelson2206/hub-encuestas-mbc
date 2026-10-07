@@ -15,6 +15,12 @@ preview_urls = false   # este Worker guarda claves: sin URLs publicas por versio
 # encuesta.mbc-latam.com = Voz; github.io = respaldo del mismo repo.
 # Pruebas locales: .dev.vars (fuera de git) sobreescribe ALLOWED_ORIGINS y ADMIN_CODE para wrangler dev.
 ALLOWED_ORIGINS = "https://encuesta.mbc-latam.com,https://nelson2206.github.io"
+# Modelo de IA por tarea (Claude) y esfuerzo (low, medium, high). Revisión = checklist de cada bloque; también lee las imágenes.
+IA_MODELO_ESTRUCTURAR = "claude-sonnet-5-5"
+IA_ESFUERZO_ESTRUCTURAR = "medium"
+IA_MODELO_REVISION = "claude-sonnet-5-5"
+IA_ESFUERZO_REVISION = "low"
+IA_ESFUERZO_IMAGEN = "low"
 
 # Workers Logs: guarda los eventos que registra log() (sesión, registro, errores, CORS rechazado)
 # para diagnosticar problemas de acceso. Ver en el panel de Cloudflare > Workers > voz-relevamiento-api > Logs.
