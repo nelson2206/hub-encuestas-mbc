@@ -675,7 +675,7 @@
     });
     $('#barra').classList.remove('hidden');
     actualizarAvance();
-    programarFijo();
+    ajustarBuscadorFijo();   // directo, sin esperar al siguiente cuadro: la barra acaba de mostrarse
     if (nuevo !== null) abrirNuevo(nuevo);
   }
 
