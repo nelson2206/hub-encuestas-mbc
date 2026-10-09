@@ -93,7 +93,11 @@
   .bus-lupa{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
   input.bus-input{padding:13px 14px 13px 42px;font-size:16px}
   .bus-estado{font-size:13px;color:var(--muted);margin:6px 0 0;min-height:1.3em}
-  .bus-lista{list-style:none;margin:8px 0 0;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--card);max-height:420px;overflow-y:auto}
+  .bus-lista{list-style:none;margin:8px 0 0;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--card);max-height:min(420px,60vh);overflow-y:auto}
+  @media (max-width:600px){ .bus-lista{max-height:50vh} }
+  /* El buscador del paso 1 se queda a la vista (debajo de la barra de avance) mientras se recorre ese paso; al llegar al paso 2 se suelta. */
+  .bus-fijo{position:sticky;top:var(--barra-h,0px);z-index:5;background:var(--card);padding:10px 0 6px;margin-top:-10px}
+  .bus-fijo.pegado{box-shadow:0 10px 12px -10px rgba(0,0,0,.35)}
   .bus-op{padding:11px 14px;border-top:1px solid var(--line);cursor:pointer;display:flex;gap:12px;align-items:center}
   .bus-op:first-child{border-top:none}
   .bus-op:hover,.bus-op[aria-selected=true]{background:var(--panel)}
@@ -308,7 +312,9 @@
       estadoEl.textContent = 'Buscando…';
       o.buscar(q).then(function(j){
         if (mio !== seq) return;
-        items = j.resultados || [];
+        // Los que ya están en la lista de la persona van primero (sin alterar el orden de relevancia dentro de cada grupo).
+        items = (j.resultados || []);
+        items = items.filter(function(p){ return o.yaElegido(p); }).concat(items.filter(function(p){ return !o.yaElegido(p); }));
         personasRes = o.elegirVarios ? (j.personas || []) : [];
         pintar(q, j.total || 0);
       }).catch(function(err){ if (mio === seq) estadoEl.textContent = err.message; });
@@ -435,7 +441,7 @@
     paso1.className = 'card';
     paso1.innerHTML = '<div class="paso"><span class="n">1</span><div><h2>Busca y elige tu proceso</h2>' +
       '<p class="lead">Si participas en varios, elige todos. También puedes escribir tu nombre y apellido: si figuras en el inventario anterior, verás tus procesos para elegirlos de una vez.</p>' +
-      '<div id="busA"></div>' +
+      '<div id="busA" class="bus-fijo"></div>' +
       '<p class="sub-t hidden" id="elegT">Elegiste</p><ul class="lista-el" id="elegL"></ul>' +
       '<p class="msg ok hidden" id="nuevoNota" style="margin:12px 0 0"></p>' +
       '<div class="fila" style="margin-top:16px"><button class="btn" type="button" id="btnSeguir" disabled>Continuar</button>' +
@@ -456,6 +462,7 @@
     paso1.querySelector('#busA').appendChild(bus.el);
     paso1.querySelector('#btnNoEncuentro').addEventListener('click', function(){ marcarNuevo(bus.input.value.trim()); });
     paso1.querySelector('#btnSeguir').addEventListener('click', mostrarRegistro);
+    programarFijo();
 
     root.appendChild(tarjetaRegistro());
   }
@@ -605,11 +612,12 @@
     p1.className = 'card';
     p1.innerHTML = '<div class="paso"><span class="n">1</span><div><h2>¿En qué procesos participas?</h2>' +
       '<p class="lead">Busca tus procesos escribiendo unas letras y elígelos, o escribe tu nombre para ver los procesos donde figuras en el inventario anterior. Puedes elegir procesos de cualquier área.</p>' +
-      '<div id="busP"></div>' +
-      '<div id="bloqueAsig" class="hidden"><p class="sub-t">Procesos asignados a ti</p>' +
+      '<div id="busP" class="bus-fijo"></div>' +
+      // Orden: tus procesos (elegidos o confirmados) → asignados por marcar → de tu sección por marcar → agregar nuevo → no participo / ya no se hace.
+      '<p class="sub-t" id="elegidosT">Tus procesos</p><ul class="lista-el" id="listaElegidos"></ul><div id="listaConfirmados"></div>' +
+      '<div id="bloqueAsig" class="hidden"><p class="sub-t">Procesos asignados a ti, por marcar</p>' +
       '<p class="lead" style="font-size:14px;margin:0 0 4px">Figuras en ellos en el inventario anterior o te los asignó el equipo consultor. Marca tu relación con cada uno.</p><div id="listaAsig"></div></div>' +
-      '<p class="sub-t" id="elegidosT">Procesos que elegiste</p><ul class="lista-el" id="listaElegidos"></ul>' +
-      '<div id="bloqueSeccion"' + (hayDeSeccion ? '' : ' class="hidden"') + '><p class="sub-t">Procesos de tu sección en el inventario</p>' +
+      '<div id="bloqueSeccion"' + (hayDeSeccion ? '' : ' class="hidden"') + '><p class="sub-t">Procesos de tu sección en el inventario, por marcar</p>' +
       '<p class="lead" style="font-size:14px;margin:0 0 4px">Vienen del inventario anterior. Marca tu relación con cada uno.</p><div id="listaRev"></div></div>' +
       '<div style="margin-top:14px"><button class="btn-link" type="button" id="btnAgregar">¿No encuentras tu proceso? Agrégalo como nuevo</button></div>' +
       '<div id="formNuevo" class="hidden" style="margin-top:12px;background:var(--panel);border-radius:12px;padding:14px 16px">' +
@@ -618,7 +626,10 @@
         '<label for="nvDesc">En una frase, ¿de qué se trata? (opcional)</label><input type="text" id="nvDesc" maxlength="300">' +
         '<div class="fila" style="margin-top:12px"><button class="btn btn-sm" type="button" id="btnGuardarNuevo">Agregar</button>' +
         '<button class="btn-link" type="button" id="btnCancelarNuevo">Cancelar</button><span class="estado" id="estNuevo"></span></div>' +
-      '</div></div></div>';
+      '</div>' +
+      '<div id="bloqueNoPart" class="hidden"><p class="sub-t">No participo o ya no se hace</p>' +
+      '<p class="lead" style="font-size:14px;margin:0 0 4px">Si te equivocaste, vuelve a marcar tu relación con el proceso.</p><div id="listaNoPart"></div></div>' +
+      '</div></div>';
     root.appendChild(p1);
 
     var bus = crearBuscador({
@@ -664,6 +675,7 @@
     });
     $('#barra').classList.remove('hidden');
     actualizarAvance();
+    programarFijo();
     if (nuevo !== null) abrirNuevo(nuevo);
   }
 
@@ -687,15 +699,48 @@
     // Si lo que eligió es de su propia sección, ya aparece marcado abajo: no se muestra una lista vacía que confunda.
     var nada = !el.length && !procesosActivos().length;
     if (nada) ul.innerHTML = '<li class="vacio">Todavía no tienes procesos elegidos. Búscalos arriba' + (sec.length || asig.length ? ' o marca «Participo» en los procesos de las listas.' : '.') + '</li>';
-    $('#elegidosT').classList.toggle('hidden', !el.length && !nada);
     ul.classList.toggle('hidden', !el.length && !nada);
-    $('#bloqueSeccion').classList.toggle('hidden', !sec.length);
-    $('#bloqueAsig').classList.toggle('hidden', !asig.length);
     // Solo se agregan las filas que faltan: las existentes conservan lo que la persona está escribiendo.
     var cont = $('#listaRev'), contA = $('#listaAsig');
     sec.forEach(function(p){ if (!document.getElementById('rev-' + p.id)) cont.appendChild(tarjetaRevision(p)); });
     asig.forEach(function(p){ if (!document.getElementById('rev-' + p.id)) contA.appendChild(tarjetaRevision(p)); });
+    ordenarPaso1(el.length || nada);
   }
+
+  // Cada tarjeta de revisión va al grupo que le toca según lo que la persona marcó:
+  // participa → «Tus procesos» (arriba); sin marcar → asignados o de tu sección; no participa / ya no se hace → al final.
+  // Mover un nodo existente conserva lo escrito; si tenía el foco, se lo devolvemos.
+  function ordenarPaso1(hayElegidos){
+    var activo = document.activeElement;
+    var destino = {act: $('#listaConfirmados'), nop: $('#listaNoPart'), sec: $('#listaRev'), asig: $('#listaAsig')};
+    Array.prototype.slice.call(document.querySelectorAll('.proc-rev')).forEach(function(d){
+      var pid = d.id.slice(4);
+      var p = S.procesos.filter(function(x){ return x.id === pid; })[0];
+      if (!p) return;
+      var e = (S.revisiones[pid] || {}).estado;
+      var a = (e === 'vigente' || e === 'cambio') ? destino.act : (e === 'no_participo' || e === 'no_existe') ? destino.nop : (p.enSeccion ? destino.sec : destino.asig);
+      if (d.parentNode !== a) a.appendChild(d);
+    });
+    if (activo && activo !== document.body && document.contains(activo) && document.activeElement !== activo) activo.focus({preventScroll: true});
+    $('#elegidosT').classList.toggle('hidden', !hayElegidos && !destino.act.children.length);
+    $('#bloqueAsig').classList.toggle('hidden', !destino.asig.children.length);
+    $('#bloqueSeccion').classList.toggle('hidden', !destino.sec.children.length);
+    $('#bloqueNoPart').classList.toggle('hidden', !destino.nop.children.length);
+  }
+
+  // El buscador fijo se pega bajo la barra de avance (si está visible); la sombra aparece solo cuando está pegado.
+  function ajustarBuscadorFijo(){
+    var b = $('#barra');
+    document.documentElement.style.setProperty('--barra-h', (b && !b.classList.contains('hidden') ? b.offsetHeight : 0) + 'px');
+    Array.prototype.forEach.call(document.querySelectorAll('.bus-fijo'), function(f){
+      var top = parseFloat(getComputedStyle(f).top) || 0;
+      f.classList.toggle('pegado', f.getBoundingClientRect().top <= top + 1 && window.scrollY > 0);
+    });
+  }
+  var rafFijo = 0;
+  function programarFijo(){ if (!rafFijo) rafFijo = requestAnimationFrame(function(){ rafFijo = 0; ajustarBuscadorFijo(); }); }
+  window.addEventListener('scroll', programarFijo, {passive: true});
+  window.addEventListener('resize', programarFijo);
 
   function filaElegido(p){
     var li = document.createElement('li');
