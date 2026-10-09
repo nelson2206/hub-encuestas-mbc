@@ -96,24 +96,22 @@ const BLOQUES = [
       ['objetivo', 'Para qué existe el proceso (su objetivo)'],
       ['riesgos', 'Si el proceso o sus actividades ayudan a mitigar algún riesgo (por ejemplo, de cumplimiento normativo)', 1],
       ['inicio_fin', 'Si viene de otro proceso o genera actividades después (qué lo inicia y dónde termina)'],
-      ['actividades', 'Las actividades principales, en orden: qué se hace, cuándo, cómo y dónde se registra'],
-      ['frecuencia', 'Cada cuánto se ejecuta cada actividad (y qué volumen maneja)'],
+      ['actividades', 'Las actividades principales, en orden: qué se hace, cada cuánto (frecuencia), cómo y dónde se registra'],
       ['manual_sistema', 'Si cada actividad es manual o por sistema (y en cuál: SAP, Excel…)'],
       ['aprobaciones', 'Quién aprueba el proceso, en qué niveles (jefe, gerente, comité…) y cómo se formaliza (reunión, correo…); y si depende de otras áreas'],
-      ['carga', 'Si es uno de los 3 procesos que más carga o esfuerzo te generan (sí o no)', 1]
+      ['carga', 'Si es uno de los 3 procesos que más carga o esfuerzo te generan (sí o no) y qué actividad toma más tiempo o esfuerzo', 1]
     ] },
   { id: 'b2', t: 'Sistemas y terceros', sistemas: true,
     g: 'Cuéntanos qué ERP, aplicativos o plataformas digitales usan, también los de otras empresas de las que dependen (Toyota Brasil, Quinto, el portal de SUNAT), y con qué terceros se relacionan (proveedores, concesionarios, clientes, funcionarios públicos u otros), en qué actividades participa cada uno y de qué forma.',
     puntos: [
       ['sistemas', 'Qué ERP, aplicativos o plataformas digitales usan, incluidas las de terceros (Toyota Brasil, Quinto, portal SUNAT) (su nombre)', 1],
-      ['terceros', 'Con qué terceros se relacionan (proveedores, concesionarios, clientes, funcionarios públicos u otros)', 1],
-      ['finalidad_terceros', 'En qué actividades participa cada tercero y de qué forma', 1]
+      ['terceros', 'Con qué terceros se relacionan (proveedores, concesionarios, clientes, funcionarios públicos u otros), en qué actividades participa cada uno y de qué forma', 1]
     ] },
   { id: 'b3', t: 'Datos personales, documentación, estándares e indicadores',
-    g: 'Cuéntanos si manejan datos de personas (de clientes, proveedores, trabajadores, dealers, funcionarios públicos u otros), qué datos y para qué los usan; qué documentos respaldan el proceso (procedimientos, formatos, reportes, informes finales, comprobantes de pago…); qué estándares aplican (un estándar oficial de TDP, de TMC o de Mitsui & Company, u otros como NTP o ISO) y, si existen, con qué indicadores lo miden. La normativa legal solo si la mencionan.',
+    g: 'Cuéntanos si manejan datos de personas (de clientes, proveedores, trabajadores, dealers, funcionarios públicos u otros), qué datos y con qué objetivo los usan; qué documentos respaldan el proceso (procedimientos, formatos, reportes, informes finales, comprobantes de pago…); qué estándares aplican (un estándar oficial de TDP, de TMC o de Mitsui & Company, u otros como NTP o ISO) y, si existen, con qué indicadores lo miden. La normativa legal solo si la mencionan.',
     puntos: [
       ['datos_personales', 'Si manejan datos de personas (de clientes, proveedores, trabajadores, dealers, funcionarios públicos u otros): de quiénes y qué datos', 1],
-      ['finalidad_dp', '¿Para qué usan esos datos personales?', 1],
+      ['finalidad_dp', 'Objetivo o para qué usan esos datos personales', 1],
       ['documentacion', 'Qué documentos o registros respaldan el proceso: procedimientos, instructivos, flujos, formatos, reportes, informes finales, comprobantes de pago…', 1],
       ['estandares', 'Estándares: corporativo oficial de TDP, global de TMC o de Mitsui & Company, u otros (NTP, ISO)', 1],
       ['normativa', 'Qué normas legales peruanas lo regulan (opcional: solo si la mencionan)', 1],
@@ -206,7 +204,7 @@ const MATRIZ_CLAVES = ['division', 'gerencia', 'seccion', 'participantes', 'niv0
   'codigo_2021', 'division_2021', 'gerencia_2021', 'seccion_2021', 'mapeo_org', 'origen',
   'interaccion', 'finalidad_terceros', 'finalidad_dp', 'estandar_tmc', 'otros_estandares',
   'aprob_externa', 'aprob_area', 'aprob_responsable', 'aprob_momento',
-  'origen_proceso', 'aprob_niveles', 'aprob_formalizacion', 'carga'];
+  'origen_proceso', 'aprob_niveles', 'aprob_formalizacion', 'carga', 'aprobadores'];
 const VALIDACIONES = ['', 'actualizado', 'validado'];
 
 function limpiarMatriz(m) {
@@ -1082,30 +1080,22 @@ async function rutaBorrarCampana(env, b) {
 // Campos de la matriz que la IA llena a partir de las respuestas (los de identificación vienen del catálogo).
 // Son los que definió TDP (2026-10-06), con las mismas claves que la matriz de la consola, más las aprobaciones externas.
 const CAMPOS = [
-  ['objetivo', 'Objetivo del subproceso'],
-  ['riesgos', 'Riesgo que el proceso o sus actividades ayudan a mitigar (por ejemplo, de cumplimiento normativo); "No aplica" si la persona dijo que no'],
-  ['origen_proceso', 'De qué otro proceso viene (si es resultado de otro) y qué actividades o procesos genera después'],
-  ['alcance', 'Actividades principales (alcance): qué lo inicia, los pasos principales en secuencia (3 a 8, numerados) con, en cada uno, qué se hace, cuándo y cómo, dónde se registra y si es manual o por sistema (cuál), y dónde termina'],
-  ['frecuencia', 'Frecuencia de ejecución (y volumen aproximado si lo dijeron)'],
+  ['objetivo', 'Objetivo del subproceso. Si la persona dijo que ayuda a mitigar algún riesgo (por ejemplo, de cumplimiento normativo), agrégalo al final como «Riesgo que mitiga: …»'],
+  ['alcance', 'Actividades principales (alcance): de qué otro proceso viene y qué genera después (si lo dijeron), qué lo inicia, los pasos principales en secuencia (3 a 8, numerados) con, en cada uno, qué se hace, cuándo y cada cuánto, cómo, dónde se registra y si es manual o por sistema (cuál), y dónde termina'],
+  ['aprobadores', 'Aprobadores del proceso (niveles, por ejemplo: jefe, gerente, comité ejecutivo) y cómo se formaliza cada aprobación (SAP, correo, reunión, ambos); incluye si depende de aprobaciones de otras áreas'],
+  ['terceros', 'Terceros involucrados (proveedores, concesionarios, clientes, funcionarios públicos, otros), en qué actividades participa cada uno y de qué forma'],
   ['documentacion', 'Documentación o registros del subproceso: procedimientos, instructivos, flujos, formatos, reportes, informes finales, comprobantes de pago'],
-  ['tecnologia', 'ERP, aplicativos y plataformas digitales, con su nombre exacto (incluye portales, Excel y plataformas de terceros como Toyota Brasil, Quinto o el portal de SUNAT)'],
-  ['terceros', 'Terceros involucrados (proveedores, concesionarios, clientes, funcionarios públicos, otros)'],
-  ['finalidad_terceros', 'En qué actividades participa cada tercero y de qué forma'],
   ['datos_personales', 'Si trata datos personales: "Sí" o "No"'],
   ['detalle_dp', 'Tipo/detalle de datos personales: de quiénes (clientes, proveedores, trabajadores, dealers, funcionarios públicos u otros) y qué datos (identificación, contacto, financieros, sensibles u otros)'],
-  ['finalidad_dp', 'Para qué se usan esos datos personales (con las palabras de la persona)'],
-  ['normativa', 'Normativa legal peruana que regula el proceso, solo si el área la mencionó'],
+  ['finalidad_dp', 'Objetivo o para qué usan esos datos personales (con las palabras de la persona)'],
+  ['tecnologia', 'ERP, aplicativos y plataformas digitales de TDP o de terceros, con su nombre exacto (incluye portales, Excel y plataformas de otras empresas como Toyota Brasil, Quinto o el portal de SUNAT)'],
+  ['frecuencia', 'Frecuencia de ejecución: se obtiene de las actividades (y volumen aproximado si lo dijeron)'],
   ['estandar_tdp', 'Estándar corporativo oficial de TDP: política, procedimiento o estándar interno formalizado que aplica (cuál). No cuenta un diagrama hecho por un proveedor sin estandarización'],
   ['estandar_tmc', 'Estándar global de Toyota Motor Corporation (TMC) o de Mitsui & Company (casa matriz) que aplica (cuál). No confundir con Mitsui Automotriz (MASA), que es un concesionario'],
   ['otros_estandares', 'Otros estándares nacionales o internacionales (NTP, ISO u otros)'],
   ['kpis', 'Indicadores o KPIs existentes'],
-  ['carga', 'Si es uno de los 3 procesos que más carga o esfuerzo generan al área: "Sí" o "No"'],
-  ['aprob_niveles', 'Niveles de aprobación del proceso, en orden (por ejemplo: jefe, gerente, comité ejecutivo)'],
-  ['aprob_formalizacion', 'Cómo se formaliza cada aprobación (reunión, correo, sistema)'],
-  ['aprob_externa', 'Si para completar el proceso dependen de aprobaciones externas a la sección dueña: "Sí" o "No"'],
-  ['aprob_area', 'De dónde: gerencia, sección o entidad que aprueba (una línea por aprobación)'],
-  ['aprob_responsable', 'De quién: cargo de quien aprueba (una línea por aprobación, en el mismo orden)'],
-  ['aprob_momento', 'Cuándo: en qué paso o momento del proceso se espera esa aprobación (una línea por aprobación, en el mismo orden)']
+  ['normativa', 'Normativa legal peruana que regula el proceso, solo si el área la mencionó'],
+  ['carga', 'Carga: "Sí" si es uno de los 3 procesos que más carga o esfuerzo generan al área, "No" si no; si lo dijeron, agrega la actividad que más tiempo o esfuerzo toma (formato «Sí: actividad»)']
 ];
 
 // Los campos van como LISTA de ítems con un solo esquema: un objeto con 20 o más propiedades
@@ -1161,11 +1151,10 @@ Reglas:
 - Escribe en español neutro, conciso y profesional, listo para un entregable al cliente.
 - Nunca incluyas nombres de personas ni datos personales concretos (DNI, teléfonos, nombres de clientes): usa cargos y categorías.
 - Para sistemas, usa el nombre exacto del catálogo cuando coincida; si mencionan una herramienta que no está en el catálogo, inclúyela igual y dilo en la evidencia.
-- "alcance": cada actividad con su frecuencia, si es manual o por sistema (y en cuál) y, si lo contaron, qué se hace, cuándo, cómo y dónde se registra. "origen_proceso": de qué otro proceso viene y qué genera después, solo si lo dijeron.
-- "riesgos": solo si la persona dijo que el proceso o sus actividades ayudan a mitigar un riesgo (por ejemplo, de cumplimiento normativo); si dijo que no, "No aplica". "carga": "Sí" solo si dijo que es uno de los procesos que más carga o esfuerzo le generan; si dijo que no, "No".
-- "aprob_niveles" y "aprob_formalizacion": los niveles por los que pasa la aprobación del proceso (jefe, gerente, comité…) y cómo se formaliza cada una (reunión, correo…). No los mezcles con las aprobaciones externas de abajo.
+- "objetivo": si la persona dijo que el proceso ayuda a mitigar un riesgo, agrégalo al final como «Riesgo que mitiga: …»; si no lo dijo, no lo menciones. "alcance": cada actividad con su frecuencia, si es manual o por sistema (y en cuál) y, si lo contaron, qué se hace, cuándo, cómo y dónde se registra; si dijeron de qué otro proceso viene o qué genera después, inclúyelo.
+- "carga": "Sí" solo si dijo que es uno de los procesos que más carga o esfuerzo le generan (con la actividad que más esfuerzo toma, si la dijo); si dijo que no, "No".
+- "aprobadores": los niveles por los que pasa la aprobación del proceso (jefe, gerente, comité…) y cómo se formaliza cada una (SAP, correo, reunión…); si depende de aprobaciones de otras áreas, dilo ahí.
 - Los campos que se deducen de las actividades (por ejemplo la frecuencia) se completan desde ellas; no los trates como una pregunta aparte.
-- Aprobaciones externas: si para completar el proceso esperan la aprobación de alguien fuera de la sección dueña (otra área de la empresa, la casa matriz o una entidad), "aprob_externa" es "Sí" y cada aprobación va en una línea, en el mismo orden, en "aprob_area" (de dónde), "aprob_responsable" (de quién, por cargo) y "aprob_momento" (en qué paso). Si dijeron que no dependen de nadie, "aprob_externa" es "No" y los otros tres quedan vacíos.
 - Si la persona dijo que algo no existe en su proceso (no hay terceros, no manejan datos personales, no hay indicadores), escribe "No aplica" con estado "dicho".
 - Si hay una ficha del inventario anterior, compárala con lo que contaron: lo que cambió va en "contradicciones".
 - Estándares ("estandar_tdp", "estandar_tmc", "otros_estandares") y "normativa": ${REGLAS_ESTANDARES}
@@ -1464,6 +1453,7 @@ Para cada punto del checklist decide:
 Los sistemas marcados en la lista cuentan para el punto de qué sistemas usan, pero no para qué se usa cada uno.
 "sugerencia": una sola frase amable, en segunda persona (tú), que pida solo lo que falta, con un ejemplo corto si ayuda. Si no falta nada, cadena vacía.
 "sistemas": los sistemas, aplicaciones o herramientas informáticas que la respuesta dice que se usan en el proceso (un ERP, un Excel, un aplicativo del área, el correo, un portal, y también plataformas de otras empresas de las que dependen: Toyota Brasil, Quinto, el portal de SUNAT). Solo los que se nombran o se identifican con claridad en la respuesta: no incluyas equipos físicos, no deduzcas por el tipo de proceso y no repitas. Si el nombre dicho coincide con uno del CATÁLOGO de la campaña, escribe el nombre EXACTO del catálogo (corrige los errores de transcripción: «es a pe» es SAP); si no está en el catálogo, escríbelo corto, tal como lo dijo. Si no menciona ninguno, lista vacía.
+Actividades: el punto de actividades es "cubierto" solo si la persona cuenta pasos concretos y dice cada cuánto se hacen (frecuencia); si falta la frecuencia, es "falta" y la sugerencia la pide. Manual o por sistema se valida en su propio punto.
 Estándares: el punto de estándares es "cubierto" cuando la persona nombra al menos un estándar, política, procedimiento o norma concreta (de TDP, de TMC u otros), o dice claramente que no aplica ninguno; es "falta" si solo habla de estándares o normas en general sin nombrar ninguno.
 ${REGLAS_ESTANDARES}
 No inventes información ni opines sobre el proceso.`;

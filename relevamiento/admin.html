@@ -386,16 +386,13 @@
   var ORIGEN_TXT = {encuestado:'La eligió', consultor:'Asignado por el equipo', inventario:'Inventario anterior (por nombre)'};
   // Campos que llena la IA al estructurar un proceso (mismas claves que la matriz; ver CAMPOS en el Worker).
   var CAMPOS = [
-    ['objetivo','Objetivo del subproceso'], ['riesgos','Riesgo que mitiga'], ['origen_proceso','De qué proceso viene / qué genera después'],
-    ['alcance','Actividades principales (Alcance)'], ['frecuencia','Frecuencia de ejecución'],
-    ['documentacion','Documentación del subproceso'], ['tecnologia','ERP, aplicativos y plataformas digitales'],
-    ['terceros','Terceros involucrados'], ['finalidad_terceros','Actividades y forma de participación del tercero'],
-    ['datos_personales','Datos personales'], ['detalle_dp','Tipo/detalle de datos personales'], ['finalidad_dp','¿Para qué usan esos datos?'],
-    ['normativa','Normativa legal peruana'], ['estandar_tdp','Estándar corporativo TDP'], ['estandar_tmc','Estándar global (TMC / Mitsui & Company)'],
-    ['otros_estandares','Otros estándares (NTP, ISO, etc.)'], ['kpis','Indicadores / KPIs existentes'], ['carga','Entre los 3 procesos de mayor carga'],
-    ['aprob_niveles','Niveles de aprobación'], ['aprob_formalizacion','Cómo se formaliza la aprobación'],
-    ['aprob_externa','Aprobaciones externas'], ['aprob_area','Aprobación externa: de dónde'], ['aprob_responsable','Aprobación externa: de quién'],
-    ['aprob_momento','Aprobación externa: cuándo']
+    ['objetivo','Objetivo del subproceso'], ['alcance','Actividades principales (Alcance)'], ['aprobadores','Aprobadores y cómo se formalizan'],
+    ['terceros','Terceros involucrados'], ['documentacion','Documentación del subproceso'],
+    ['datos_personales','Datos personales'], ['detalle_dp','Tipo/detalle de datos personales'], ['finalidad_dp','Objetivo o para qué usan esos datos'],
+    ['tecnologia','ERP, aplicativos y plataformas digitales'], ['frecuencia','Frecuencia de ejecución'],
+    ['estandar_tdp','Estándar corporativo TDP'], ['estandar_tmc','Estándar global (TMC / Mitsui & Company)'],
+    ['otros_estandares','Otros estándares (NTP, ISO, etc.)'], ['kpis','Indicadores / KPIs existentes'], ['normativa','Normativa legal peruana'],
+    ['carga','Carga']
   ];
   var ESTADO_TXT = {respondido:'Respondido', en_curso:'En curso', sin_cobertura:'Sin cobertura', no_vigente:'Ya no se hace'};
   var ESTADO_ORDEN = ['respondido', 'en_curso', 'sin_cobertura', 'no_vigente'];
@@ -410,51 +407,40 @@
     ['macroproceso','Macroproceso','id','Macroproceso','MACROPROCESO (NIV.0)'],
     ['proceso','Proceso','id','Proceso','PROCESO (NIV.1)'],
     ['subproceso','Subproceso','id','Subproceso','SUBPROCESO (NIV.2)'],
-    ['objetivo','Objetivo del subproceso','desc','Objetivo del subproceso','OBJETIVO'],
-    ['riesgos','Riesgo que mitiga el proceso (si aplica)','desc','Riesgo que mitiga el proceso (si aplica)','RIESGOS'],
-    ['origen_proceso','De qué proceso viene / qué genera después','desc','De qué proceso viene y qué genera después'],
+    ['objetivo','Objetivo del subproceso','desc','Objetivo del subproceso (y riesgo que mitiga, si lo dijeron)','OBJETIVO'],
+    ['alcance','Actividades principales (Alcance)','desc','Actividades principales (Alcance)','ALCANCE'],
+    // Amarillo en el Excel de TDP: quién aprueba el proceso y cómo se formaliza (SAP, correo, ambos…).
+    ['aprobadores','Aprobadores de proceso y cómo (SAP, Correo, ambos, etc)','aprob','Aprobadores del proceso y cómo se formalizan (SAP, correo, reunión…)'],
     ['seccion','Secciones involucradas de TDP','id','Secciones involucradas de TDP','SECCIÓN'],
+    ['terceros','Terceros involucrados (proveedores, concesionarios, clientes, funcionarios públicos, otros)','ter',
+      'Terceros involucrados (proveedores, concesionarios, clientes, funcionarios públicos, otros), en qué actividades participan y cómo','TERCEROS'],
     ['documentacion','Documentación del subproceso','desc','Documentación del subproceso','DOCUMENTACIÓN'],
-    ['normativa','Normativa legal peruana','norma','Normativa legal peruana','NORMATIVA'],
     ['datos_personales','Datos personales','dp','Datos personales','DATOS PERSONALES (Sí/No)'],
     ['detalle_dp','Tipo/detalle de datos personales','dp','Tipo/detalle de datos personales','DETALLE DATOS PERSONALES'],
-    ['terceros','Terceros involucrados (proveedores, concesionarios, clientes, funcionarios públicos, otros)','ter',
-      'Terceros involucrados (proveedores, concesionarios, clientes, funcionarios públicos, otros)','TERCEROS'],
-    ['tecnologia','ERP, aplicativos y plataformas digitales','tec','ERP, aplicativos y plataformas digitales','TECNOLOGÍA'],
-    ['estandar_tdp','Estándar corporativo TDP','norma','Estándar corporativo TDP','CUENTA CON ESTÁNDAR DE TDP'],
-    ['alcance','Actividades principales (Alcance)','desc','Actividades principales (Alcance)','ALCANCE'],
-    ['frecuencia','Frecuencia de ejecución','desc','Frecuencia de ejecución','FRECUENCIA Y VOLUMEN'],
-    ['finalidad_terceros','Finalidad del tratamiento con tercero','ter','Finalidad del tratamiento con tercero'],
-    ['finalidad_dp','Finalidad del tratamiento de datos personales','dp','Finalidad del tratamiento de datos personales'],
-    ['estandar_tmc','Estándar global TMC','norma','Estándar global TMC'],
+    ['finalidad_dp','Finalidad del tratamiento de datos personales','dp','Objetivo o para qué usan esos datos'],
+    ['tecnologia','ERP, aplicativos y plataformas digitales de TDP o Terceros','tec','ERP, aplicativos y plataformas digitales de TDP o de terceros','TECNOLOGÍA'],
+    // Celeste en el Excel de TDP: no se pregunta aparte, sale de las actividades.
+    ['frecuencia','Frecuencia de ejecución','desc','Frecuencia de ejecución (sale de las actividades)','FRECUENCIA Y VOLUMEN'],
+    ['estandar_tdp','Estándar corporativo TDP','norma','Estándar corporativo oficial de TDP','CUENTA CON ESTÁNDAR DE TDP'],
+    ['estandar_tmc','Estándar global TMC y/o Mitsui & CO','norma','Estándar global TMC y/o Mitsui & CO','Estándar global TMC'],
     ['otros_estandares','Otros estándares nacionales/internacionales (NTP, ISO, etc)','norma','Otros estándares nacionales/internacionales (NTP, ISO, etc)'],
     ['kpis','Indicadores / KPIs existentes (Opcional)','desc','Indicadores / KPIs existentes (Opcional)','KPIs'],
-    ['carga','¿Entre los 3 procesos de mayor carga? (Sí/No)','desc','¿Es uno de los 3 procesos que más carga generan? (Sí/No)'],
-    // Pedido de TDP: de quién y de dónde depende el proceso para completarse, y en qué momento.
-    ['aprob_niveles','Niveles de aprobación del proceso','aprob','Niveles de aprobación del proceso (jefe, gerente, comité…)'],
-    ['aprob_formalizacion','Cómo se formaliza la aprobación','aprob','Cómo se formaliza (reunión, correo…)'],
-    ['aprob_externa','Aprobaciones externas (Sí/No)','aprob','¿Depende de aprobaciones externas?'],
-    ['aprob_area','Aprobación externa: de dónde (gerencia / sección)','aprob','De dónde (gerencia / sección)'],
-    ['aprob_responsable','Aprobación externa: de quién (cargo)','aprob','De quién (cargo)'],
-    ['aprob_momento','Aprobación externa: cuándo (momento del proceso)','aprob','Cuándo (momento del proceso)']
+    ['normativa','Normativa legal peruana','norma','Normativa legal peruana','NORMATIVA'],
+    ['carga','Carga','desc','Carga: ¿es de los 3 procesos que más carga generan? ¿qué actividad toma más tiempo o esfuerzo?']
   ];
   var GRUPOS = [['id','Identificación'], ['desc','Descripción del subproceso'], ['tec','Tecnología y plataformas'], ['ter','Terceros'],
     ['dp','Datos personales'], ['norma','Normativa y estándares'], ['aprob','Aprobaciones']];
   var ES_MATRIZ = {}; MATRIZ.forEach(function(c){ ES_MATRIZ[c[0]] = 1; });
-  var OPCIONES = {datos_personales:['Sí','No'], estandar_tdp:['Sí','No','Parcialmente','Programado (en proceso)'],
-    carga:['Sí','No'], aprob_externa:['Sí','No']};
-  var LARGOS = {objetivo:1, documentacion:1, alcance:1, normativa:1, detalle_dp:1, terceros:1, tecnologia:1, riesgos:1, origen_proceso:1, aprob_niveles:1, aprob_formalizacion:1,
-    finalidad_terceros:1, finalidad_dp:1, estandar_tmc:1, otros_estandares:1, kpis:1, aprob_area:1, aprob_momento:1};
+  var OPCIONES = {datos_personales:['Sí','No'], estandar_tdp:['Sí','No','Parcialmente','Programado (en proceso)']};
+  var LARGOS = {objetivo:1, documentacion:1, alcance:1, normativa:1, detalle_dp:1, terceros:1, tecnologia:1, aprobadores:1, carga:1,
+    finalidad_dp:1, estandar_tmc:1, otros_estandares:1, kpis:1};
   // Datos que pide la matriz de TDP: con alguno vacío, la fila no está lista para validar («No aplica» cuenta como respuesta).
   // KPIs es opcional. El tercer elemento es la pregunta Sí/No de la que depende: ese dato solo se pide si la respuesta es «Sí».
-  var OBLIGATORIOS = [['objetivo','Objetivo'], ['riesgos','Riesgo que mitiga (o «No aplica»)'], ['documentacion','Documentación'],
-    ['datos_personales','Datos personales'], ['detalle_dp','Tipo/detalle de datos personales','datos_personales'], ['terceros','Terceros involucrados'],
-    ['tecnologia','ERP, aplicativos y plataformas'], ['estandar_tdp','Estándar corporativo TDP'], ['alcance','Actividades principales (Alcance)'],
-    ['frecuencia','Frecuencia de ejecución'], ['finalidad_terceros','Actividades y participación del tercero'],
-    ['finalidad_dp','¿Para qué usan esos datos?','datos_personales'], ['estandar_tmc','Estándar global (TMC / Mitsui & Company)'],
-    ['aprob_niveles','Niveles de aprobación'], ['aprob_formalizacion','Cómo se formaliza la aprobación'], ['aprob_externa','Aprobaciones externas (Sí/No)'],
-    ['aprob_area','Aprobación externa: de dónde','aprob_externa'], ['aprob_responsable','Aprobación externa: de quién','aprob_externa'],
-    ['aprob_momento','Aprobación externa: cuándo','aprob_externa']];
+  var OBLIGATORIOS = [['objetivo','Objetivo'], ['alcance','Actividades principales (Alcance)'], ['aprobadores','Aprobadores y cómo se formalizan'],
+    ['terceros','Terceros involucrados'], ['documentacion','Documentación'], ['datos_personales','Datos personales'],
+    ['detalle_dp','Tipo/detalle de datos personales','datos_personales'], ['finalidad_dp','Objetivo o para qué usan esos datos','datos_personales'],
+    ['tecnologia','ERP, aplicativos y plataformas'], ['frecuencia','Frecuencia de ejecución'], ['estandar_tdp','Estándar corporativo TDP'],
+    ['estandar_tmc','Estándar global (TMC / Mitsui & Company)']];
   var ES_OBLIG = {}; OBLIGATORIOS.forEach(function(o){ ES_OBLIG[o[0]] = o[2] ? 'si' : 1; });
   function etiquetaOblig(k){ return ES_OBLIG[k] ? ' <span class="req">' + (ES_OBLIG[k] === 1 ? 'obligatorio' : 'si aplica') + '</span>' : ''; }
   // Campo de la IA -> columna de la matriz: los análisis nuevos usan las mismas claves que la matriz; los generados
@@ -1458,7 +1444,7 @@
   }
 
   // ---- Matriz completa: las columnas del entregable agrupadas como en la ficha; las filas, por sección y macroproceso.
-  var CORTOS_MX = {datos_personales:1, estandar_tdp:1, carga:1, aprob_externa:1};
+  var CORTOS_MX = {datos_personales:1, estandar_tdp:1};
   var ANCHO_MX = {s:108, m:165, l:270, grupo:190};
   function anchoMx(k){ return LARGOS[k] ? ANCHO_MX.l : CORTOS_MX[k] ? ANCHO_MX.s : ANCHO_MX.m; }
   function lleno(v){ return String(v == null ? '' : v).trim() !== ''; }
@@ -1870,7 +1856,7 @@
           (s && s.valor && s.valor !== v ? '<div class="sug"><span class="chip ' + (s.estado === 'dicho' ? 'c-ok' : 'c-inf') + '">IA · ' + esc(s.estado) + '</span> ' + esc(s.valor) +
             ' <button type="button" class="btn-link" data-usar="' + k + '">Usar</button></div>' : '') + '</div>';
       });
-      if (g[0] === 'aprob') h += tablaAprob(m, sug, ia);
+      if (g[0] === 'aprob' && ES_MATRIZ.aprob_area) h += tablaAprob(m, sug, ia);
       h += '</div></details>';
     });
     h += '<div class="row" style="margin-top:12px"><button class="btn" type="button" id="mGuardar">Guardar fila</button>' +
@@ -1903,8 +1889,8 @@
       $('#mAprob').innerHTML = aprobIA(sug).map(filaAprobHtml).join('');
       if (!$('#mf-aprob_externa').value) poner('aprob_externa', 'Sí');
     };
-    $('#mAprobMas').addEventListener('click', function(){ $('#mAprob').insertAdjacentHTML('beforeend', filaAprobHtml(['', '', ''])); });
-    $('#mAprob').addEventListener('click', function(e){
+    if ($('#mAprobMas')) $('#mAprobMas').addEventListener('click', function(){ $('#mAprob').insertAdjacentHTML('beforeend', filaAprobHtml(['', '', ''])); });
+    if ($('#mAprob')) $('#mAprob').addEventListener('click', function(e){
       if (!e.target.closest('[data-ap-quitar]')) return;
       var tr = e.target.closest('tr');
       if ($('#mAprob').rows.length > 1) tr.remove(); else Array.prototype.forEach.call(tr.querySelectorAll('input'), function(x){ x.value = ''; });
@@ -1912,7 +1898,7 @@
     if ($('#mAprobIA')) $('#mAprobIA').addEventListener('click', usarAprob);
     if ($('#mUsarIA')) $('#mUsarIA').addEventListener('click', function(){
       Object.keys(sug).forEach(function(k){ var el = document.getElementById('mf-' + k); if (el && !el.value.trim()) poner(k, sug[k].valor); });
-      if (!leerAprob().length && aprobIA(sug).length) usarAprob();
+      if ($('#mAprob') && !leerAprob().length && aprobIA(sug).length) usarAprob();
     });
     var guardar = function(extra, boton){
       boton.disabled = true; $('#mMsg').textContent = 'Guardando…';
