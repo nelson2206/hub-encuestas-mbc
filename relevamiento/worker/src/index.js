@@ -42,6 +42,7 @@
  *   GET  /a/campana?id=          volcado completo de la campaña
  *   POST /a/proceso              {campana_id, id?, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion}
  *   POST /a/proceso/borrar       {proceso_id}   (solo si nadie lo respondió)
+ *   POST /a/proceso/mover        {campana_id, proceso_ids[], gerencia, seccion, macroproceso?} | {campana_id, movimientos[]} (constructor del mapa; movimientos restaura)
  *   POST /a/campana/logo         {campana_id, logo}   (data URI; vacío lo quita)
  *   POST /a/campana/ia           {campana_id, ia_auto}   (la tarea programada completa la matriz con la IA)
  *   POST /a/asignar              {encuestado_id, agregar[], quitar[]}   (lista de procesos de una persona)
@@ -803,6 +804,44 @@ async function rutaProcesoAdmin(env, b) {
     VALUES (?,?,?,?,?,?,?,?,?,'consultor',5000)`)
     .bind(id, camp.id, f.codigo, f.gerencia, f.seccion, f.macroproceso, f.proceso, f.subproceso, f.descripcion).run();
   return { ok: true, id };
+}
+
+// Constructor del mapa: mueve procesos a otra gerencia / sección (y, si se indica, a otro macroproceso).
+// Las respuestas y asignaciones cuelgan del id del proceso, así que se conservan. Se actualizan los mismos campos de la matriz
+// y la fila queda como «actualizado» si no estaba validada. `movimientos` ([{id, gerencia, seccion, macroproceso, validacion,
+// actualizado_en}]) restaura un estado anterior: es lo que usa «Deshacer». Las personas ven los procesos por su sección,
+// así que la encuesta se actualiza sola.
+async function rutaProcesoMover(env, b) {
+  const camp = await env.DB.prepare('SELECT id FROM campanas WHERE id=?').bind(b.campana_id).first();
+  if (!camp) throw new HttpError(404, 'Campaña no encontrada');
+  const restaura = Array.isArray(b.movimientos);
+  let movs;
+  if (restaura) movs = b.movimientos;
+  else {
+    const ids = [...new Set((Array.isArray(b.proceso_ids) ? b.proceso_ids : []).map(x => txt(x, 60)).filter(Boolean))];
+    movs = ids.map(id => ({ id, gerencia: b.gerencia, seccion: b.seccion, macroproceso: b.macroproceso }));
+  }
+  if (!movs.length) throw new HttpError(400, 'No hay procesos para mover');
+  if (movs.length > 300) throw new HttpError(400, 'Máximo 300 procesos por movimiento');
+  const t = ahora(), st = [], procesos = [];
+  for (const m of movs) {
+    const g = txt(m.gerencia, 150), sec = txt(m.seccion, 150);
+    if (!g || !sec) throw new HttpError(400, 'Gerencia y sección son obligatorias');
+    const p = await env.DB.prepare('SELECT * FROM procesos WHERE id=? AND campana_id=?').bind(txt(m.id, 60), camp.id).first();
+    if (!p) throw new HttpError(404, 'Proceso no encontrado');
+    const mac = m.macroproceso === undefined || m.macroproceso === null ? p.macroproceso : txt(m.macroproceso, 200);
+    const mx = leerMatriz(p.matriz);
+    mx.gerencia = g; mx.seccion = sec;
+    if (mac !== p.macroproceso) mx.macroproceso = mac;
+    const validacion = restaura ? txt(m.validacion, 20) : (p.validacion === 'validado' ? 'validado' : 'actualizado');
+    const actualizado = restaura && m.actualizado_en !== undefined ? (m.actualizado_en ? txt(m.actualizado_en, 40) : null) : t;
+    st.push(env.DB.prepare('UPDATE procesos SET gerencia=?, seccion=?, macroproceso=?, matriz=?, validacion=?, actualizado_en=? WHERE id=?')
+      .bind(g, sec, mac, JSON.stringify(mx), validacion, actualizado, p.id));
+    procesos.push({ id: p.id, gerencia: g, seccion: sec, macroproceso: mac, matriz: mx, validacion, actualizado_en: actualizado });
+  }
+  await env.DB.batch(st);
+  log('mover', { campana: camp.id, procesos: procesos.length, restaura });
+  return { ok: true, procesos };
 }
 
 // Borrar un proceso del mapa: solo si nadie lo respondió (lo respondido se discute en la validación).
@@ -1637,6 +1676,7 @@ export default {
           if (url.pathname === '/a/importar') return json(await rutaImportar(env, b), 200, h);
           if (url.pathname === '/a/proceso') return json(await rutaProcesoAdmin(env, b), 200, h);
           if (url.pathname === '/a/proceso/borrar') return json(await rutaProcesoBorrar(env, b), 200, h);
+          if (url.pathname === '/a/proceso/mover') return json(await rutaProcesoMover(env, b), 200, h);
           if (url.pathname === '/a/matriz') return json(await rutaMatriz(env, b), 200, h);
           if (url.pathname === '/a/validacion') return json(await rutaValidacion(env, b), 200, h);
           if (url.pathname === '/a/encuestado/borrar') return json(await rutaEncuestadoBorrar(env, b), 200, h);

@@ -186,6 +186,33 @@
   @media (max-width:800px){ .filtros-mx{grid-template-columns:1fr} }
   .mas{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0 0;background:var(--card)}
   .mas .row{margin:4px 0}
+
+  /* Constructor del mapa: columnas por gerencia, secciones como zonas de soltar y procesos como nodos */
+  .cn-cols{display:flex;gap:14px;overflow-x:auto;align-items:flex-start;padding:4px 2px 14px}
+  .cn-ger{flex:0 0 310px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+  .cn-ger-h{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;padding:10px 12px;background:var(--navy);color:#fff;border-radius:11px 11px 0 0}
+  .cn-ger-h h3{flex:1 0 100%;margin:0;font-size:14px;color:#fff}
+  .cn-ger-h .muted{color:#C6D6EC}
+  .cn-ger-h .btn-link{color:#fff}
+  .cn-sec{margin:10px;border:1.5px dashed var(--field-line);border-radius:10px;padding:8px;background:var(--panel)}
+  .cn-sec-h{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline}
+  .cn-sec-h h4{margin:0;font-size:13px;flex:1 0 100%}
+  .cn-mac{margin-top:6px;border-radius:8px;padding:2px;border:1.5px solid transparent}
+  .cn-mac-t{font-family:Montserrat,sans-serif;font-weight:600;font-size:11px;color:var(--muted)}
+  .cn-sec.cn-sobre,.cn-mac.cn-sobre{border-color:var(--accent);background:var(--accent-soft)}
+  .cn-nodo{background:var(--card);border:1.5px solid var(--field-line);border-left-width:4px;border-radius:8px;padding:7px 9px;margin-top:5px;cursor:grab;font-size:12.5px;user-select:none;-webkit-user-select:none}
+  .cn-nodo.st-respondido{border-left-color:var(--ok)} .cn-nodo.st-en_curso{border-left-color:var(--inf)} .cn-nodo.st-no_vigente{opacity:.7}
+  .cn-nodo.sel{border-color:var(--navy);box-shadow:0 0 0 2px var(--navy)}
+  .cn-nodo.arrastrando{opacity:.35}
+  .cn-nodo:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
+  .cn-n{font-weight:700;color:var(--heading)}
+  .cn-grip{display:inline-block;touch-action:none;cursor:grab;color:var(--muted);margin-right:6px;letter-spacing:-2px;font-weight:800;padding:0 4px}
+  .cn-meta{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:center;margin-top:3px;color:var(--muted);font-size:11.5px}
+  .cn-meta button{appearance:none;background:none;border:none;padding:0;cursor:pointer;color:var(--accent);font:inherit;text-decoration:underline}
+  .cn-vacio{color:var(--muted);font-size:12px;margin:6px 0 2px}
+  .cn-ghost{position:fixed;z-index:80;pointer-events:none;background:var(--navy);color:#fff;border-radius:8px;padding:6px 10px;font:700 12px Montserrat,sans-serif;box-shadow:0 8px 22px rgba(0,0,0,.35);max-width:260px}
+  .cn-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:90;background:var(--navy);color:#fff;border-radius:10px;padding:10px 14px;display:flex;gap:14px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:min(560px,92vw);font-size:13.5px}
+  .cn-toast button{appearance:none;cursor:pointer;background:#fff;color:var(--navy);border:none;border-radius:7px;padding:5px 12px;font-family:Montserrat,sans-serif;font-weight:700;font-size:12.5px}
   .ayuda{appearance:none;display:inline-grid;place-content:center;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--field-line);background:var(--card);color:var(--muted);font:700 11px Montserrat,sans-serif;cursor:help;padding:0;position:relative;vertical-align:middle;margin-left:6px}
   .ayuda:hover,.ayuda:focus-visible{border-color:var(--navy);color:var(--navy)}
   @media (max-width:600px){ .ayuda:hover::after,.ayuda:focus::after{position:fixed;left:16px;right:16px;width:auto;top:auto;margin-top:8px} }
@@ -236,6 +263,11 @@
       </div>
 
       <div id="tMapa">
+        <div class="row" style="margin:0 0 12px"><div class="seg" role="group" aria-label="Vista del mapa">
+          <button type="button" data-mapav="cobertura" aria-pressed="true">Cobertura</button>
+          <button type="button" data-mapav="constructor" aria-pressed="false">Constructor</button></div>
+          <span class="muted" id="mapaVistaTxt">Quién cubre cada proceso y qué falta.</span></div>
+        <div id="vCobertura">
         <div class="filtros">
           <div><label for="fTexto">Buscar en el mapa</label><input type="search" id="fTexto" placeholder="Nombre, código, macroproceso o persona…"></div>
           <div><label for="fGer">Gerencia</label><select id="fGer"></select></div>
@@ -247,6 +279,17 @@
         </div>
         <div class="cob" id="cobertura"></div>
         <div id="mapa"></div>
+        </div>
+        <div id="vConstructor" class="hidden">
+          <div class="row" style="margin:0 0 10px">
+            <button class="btn btn-ghost btn-xs" id="cnGer" type="button">+ Gerencia</button>
+            <span class="muted" id="cnSel"></span>
+            <button class="btn btn-ghost btn-xs hidden" id="cnMoverSel" type="button">Mover seleccionados…</button>
+            <button class="btn-link hidden" id="cnLimpiar" type="button">Quitar selección</button>
+            <span id="cnAyuda"></span>
+          </div>
+          <div id="constr"></div>
+        </div>
       </div>
 
       <div id="tMatriz" class="hidden"></div>
@@ -504,7 +547,7 @@
       pintarTodo();
     }).catch(function(err){ alert(err.message); });
   }
-  function pintarTodo(){ pintarKpis(); pintarMapa(); pintarMatriz(); pintarBarrido(); pintarEncuestados(); }
+  function pintarTodo(){ pintarKpis(); pintarMapa(); pintarConstructor(); pintarMatriz(); pintarBarrido(); pintarEncuestados(); }
 
   // Índices por proceso: quién lo tomó, quién respondió y qué dijo cada uno.
   function indexar(){
@@ -700,6 +743,302 @@
     }
   });
   $('#btnNuevoProc').addEventListener('click', function(){ editarProceso(null, $('#fGer').value, ''); });
+
+  // ------------------------------------------------------------ constructor del mapa
+  // Columnas por gerencia, secciones como zonas de soltar y un nodo por proceso. Arrastrar un nodo a otra sección (o a otro
+  // macroproceso) lo reasigna: el servidor actualiza el proceso y su fila de la matriz y conserva respuestas y asignaciones.
+  var MAPAV = 'cobertura';
+  var CN = {sel: {}, ultimo: '', arr: null, extras: [], toast: null};
+  function claveCn(){ return 'relev-cn-' + (C && C.campana ? C.campana.id : ''); }
+  function cargarExtras(){ try { CN.extras = JSON.parse(localStorage.getItem(claveCn()) || '[]') || []; } catch(e){ CN.extras = []; } }
+  function guardarExtras(){ try { localStorage.setItem(claveCn(), JSON.stringify(CN.extras)); } catch(e){} }
+  function procPorId(id){ return C.procesos.filter(function(p){ return p.id === id; })[0]; }
+  function igualArea(a, b){ return sinTildes(String(a || '')).replace(/\s+/g, ' ').trim() === sinTildes(String(b || '')).replace(/\s+/g, ' ').trim(); }
+  function fijarVistaMapa(v){
+    MAPAV = v;
+    $('#vCobertura').classList.toggle('hidden', v !== 'cobertura');
+    $('#vConstructor').classList.toggle('hidden', v !== 'constructor');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-mapav]'), function(b){ b.setAttribute('aria-pressed', String(b.dataset.mapav === v)); });
+    $('#mapaVistaTxt').textContent = v === 'cobertura' ? 'Quién cubre cada proceso y qué falta.' : 'Arrastra un proceso a otra sección para reasignarlo; se actualizan el mapa, la matriz y la encuesta.';
+    if (v === 'constructor'){ if (C && C.campana) cargarExtras(); pintarConstructor(); }
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('[data-mapav]');
+    if (b) fijarVistaMapa(b.dataset.mapav);
+  });
+
+  function pintarConstructor(){
+    if (MAPAV !== 'constructor' || !C || !C.campana) return;
+    var arbol = {};
+    var orden = function(a, b){ return a.localeCompare(b, 'es'); };
+    C.procesos.slice().sort(porJerarquia).forEach(function(p){
+      var g = arbol[p.gerencia] = arbol[p.gerencia] || {};
+      var sc = g[p.seccion] = g[p.seccion] || {};
+      (sc[p.macroproceso || ''] = sc[p.macroproceso || ''] || []).push(p);
+    });
+    // Gerencias y secciones creadas con «+» que todavía no tienen procesos.
+    CN.extras = CN.extras.filter(function(x){ return !(arbol[x.g] && (!x.s || arbol[x.g][x.s])); });
+    CN.extras.forEach(function(x){ var g = arbol[x.g] = arbol[x.g] || {}; if (x.s) g[x.s] = g[x.s] || {}; });
+    guardarExtras();
+    var vacio = function(g, s){ return CN.extras.some(function(x){ return x.g === g && (s === undefined ? !x.s : x.s === s); }); };
+    var html = '<div class="cn-cols">';
+    Object.keys(arbol).sort(orden).forEach(function(g){
+      var secs = Object.keys(arbol[g]).sort(orden), n = C.procesos.filter(function(p){ return p.gerencia === g; }).length;
+      html += '<section class="cn-ger" aria-label="Gerencia ' + esc(g) + '"><div class="cn-ger-h"><h3>' + esc(g) + '</h3><span class="muted">' + n + (n === 1 ? ' proceso' : ' procesos') + '</span>' +
+        '<button type="button" class="btn-link" data-cn="sec+" data-g="' + esc(g) + '">+ Sección</button>' +
+        (!n && vacio(g) ? '<button type="button" class="btn-link" data-cn="quitar" data-g="' + esc(g) + '" data-s="">Quitar</button>' : '') + '</div>';
+      secs.forEach(function(sc){
+        var macros = arbol[g][sc], k = 0;
+        Object.keys(macros).forEach(function(m){ k += macros[m].length; });
+        html += '<div class="cn-sec" data-g="' + esc(g) + '" data-s="' + esc(sc) + '"><div class="cn-sec-h"><h4>' + esc(sc) + '</h4><span class="muted">' + k + (k === 1 ? ' proceso' : ' procesos') + '</span>' +
+          '<button type="button" class="btn-link" data-cn="proc+" data-g="' + esc(g) + '" data-s="' + esc(sc) + '">+ Proceso</button>' +
+          (!k && vacio(g, sc) ? '<button type="button" class="btn-link" data-cn="quitar" data-g="' + esc(g) + '" data-s="' + esc(sc) + '">Quitar</button>' : '') + '</div>';
+        if (!k) html += '<p class="cn-vacio">Sin procesos: suelta uno aquí.</p>';
+        Object.keys(macros).sort(orden).forEach(function(m){
+          html += '<div class="cn-mac" data-g="' + esc(g) + '" data-s="' + esc(sc) + '" data-m="' + esc(m) + '"><div class="cn-mac-t">' + esc(m || 'Sin macroproceso') + '</div>';
+          macros[m].forEach(function(p){
+            var cb = cobertura(p.id), nom = nombreProc(p), sub = p.subproceso && p.proceso && p.proceso !== nom ? p.proceso + ' › ' : '';
+            html += '<div class="cn-nodo st-' + cb.estado + (CN.sel[p.id] ? ' sel' : '') + '" draggable="true" tabindex="0" role="button" aria-pressed="' + !!CN.sel[p.id] + '" data-p="' + esc(p.id) + '" title="' + esc(sub + nom + ' · ' + ESTADO_TXT[cb.estado]) + '">' +
+              '<span class="cn-grip" aria-hidden="true">⋮⋮</span><span class="cn-n">' + esc(nom) + '</span>' +
+              '<div class="cn-meta">' + (p.codigo ? '<span>' + esc(p.codigo) + '</span>' : '') +
+              '<button type="button" data-cn="mover" data-p="' + esc(p.id) + '" aria-label="Mover ' + esc(nom) + ' a otra sección">Mover…</button>' +
+              '<button type="button" data-cn="editar" data-p="' + esc(p.id) + '" aria-label="Editar ' + esc(nom) + '">Editar</button>' +
+              '<button type="button" data-cn="borrar" data-p="' + esc(p.id) + '" aria-label="Borrar ' + esc(nom) + '">Borrar</button></div></div>';
+          });
+          html += '</div>';
+        });
+        html += '</div>';
+      });
+      html += '</section>';
+    });
+    $('#constr').innerHTML = html + '</div>';
+    $('#cnAyuda').innerHTML = ayuda('Arrastra un proceso a otra sección para reasignarlo (a un macroproceso concreto si lo sueltas sobre él). Ctrl o Mayús + clic elige varios. «Mover…» hace lo mismo sin arrastrar, y funciona con el teclado. ' +
+      'Al mover se actualizan el mapa, la matriz y la encuesta; las respuestas y asignaciones se conservan. Un proceso con respuestas no se puede borrar. Tienes 10 segundos para deshacer.');
+    pintarSeleccion();
+  }
+  function pintarSeleccion(){
+    var ids = Object.keys(CN.sel);
+    Array.prototype.forEach.call(document.querySelectorAll('#constr .cn-nodo'), function(n){
+      var on = !!CN.sel[n.dataset.p]; n.classList.toggle('sel', on); n.setAttribute('aria-pressed', String(on));
+    });
+    $('#cnSel').textContent = ids.length ? ids.length + (ids.length === 1 ? ' proceso elegido' : ' procesos elegidos') : '';
+    $('#cnMoverSel').classList.toggle('hidden', !ids.length);
+    $('#cnLimpiar').classList.toggle('hidden', !ids.length);
+  }
+  // Ctrl/Cmd suma o quita; Mayús elige el tramo entre el último clic y este; un clic solo deja únicamente ese.
+  function elegirNodo(id, ev){
+    var nodos = Array.prototype.map.call(document.querySelectorAll('#constr .cn-nodo'), function(n){ return n.dataset.p; });
+    if (ev.shiftKey && CN.ultimo && nodos.indexOf(CN.ultimo) >= 0){
+      var a = nodos.indexOf(CN.ultimo), b = nodos.indexOf(id);
+      nodos.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(function(x){ CN.sel[x] = 1; });
+    } else if (ev.ctrlKey || ev.metaKey){
+      if (CN.sel[id]) delete CN.sel[id]; else CN.sel[id] = 1;
+      CN.ultimo = id;
+    } else {
+      var solo = CN.sel[id] && Object.keys(CN.sel).length === 1;
+      CN.sel = {}; if (!solo) CN.sel[id] = 1;
+      CN.ultimo = id;
+    }
+    pintarSeleccion();
+  }
+  $('#cnLimpiar').addEventListener('click', function(){ CN.sel = {}; pintarSeleccion(); });
+  $('#cnMoverSel').addEventListener('click', function(){ dialogoMover(Object.keys(CN.sel)); });
+  $('#cnGer').addEventListener('click', function(){
+    var g = (prompt('Nombre de la nueva gerencia:') || '').trim();
+    if (!g) return;
+    if (C.procesos.some(function(p){ return igualArea(p.gerencia, g); }) || CN.extras.some(function(x){ return igualArea(x.g, g); })){ alert('Esa gerencia ya existe.'); return; }
+    CN.extras.push({g: g, s: ''}); guardarExtras(); pintarConstructor();
+  });
+
+  $('#constr').addEventListener('click', function(e){
+    var b = e.target.closest('[data-cn]');
+    if (b){
+      var a = b.dataset.cn, g = b.dataset.g, sc = b.dataset.s;
+      if (a === 'sec+'){
+        var n = (prompt('Nombre de la nueva sección de «' + g + '»:') || '').trim();
+        if (!n) return;
+        if (C.procesos.some(function(p){ return igualArea(p.gerencia, g) && igualArea(p.seccion, n); }) || CN.extras.some(function(x){ return igualArea(x.g, g) && igualArea(x.s, n); })){ alert('Esa sección ya existe en la gerencia.'); return; }
+        CN.extras.push({g: g, s: n}); guardarExtras(); pintarConstructor();
+      } else if (a === 'proc+') editarProceso(null, g, sc);
+      else if (a === 'quitar'){
+        CN.extras = CN.extras.filter(function(x){ return !(x.g === g && x.s === (sc || '')); }); guardarExtras(); pintarConstructor();
+      } else if (a === 'editar') editarProceso(procPorId(b.dataset.p));
+      else if (a === 'mover') dialogoMover(CN.sel[b.dataset.p] ? Object.keys(CN.sel) : [b.dataset.p]);
+      else if (a === 'borrar') borrarNodo(b.dataset.p);
+      return;
+    }
+    var nodo = e.target.closest('.cn-nodo');
+    if (nodo) elegirNodo(nodo.dataset.p, e);
+  });
+  $('#constr').addEventListener('keydown', function(e){
+    var nodo = e.target.closest('.cn-nodo');
+    if (!nodo || e.target !== nodo) return;
+    if (e.key === ' '){ e.preventDefault(); elegirNodo(nodo.dataset.p, {ctrlKey: true}); }
+    else if (e.key === 'Enter'){ e.preventDefault(); dialogoMover(CN.sel[nodo.dataset.p] ? Object.keys(CN.sel) : [nodo.dataset.p]); }
+  });
+
+  function borrarNodo(id){
+    var p = procPorId(id); if (!p) return;
+    if (!confirm('¿Borrar «' + nombreProc(p) + '» del mapa? Solo se puede si nadie lo respondió.')) return;
+    api('/a/proceso/borrar', {proceso_id: id}).then(function(){
+      C.procesos = C.procesos.filter(function(x){ return x.id !== id; });
+      delete CN.sel[id];
+      pintarTodo();
+    }).catch(function(err){ alert(err.message); });
+  }
+
+  // Personas que dejarán de ver los procesos (los veían por su sección) y personas que los verán por su sección nueva.
+  function veProceso(e, p, g, sc){
+    if (p.creado_por === e.id) return true;
+    if (C.asignaciones.some(function(a){ return a.encuestado_id === e.id && a.proceso_id === p.id; })) return true;
+    return p.fuente !== 'nuevo' && igualArea(e.gerencia, g) && igualArea(e.seccion, sc);
+  }
+  function impactoPersonas(ps, g, sc){
+    var dejan = {}, veran = {}, conResp = {};
+    C.encuestados.forEach(function(e){
+      ps.forEach(function(p){
+        var antes = veProceso(e, p, p.gerencia, p.seccion), despues = veProceso(e, p, g, sc);
+        if (antes && !despues){ dejan[e.id] = 1; if ((IX.todas[p.id] || {})[e.id]) conResp[e.id] = 1; }
+        if (!antes && despues) veran[e.id] = 1;
+      });
+    });
+    return {dejan: Object.keys(dejan).length, veran: Object.keys(veran).length, conResp: Object.keys(conResp).length};
+  }
+
+  function confirmarMover(ids, g, sc, m){
+    var ps = ids.map(procPorId).filter(function(p){ return p && !(igualArea(p.gerencia, g) && igualArea(p.seccion, sc) && (m === undefined || (p.macroproceso || '') === m)); });
+    if (!ps.length) return;
+    var imp = impactoPersonas(ps, g, sc);
+    var que = ps.length === 1 ? '«' + nombreProc(ps[0]) + '»' : ps.length + ' procesos';
+    var msg = 'Mover ' + que + ' a «' + g + ' · ' + sc + '»' + (m !== undefined ? ' (macroproceso «' + (m || 'sin macroproceso') + '»)' : '') + '?\n\n' +
+      (imp.dejan ? imp.dejan + (imp.dejan === 1 ? ' persona dejará' : ' personas dejarán') + ' de verlo en su encuesta (lo veían por su sección)' + (imp.conResp ? '; ' + imp.conResp + ' ya tenían respuestas, que se conservan.' : '.') : 'Nadie dejará de verlo.') + '\n' +
+      (imp.veran ? imp.veran + (imp.veran === 1 ? ' persona lo verá' : ' personas lo verán') + ' por su sección.' : 'Nadie más lo verá por su sección.') + '\n\n' +
+      'Las respuestas y asignaciones se conservan. La fila de la matriz queda como «Actualizado» si no estaba validada.';
+    if (!confirm(msg)) return;
+    var previo = ps.map(function(p){ return {id: p.id, gerencia: p.gerencia, seccion: p.seccion, macroproceso: p.macroproceso || '', validacion: p.validacion || '', actualizado_en: p.actualizado_en || ''}; });
+    api('/a/proceso/mover', {campana_id: C.campana.id, proceso_ids: ps.map(function(p){ return p.id; }), gerencia: g, seccion: sc, macroproceso: m}).then(function(j){
+      j.procesos.forEach(aplicarProceso);
+      CN.sel = {};
+      pintarTodo();
+      avisarDeshacer(previo, ps.length === 1 ? 'Movido «' + nombreProc(ps[0]) + '» a ' + g + ' · ' + sc : 'Movidos ' + ps.length + ' procesos a ' + g + ' · ' + sc);
+    }).catch(function(err){ alert(err.message); });
+  }
+
+  // «Deshacer» del último movimiento, disponible 10 segundos.
+  function avisarDeshacer(previo, texto){
+    if (CN.toast){ clearTimeout(CN.toast.t); CN.toast.el.remove(); CN.toast = null; }
+    var el = document.createElement('div');
+    el.className = 'cn-toast'; el.setAttribute('role', 'status');
+    el.innerHTML = '<span>' + esc(texto) + '</span><button type="button">Deshacer</button>';
+    document.body.appendChild(el);
+    var cerrar = function(){ el.remove(); if (CN.toast && CN.toast.el === el) CN.toast = null; };
+    CN.toast = {el: el, t: setTimeout(cerrar, 10000)};
+    el.querySelector('button').addEventListener('click', function(){
+      clearTimeout(CN.toast.t); this.disabled = true; this.textContent = 'Deshaciendo…';
+      api('/a/proceso/mover', {campana_id: C.campana.id, movimientos: previo}).then(function(j){
+        j.procesos.forEach(aplicarProceso); pintarTodo(); cerrar();
+      }).catch(function(err){ alert(err.message); cerrar(); });
+    });
+  }
+
+  // Alternativa al arrastre: elegir la gerencia y la sección de destino (con el teclado o en pantalla táctil).
+  function dialogoMover(ids){
+    var ps = ids.map(procPorId).filter(Boolean);
+    if (!ps.length) return;
+    var p0 = ps[0];
+    $('#dlgT').textContent = ps.length === 1 ? 'Mover proceso' : 'Mover ' + ps.length + ' procesos';
+    $('#dlgS').textContent = ps.length === 1 ? nombreProc(p0) : ps.slice(0, 3).map(nombreProc).join(', ') + (ps.length > 3 ? '…' : '');
+    var dl = function(id, valores){ return '<datalist id="' + id + '">' + valores.map(function(x){ return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>'; };
+    var gers = {}, secs = {};
+    C.procesos.forEach(function(p){ gers[p.gerencia] = 1; (secs[p.gerencia] = secs[p.gerencia] || {})[p.seccion] = 1; });
+    CN.extras.forEach(function(x){ gers[x.g] = 1; if (x.s) (secs[x.g] = secs[x.g] || {})[x.s] = 1; });
+    $('#dlgB').innerHTML = '<div class="grid2"><div><label for="mvGer">Gerencia de destino *</label><input type="text" id="mvGer" value="' + esc(p0.gerencia) + '" list="mvGers"></div>' +
+      '<div><label for="mvSec">Sección de destino *</label><input type="text" id="mvSec" value="' + esc(p0.seccion) + '" list="mvSecs"></div></div>' +
+      '<label for="mvMac">Macroproceso (opcional: vacío lo deja como está)</label><input type="text" id="mvMac" list="dlMacro">' +
+      dl('mvGers', Object.keys(gers)) + dl('mvSecs', Object.keys(secs[p0.gerencia] || {})) +
+      '<div class="row" style="margin-top:12px"><button class="btn" id="mvGo" type="button">Mover</button><span class="muted" id="mvMsg"></span></div>';
+    $('#mvGer').addEventListener('input', function(){
+      var l = Object.keys(secs[$('#mvGer').value] || {});
+      $('#mvSecs').innerHTML = l.map(function(x){ return '<option value="' + esc(x) + '">'; }).join('');
+    });
+    if (!$('#dlg').open) $('#dlg').showModal();
+    $('#mvGo').addEventListener('click', function(){
+      var g = $('#mvGer').value.trim(), sc = $('#mvSec').value.trim();
+      if (!g || !sc){ $('#mvMsg').textContent = 'Indica la gerencia y la sección.'; return; }
+      $('#dlg').close();
+      confirmarMover(ids, g, sc, $('#mvMac').value.trim() || undefined);
+    });
+  }
+
+  // ---- Arrastre con el ratón (API nativa) ----
+  function idsArrastre(pid){
+    if (!CN.sel[pid]){ CN.sel = {}; CN.sel[pid] = 1; CN.ultimo = pid; pintarSeleccion(); }
+    return Object.keys(CN.sel);
+  }
+  function limpiarSobre(){ Array.prototype.forEach.call(document.querySelectorAll('#constr .cn-sobre'), function(z){ z.classList.remove('cn-sobre'); }); }
+  function resaltar(z){ limpiarSobre(); if (z) z.classList.add('cn-sobre'); }
+  function marcarArrastre(ids, on){ ids.forEach(function(id){ var n = document.querySelector('#constr .cn-nodo[data-p="' + CSS.escape(id) + '"]'); if (n) n.classList.toggle('arrastrando', on); }); }
+  function autoDesplazar(x){
+    var c = document.querySelector('#constr .cn-cols'); if (!c) return;
+    var r = c.getBoundingClientRect();
+    if (x < r.left + 70) c.scrollLeft -= 18; else if (x > r.right - 70) c.scrollLeft += 18;
+  }
+  function soltarEn(z, ids){
+    confirmarMover(ids, z.dataset.g, z.dataset.s, z.classList.contains('cn-mac') ? z.dataset.m : undefined);
+  }
+  $('#constr').addEventListener('dragstart', function(e){
+    var n = e.target.closest ? e.target.closest('.cn-nodo') : null;
+    if (!n) return;
+    CN.arr = idsArrastre(n.dataset.p);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', CN.arr.join(','));
+    marcarArrastre(CN.arr, true);
+  });
+  $('#constr').addEventListener('dragover', function(e){
+    if (!CN.arr) return;
+    var z = e.target.closest('.cn-mac, .cn-sec');
+    if (!z) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+    resaltar(z); autoDesplazar(e.clientX);
+  });
+  $('#constr').addEventListener('drop', function(e){
+    if (!CN.arr) return;
+    e.preventDefault();
+    var z = e.target.closest('.cn-mac, .cn-sec'), ids = CN.arr;
+    limpiarSobre(); marcarArrastre(ids, false); CN.arr = null;
+    if (z) soltarEn(z, ids);
+  });
+  $('#constr').addEventListener('dragend', function(){ if (CN.arr) marcarArrastre(CN.arr, false); limpiarSobre(); CN.arr = null; });
+
+  // ---- Arrastre táctil (Pointer Events): se toma el asa «⋮⋮» del nodo ----
+  var TQ = null;
+  function zonaEn(x, y){ var el = document.elementFromPoint(x, y); return el ? el.closest('.cn-mac, .cn-sec') : null; }
+  function moverFantasma(e){ TQ.ghost.style.left = (e.clientX + 12) + 'px'; TQ.ghost.style.top = (e.clientY + 12) + 'px'; }
+  $('#constr').addEventListener('pointerdown', function(e){
+    if (e.pointerType === 'mouse') return;
+    var asa = e.target.closest('.cn-grip'), n = asa && asa.closest('.cn-nodo');
+    if (!n) return;
+    e.preventDefault();
+    var ids = idsArrastre(n.dataset.p), g = document.createElement('div');
+    g.className = 'cn-ghost'; g.textContent = ids.length === 1 ? nombreProc(procPorId(ids[0])) : ids.length + ' procesos';
+    document.body.appendChild(g);
+    TQ = {ids: ids, ghost: g};
+    try { asa.setPointerCapture(e.pointerId); } catch(x){}
+    marcarArrastre(ids, true); moverFantasma(e);
+  });
+  $('#constr').addEventListener('pointermove', function(e){
+    if (!TQ) return;
+    e.preventDefault(); moverFantasma(e); resaltar(zonaEn(e.clientX, e.clientY)); autoDesplazar(e.clientX);
+  });
+  function terminarToque(e, soltar){
+    if (!TQ) return;
+    var z = soltar ? zonaEn(e.clientX, e.clientY) : null, ids = TQ.ids;
+    TQ.ghost.remove(); marcarArrastre(ids, false); limpiarSobre(); TQ = null;
+    if (z) soltarEn(z, ids);
+  }
+  $('#constr').addEventListener('pointerup', function(e){ terminarToque(e, true); });
+  $('#constr').addEventListener('pointercancel', function(e){ terminarToque(e, false); });
+
 
   // La IA estructura el proceso y completa la matriz (los campos vacíos y los que ella misma llenó antes).
   function estructurar(pid){
