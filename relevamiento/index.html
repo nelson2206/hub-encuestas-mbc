@@ -75,6 +75,7 @@
   .pill input{position:absolute;opacity:0;pointer-events:none}
   .pill span{display:inline-block;border:1.5px solid var(--field-line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 14px;font-size:14px;line-height:1.2}
   .pill input:checked + span{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:700}
+  .pill .det{display:inline-block;margin-left:7px;font-size:10.5px;font-weight:700;opacity:.85;border:1px solid currentColor;border-radius:999px;padding:0 6px;vertical-align:middle}
   .pill input:focus-visible + span{outline:3px solid var(--accent);outline-offset:2px}
   .sub-t{font-family:Montserrat,sans-serif;font-weight:700;font-size:14px;color:var(--heading);margin:22px 0 2px}
   .proc-rev{border-top:1px solid var(--line);padding:14px 0}
@@ -921,12 +922,12 @@
           '<span class="estado" id="st-' + esc(key) + '" aria-live="polite"></span>' +
         '</div>' +
         '<textarea id="tx-' + esc(key) + '" maxlength="12000" aria-label="Respuesta al bloque ' + (i+1) + '" placeholder="Pulsa Grabar y habla, escribe aquí o sube una imagen…">' + esc(r.texto) + '</textarea>';
-      if (q.sistemas && S.sistemas.length){
-        html += '<div class="sis-t">Marca los sistemas que usan en este proceso</div><div class="pillbox">' +
-          S.sistemas.map(function(s){
-            return '<label class="pill"><input type="checkbox" data-sis="' + esc(key) + '" value="' + esc(s.nombre) + '"' + ((r.sistemas || []).indexOf(s.nombre) >= 0 ? ' checked' : '') + '><span>' + esc(s.nombre) + '</span></label>';
-          }).join('') + '</div>' +
-          '<p class="preg-g" style="margin:8px 0 0">¿Usan algo que no está en la lista (un Excel, un aplicativo del área)? Menciónalo en el texto.</p>';
+      if (q.sistemas){
+        // El cuadro existe siempre (aunque la campaña no tenga catálogo): los sistemas que la IA detecta en lo que cuentas aparecen aquí marcados.
+        html += '<div id="sbox-' + esc(key) + '"' + (S.sistemas.length ? '' : ' class="hidden"') + '><div class="sis-t">Marca los sistemas que usan en este proceso</div>' +
+          '<div class="pillbox" data-pills="' + esc(key) + '">' + S.sistemas.map(function(s){ return pastillaSistema(key, s, (r.sistemas || []).indexOf(s.nombre) >= 0); }).join('') + '</div>' +
+          '<p class="estado ok hidden" id="sd-' + esc(key) + '" aria-live="polite" style="margin:8px 0 0"></p>' +
+          '<p class="preg-g" style="margin:8px 0 0">Si mencionas un sistema al contarlo, lo marcamos solos. Si marcamos uno que no es, desmárcalo.</p></div>';
       }
       html += '<p class="sug hidden" id="sg-' + esc(key) + '"></p>' +
         '<div class="fila" style="margin-top:8px;gap:10px"><button type="button" class="btn-link" data-verif="' + esc(key) + '">Revisar mi respuesta</button>' +
@@ -944,8 +945,11 @@
       d.querySelector('[data-img="' + CSS.escape(key) + '"]').addEventListener('click', function(){ if (!grab[key]) inImg.click(); });
       inImg.addEventListener('change', function(){ var fi = inImg.files && inImg.files[0]; inImg.value = ''; leerImagen(p.id, q.id, fi); });
       d.querySelector('[data-verif="' + CSS.escape(key) + '"]').addEventListener('click', function(){ verificar(p.id, q.id, true); });
-      Array.prototype.forEach.call(d.querySelectorAll('[data-sis="' + CSS.escape(key) + '"]'), function(c){
-        c.addEventListener('change', function(){ programarGuardado(p.id, q.id, 0); programarRevision(p.id, q.id, 4000); });
+      var cajaPill = d.querySelector('[data-pills="' + CSS.escape(key) + '"]');
+      if (cajaPill) cajaPill.addEventListener('change', function(ev){
+        if (!ev.target.matches('[data-sis]')) return;
+        recordarRechazo(p.id, q.id, ev.target);
+        programarGuardado(p.id, q.id, 0); programarRevision(p.id, q.id, 4000);
       });
       d.querySelector('#ck-' + CSS.escape(key)).addEventListener('click', function(ev){
         var bt = ev.target.closest('[data-punto]');
@@ -957,6 +961,49 @@
     d.addEventListener('toggle', function(){ if (d.open) revisarPendientes(p.id); });
     pintarAvanceProc(p.id, d);
     return d;
+  }
+
+  // ------------------------------------------------------------ sistemas detectados por la IA
+  function pastillaSistema(key, s, marcado){
+    return '<label class="pill"><input type="checkbox" data-sis="' + esc(key) + '" value="' + esc(s.nombre) + '"' + (marcado ? ' checked' : '') + '><span>' + esc(s.nombre) +
+      (s.tipo === 'detectado' ? '<small class="det">detectado</small>' : '') + '</span></label>';
+  }
+  // Si la persona desmarca un sistema que la IA había detectado, queda anotado para no volver a marcarlo; si lo vuelve a marcar, se quita de la lista.
+  function recordarRechazo(pid, bid, input){
+    var r = respuesta(pid, bid);
+    if (!S.respuestas[pid] || !S.respuestas[pid][bid]) (S.respuestas[pid] = S.respuestas[pid] || {})[bid] = r;
+    var ck = r.checklist = r.checklist || {};
+    var rech = (ck._sistemas_rechazados || []).filter(function(n){ return sinTildes(n) !== sinTildes(input.value); });
+    var detectado = (ck._sistemas_ia || []).some(function(n){ return sinTildes(n) === sinTildes(input.value); });
+    if (!input.checked && detectado) rech.push(input.value);
+    ck._sistemas_rechazados = rech;
+  }
+  // Refleja lo que devolvió la revisión: pastillas nuevas para los sistemas que no estaban en el catálogo y marcadas las detectadas.
+  function aplicarSistemas(pid, bid, lista, nuevos){
+    var key = pid + '-' + bid;
+    (nuevos || []).forEach(function(n){
+      if (S.sistemas.some(function(s){ return sinTildes(s.nombre) === sinTildes(n); })) return;
+      var s = {nombre: n, tipo: 'detectado'};
+      S.sistemas.push(s);
+      Array.prototype.forEach.call(document.querySelectorAll('[data-pills]'), function(caja){
+        caja.insertAdjacentHTML('beforeend', pastillaSistema(caja.getAttribute('data-pills'), s, false));
+      });
+    });
+    var caja = document.getElementById('sbox-' + key);
+    if (caja) caja.classList.toggle('hidden', !S.sistemas.length);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-sis="' + CSS.escape(key) + '"]'), function(c){
+      c.checked = (lista || []).some(function(n){ return sinTildes(n) === sinTildes(c.value); });
+    });
+  }
+  function pintarNotaSistemas(pid, bid, root){
+    var key = pid + '-' + bid, nota = (root || document).querySelector('#sd-' + CSS.escape(key));
+    if (!nota) return;
+    var r = respuesta(pid, bid), ck = r.checklist || {};
+    var marcados = (ck._sistemas_ia || []).filter(function(n){
+      return (r.sistemas || []).some(function(x){ return sinTildes(x) === sinTildes(n); });
+    });
+    nota.textContent = marcados.length ? 'Detectamos en lo que contaste y marcamos: ' + marcados.join(', ') + '.' : '';
+    nota.classList.toggle('hidden', !marcados.length);
   }
 
   // Lista de puntos del bloque con su estado y los botones para marcar a mano "Lo mencioné" o "No aplica".
@@ -986,11 +1033,12 @@
     var sg = (root || document).querySelector('#sg-' + CSS.escape(key));
     var faltan = b.puntos.filter(function(pt){ return !puntoListo(ck, pt[0]); }).length;
     if (sg){ sg.textContent = faltan && ck._sugerencia ? ck._sugerencia : ''; sg.classList.toggle('hidden', !(faltan && ck._sugerencia)); }
+    if (b.sistemas) pintarNotaSistemas(pid, bid, root);
   }
 
-  function ponerChecklist(pid, bid, ck){
+  function ponerChecklist(pid, bid, ck, sistemas){
     var r = respuesta(pid, bid);
-    (S.respuestas[pid] = S.respuestas[pid] || {})[bid] = {texto: r.texto, sistemas: r.sistemas || [], checklist: ck || {}};
+    (S.respuestas[pid] = S.respuestas[pid] || {})[bid] = {texto: r.texto, sistemas: sistemas || r.sistemas || [], checklist: ck || {}};
     pintarChecklist(pid, bid);
     actualizarAvance();
   }
@@ -1014,7 +1062,8 @@
       return api('/r/verificar', {proceso_id: pid, pregunta: bid});
     }).then(function(j){
       delete porRevisar[key];
-      ponerChecklist(pid, bid, j.checklist);
+      if (j.sistemas && !sinGuardar[key]) aplicarSistemas(pid, bid, j.sistemas, j.sistemas_nuevos);   // si la persona cambió algo mientras tanto, no se pisa
+      ponerChecklist(pid, bid, j.checklist, !sinGuardar[key] ? j.sistemas : null);
       var b = bloque(bid), ck = j.checklist || {};
       var faltan = b.puntos.filter(function(pt){ return !puntoListo(ck, pt[0]); }).length;
       estadoRev(key, faltan ? (faltan === 1 ? 'Falta 1 punto de este bloque.' : 'Faltan ' + faltan + ' puntos de este bloque.') : '✓ Bloque completo.', faltan ? 'warn' : 'ok');
@@ -1088,7 +1137,8 @@
     if (!ta) return Promise.resolve();
     var texto = ta.value;
     var sistemas = Array.prototype.map.call(document.querySelectorAll('[data-sis="' + CSS.escape(key) + '"]:checked'), function(c){ return c.value; });
-    return api('/r/respuesta', {proceso_id: pid, pregunta: qid, texto: texto, sistemas: sistemas}).then(function(){
+    var rech = (respuesta(pid, qid).checklist || {})._sistemas_rechazados;
+    return api('/r/respuesta', {proceso_id: pid, pregunta: qid, texto: texto, sistemas: sistemas, sis_rechazados: rech}).then(function(){
       delete sinGuardar[key];
       var ant = respuesta(pid, qid);
       (S.respuestas[pid] = S.respuestas[pid] || {})[qid] = {texto: texto, sistemas: sistemas, checklist: ant.checklist || {}};

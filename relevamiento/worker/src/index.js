@@ -447,6 +447,13 @@ async function rutaRespuesta(env, b) {
   await env.DB.prepare(`INSERT INTO respuestas (encuestado_id, proceso_id, pregunta, texto, sistemas, actualizado) VALUES (?,?,?,?,?,?)
     ON CONFLICT(encuestado_id, proceso_id, pregunta) DO UPDATE SET texto=excluded.texto, sistemas=excluded.sistemas, actualizado=excluded.actualizado`)
     .bind(e.id, p.id, b.pregunta, txt(b.texto, MAX_TEXTO), JSON.stringify(sistemas), ahora()).run();
+  // Sistemas que la IA detectó y la persona desmarcó: no se vuelven a marcar solos (se guardan en el checklist).
+  if (Array.isArray(b.sis_rechazados)) {
+    const r = await env.DB.prepare('SELECT checklist FROM respuestas WHERE encuestado_id=? AND proceso_id=? AND pregunta=?').bind(e.id, p.id, b.pregunta).first();
+    const c = leerMatriz(r && r.checklist);
+    c._sistemas_rechazados = b.sis_rechazados.map(s => txt(s, 120)).filter(Boolean).slice(0, 60);
+    await env.DB.prepare('UPDATE respuestas SET checklist=? WHERE encuestado_id=? AND proceso_id=? AND pregunta=?').bind(JSON.stringify(c), e.id, p.id, b.pregunta).run();
+  }
   await marcarEnCurso(env, e);
   return { ok: true };
 }
@@ -1263,9 +1270,10 @@ function schemaVerificar(bloque) {
         estado: { type: 'string', enum: ESTADOS_PUNTO },
         evidencia: { type: 'string' }
       }, required: ['id', 'estado', 'evidencia'], additionalProperties: false } },
-      sugerencia: { type: 'string' }
+      sugerencia: { type: 'string' },
+      sistemas: { type: 'array', items: { type: 'string' } }
     },
-    required: ['puntos', 'sugerencia'],
+    required: ['puntos', 'sugerencia', 'sistemas'],
     additionalProperties: false
   };
 }
@@ -1277,7 +1285,31 @@ Para cada punto del checklist decide:
 - "falta": no lo mencionó, o lo dijo tan vago que no sirve para un inventario de procesos ("usamos varios sistemas" sin nombrarlos). "evidencia" queda vacía.
 Los sistemas marcados en la lista cuentan para el punto de qué sistemas usan, pero no para qué se usa cada uno.
 "sugerencia": una sola frase amable, en segunda persona (tú), que pida solo lo que falta, con un ejemplo corto si ayuda. Si no falta nada, cadena vacía.
+"sistemas": los sistemas, aplicaciones o herramientas informáticas que la respuesta dice que se usan en el proceso (un ERP, un Excel, un aplicativo del área, el correo, un portal). Solo los que se nombran o se identifican con claridad en la respuesta: no incluyas equipos físicos, no deduzcas por el tipo de proceso y no repitas. Si el nombre dicho coincide con uno del CATÁLOGO de la campaña, escribe el nombre EXACTO del catálogo (corrige los errores de transcripción: «es a pe» es SAP); si no está en el catálogo, escríbelo corto, tal como lo dijo. Si no menciona ninguno, lista vacía.
 No inventes información ni opines sobre el proceso.`;
+
+// Une los sistemas que la IA detectó en el texto con los que la persona marcó. Los que la persona desmarcó después de una
+// detección (_sistemas_rechazados) no se vuelven a marcar. Los que no están en el catálogo se agregan a la campaña como «detectado».
+const nombreBase = s => normal(String(s).replace(/\s*\([^)]*\)/g, ''));
+async function unirSistemas(env, e, p, bloque, previo, actuales, crudos, catalogo) {
+  const rechazados = new Set((Array.isArray(previo._sistemas_rechazados) ? previo._sistemas_rechazados : []).map(normal));
+  const enCatalogo = d => catalogo.find(n => normal(n) === normal(d)) || catalogo.find(n => nombreBase(n) === nombreBase(d)) || '';
+  const detectados = [], nuevos = [], vistos = new Set();
+  (Array.isArray(crudos) ? crudos : []).slice(0, 15).forEach(c => {
+    const d = txt(c, 120); if (!d) return;
+    const cat = enCatalogo(d), nombre = cat || d, k = normal(nombre);
+    if (!k || vistos.has(k)) return;
+    vistos.add(k);
+    detectados.push(nombre);
+    if (!cat && !rechazados.has(k)) nuevos.push(nombre);
+  });
+  const final = actuales.slice();
+  detectados.forEach(n => { if (!rechazados.has(normal(n)) && !final.some(x => normal(x) === normal(n))) final.push(n); });
+  if (nuevos.length) await env.DB.batch(nuevos.map(n => env.DB.prepare("INSERT INTO sistemas (id, campana_id, nombre, tipo) VALUES (?,?,?,'detectado')").bind(uid(), e.campana_id, n)));
+  if (final.length !== actuales.length) await env.DB.prepare('UPDATE respuestas SET sistemas=? WHERE encuestado_id=? AND proceso_id=? AND pregunta=?')
+    .bind(JSON.stringify(final.slice(0, 60)), e.id, p.id, bloque.id).run();
+  return { final: final.slice(0, 60), detectados, nuevos };
+}
 
 async function guardarChecklist(env, e, p, bloqueId, c) {
   await env.DB.prepare(`INSERT INTO respuestas (encuestado_id, proceso_id, pregunta, texto, sistemas, checklist, actualizado) VALUES (?,?,?,'','[]',?,?)
@@ -1298,15 +1330,22 @@ async function rutaVerificar(env, b, ctx) {
   let sistemas = [];
   try { sistemas = JSON.parse((r && r.sistemas) || '[]'); } catch (x) { /* sin sistemas */ }
   // La huella incluye los puntos del bloque: si cambia el checklist, la respuesta se vuelve a revisar.
-  const firma = await huella(texto + '|' + sistemas.join(',') + '|' + bloque.puntos.map(x => x[0]).join(','));
-  if (previo._huella === firma) return { ok: true, checklist: previo };
+  const firmaDe = lista => huella(texto + '|' + lista.join(',') + '|' + bloque.puntos.map(x => x[0]).join(','));
+  const firma = await firmaDe(sistemas);
+  if (previo._huella === firma) return { ok: true, checklist: previo, sistemas, sistemas_nuevos: [] };
   const nuevo = { _huella: firma, _sugerencia: '' };
+  if (previo._sistemas_rechazados) nuevo._sistemas_rechazados = previo._sistemas_rechazados;
+  if (previo._sistemas_ia) nuevo._sistemas_ia = previo._sistemas_ia;
+  let nuevosSis = [];
   const manual = id => previo[id] && previo[id].fuente === 'persona';
+  let sistemasFinal = sistemas;
   if (!texto && !sistemas.length) {
     bloque.puntos.forEach(([id]) => { nuevo[id] = manual(id) ? previo[id] : { estado: 'falta', fuente: 'ia', evidencia: '' }; });
   } else {
     let msg;
     const cfg = iaDe(env, 'revision'), t0 = Date.now();
+    // Solo el bloque con la lista de sistemas lleva el catálogo: ahí se detectan los sistemas que menciona la persona.
+    const catalogo = bloque.sistemas ? (await env.DB.prepare('SELECT nombre FROM sistemas WHERE campana_id=? ORDER BY nombre LIMIT 300').bind(e.campana_id).all()).results.map(x => x.nombre) : [];
     try {
       msg = await clienteClaude(env).beta.messages.stream({
         model: cfg.modelo,
@@ -1320,7 +1359,8 @@ async function rutaVerificar(env, b, ctx) {
           `BLOQUE: ${bloque.t}`,
           'CHECKLIST:', ...bloque.puntos.map(([id, t]) => `- ${id}: ${t}`),
           '', 'RESPUESTA:', texto || '(sin texto)',
-          sistemas.length ? '\nSISTEMAS MARCADOS EN LA LISTA: ' + sistemas.join(', ') : ''
+          sistemas.length ? '\nSISTEMAS MARCADOS EN LA LISTA: ' + sistemas.join(', ') : '',
+          bloque.sistemas ? '\nCATÁLOGO DE SISTEMAS DE LA CAMPAÑA: ' + (catalogo.length ? catalogo.join('; ') : '(vacío)') : '(Este bloque no detecta sistemas: devuelve "sistemas" vacío.)'
         ].join('\n') }]
       }).finalMessage();
     } catch (err) {
@@ -1339,10 +1379,18 @@ async function rutaVerificar(env, b, ctx) {
       nuevo[id] = { estado: ESTADOS_PUNTO.includes(x.estado) ? x.estado : 'falta', fuente: 'ia', evidencia: txt(x.evidencia, 200) };
     });
     nuevo._sugerencia = txt(s.sugerencia, 400);
+    if (bloque.sistemas) {
+      const u = await unirSistemas(env, e, p, bloque, previo, sistemas, s.sistemas, catalogo);
+      sistemasFinal = u.final; nuevosSis = u.nuevos;
+      nuevo._sistemas_ia = [...new Set([...(previo._sistemas_ia || []), ...u.detectados])].slice(0, 60);
+      // La huella se calcula con la lista ya unida: la siguiente revisión no se repite por los sistemas recién marcados.
+      nuevo._huella = await firmaDe(sistemasFinal);
+    }
   }
   await guardarChecklist(env, e, p, bloque.id, nuevo);
-  log('verificar', { campana: e.campana_id, bloque: bloque.id, faltan: bloque.puntos.filter(([id]) => nuevo[id].estado === 'falta').length });
-  return { ok: true, checklist: nuevo };
+  log('verificar', { campana: e.campana_id, bloque: bloque.id, faltan: bloque.puntos.filter(([id]) => nuevo[id].estado === 'falta').length,
+    sis_detectados: sistemasFinal.length - sistemas.length, sis_nuevos: nuevosSis.length });
+  return { ok: true, checklist: nuevo, sistemas: sistemasFinal, sistemas_nuevos: nuevosSis };
 }
 
 // Imagen subida en un bloque (un flujo, un procedimiento, un formato, una pantalla, una pizarra): la IA la lee y
