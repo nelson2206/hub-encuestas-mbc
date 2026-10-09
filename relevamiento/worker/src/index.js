@@ -778,7 +778,7 @@ async function rutaCampana(env, url) {
   estructurado.forEach(x => { x.datos = JSON.parse(x.datos); });
   respuestas.forEach(x => { x.sistemas = JSON.parse(x.sistemas || '[]'); x.checklist = leerMatriz(x.checklist); });
   procesos.forEach(x => { x.matriz = leerMatriz(x.matriz); x.matriz_ia = leerMatriz(x.matriz_ia); });
-  return { ok: true, campana: camp, encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, bloques: BLOQUES };
+  return { ok: true, campana: camp, encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, bloques: BLOQUES, estandares_base: ESTANDARES_BASE };
 }
 
 // Alta o edición de un proceso desde el mapa de la consola.
@@ -1015,6 +1015,18 @@ const SALIDA_SCHEMA = {
   additionalProperties: false
 };
 
+// Glosario de estándares base; cada campaña lo puede editar en la consola (campanas.estandares). Vacío = este.
+const ESTANDARES_BASE = 'TPS (Toyota Production System); Toyota Way; Jidoka; JIT (Just in Time); Kaizen; TMC Global Standards; ISO 9001; ISO 14001; ISO 27001; ISO 45001; NTP; Ley 29733 (protección de datos personales)';
+const estandaresDe = camp => String((camp && camp.estandares) || '').trim() || ESTANDARES_BASE;
+// Reglas para clasificar los estándares que menciona la persona: las usan la revisión del bloque 3, la estructuración y la prueba.
+const REGLAS_ESTANDARES = `Clasificación de estándares:
+- TDP (corporativo): políticas, procedimientos, instructivos, manuales o códigos internos de la empresa del cliente, incluidos los códigos con prefijo MO-, SO-, GO- o GE- (por ejemplo «el procedimiento SO-GCM-P-010»), el código de ética y el reglamento interno.
+- TMC (global): lo que viene de Toyota Motor Corporation: Toyota Way, TPS (Toyota Production System), Jidoka, JIT (Just in Time), Kaizen, TMC Global Standards y las políticas o lineamientos globales de la casa matriz.
+- Otros: normas técnicas y de certificación externas: NTP, ISO (9001, 14001, 27001, 45001…), OHSAS, COSO, PCI y similares. Las leyes y reglamentos peruanos no van aquí: van en normativa.
+- Si el nombre dicho coincide con un término del GLOSARIO DE ESTÁNDARES de la campaña, escríbelo como figura en el glosario; corrige los errores de transcripción («toyota uay» es Toyota Way, «iso nueve mil uno» es ISO 9001, «te pe es» es TPS). Si no está en el glosario, escríbelo como lo dijo, con su código o número si lo dio.
+- Solo cuenta lo que la persona nombra o cita con claridad: «seguimos estándares de calidad» sin decir cuáles no sirve. Exige la cita: en la evidencia pon sus palabras.
+- Cada estándar va en una sola categoría; varios en la misma categoría se separan con «; ».`;
+
 const SISTEMA_PROMPT = `Eres un consultor senior de procesos que arma el inventario corporativo de procesos de un cliente.
 Recibes la ficha de un proceso (tal como estaba en el inventario anterior, o como la agregó un colaborador o el equipo consultor) y las respuestas que dieron por voz o por escrito una o más personas que participan en él: el líder o un usuario de soporte de la sección dueña, o personas de otras áreas que intervienen. Las respuestas son transcripciones: pueden tener muletillas, errores de reconocimiento de voz y desorden.
 
@@ -1031,6 +1043,7 @@ Reglas:
 - Aprobaciones externas: si para completar el proceso esperan la aprobación de alguien fuera de la sección dueña (otra área de la empresa, la casa matriz o una entidad), "aprob_externa" es "Sí" y cada aprobación va en una línea, en el mismo orden, en "aprob_area" (de dónde), "aprob_responsable" (de quién, por cargo) y "aprob_momento" (en qué paso). Si dijeron que no dependen de nadie, "aprob_externa" es "No" y los otros tres quedan vacíos.
 - Si la persona dijo que algo no existe en su proceso (no hay terceros, no manejan datos personales, no hay indicadores), escribe "No aplica" con estado "dicho".
 - Si hay una ficha del inventario anterior, compárala con lo que contaron: lo que cambió va en "contradicciones".
+- Estándares ("estandar_tdp", "estandar_tmc", "otros_estandares") y "normativa": ${REGLAS_ESTANDARES}
 - "vigencia": resume lo que dijeron sobre si el proceso sigue vigente. Quien marcó "existe, pero no participa" confirma que existe. Usa "contradictorio" si difieren y "sin_revision" si nadie lo marcó.
 - "contradicciones": diferencias entre lo que dijeron las distintas personas, o entre la ficha anterior y lo que contaron ahora.
 - "preguntas_validacion": 3 a 6 preguntas concretas para cerrar en la reunión los campos inferidos, vacíos o contradictorios. Nada genérico.
@@ -1066,6 +1079,7 @@ function textoParaClaude(camp, p, encuestados, revisiones, respuestas, sistemas)
   }
   lineas.push('');
   lineas.push(`CATÁLOGO DE SISTEMAS DEL CLIENTE: ${sistemas.map(s => s.nombre + (s.tipo ? ' (' + s.tipo + ')' : '')).join('; ') || '(no cargado)'}`);
+  lineas.push(`GLOSARIO DE ESTÁNDARES DE LA CAMPAÑA: ${estandaresDe(camp)}`);
   lineas.push('');
   encuestados.forEach(e => {
     const rev = revisiones.find(r => r.encuestado_id === e.id);
@@ -1246,6 +1260,44 @@ async function completarPendientes(env, ctx) {
   if (pend.length) log('auto', { pendientes: pend.length, estructurados: ok });
 }
 
+async function rutaEstandares(env, b) {
+  const r = await env.DB.prepare('UPDATE campanas SET estandares=? WHERE id=?').bind(txt(b.estandares, 1500), b.campana_id).run();
+  if (!r.meta || !r.meta.changes) throw new HttpError(404, 'Campaña no encontrada');
+  return { ok: true };
+}
+
+// Prueba de la clasificación de estándares: recibe una frase y devuelve lo que la IA pondría en cada categoría. Usa las mismas
+// reglas y el mismo glosario que la revisión y la estructuración; la corre worker/test/estandares.mjs --real.
+const ESTANDARES_SCHEMA = {
+  type: 'object',
+  properties: { tdp: { type: 'array', items: { type: 'string' } }, tmc: { type: 'array', items: { type: 'string' } },
+    otros: { type: 'array', items: { type: 'string' } }, normativa: { type: 'array', items: { type: 'string' } } },
+  required: ['tdp', 'tmc', 'otros', 'normativa'],
+  additionalProperties: false
+};
+async function rutaEstandaresProbar(env, b, ctx) {
+  const camp = await env.DB.prepare('SELECT estandares FROM campanas WHERE id=?').bind(b.campana_id).first();
+  if (!camp) throw new HttpError(404, 'Campaña no encontrada');
+  const frase = txt(b.frase, 1500);
+  if (!frase) throw new HttpError(400, 'Falta la frase');
+  const cfg = iaDe(env, 'revision'), t0 = Date.now();
+  const msg = await clienteClaude(env).beta.messages.stream({
+    model: cfg.modelo,
+    max_tokens: 2000,
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    output_config: { effort: cfg.esfuerzo, format: { type: 'json_schema', schema: ESTANDARES_SCHEMA } },
+    system: `Lees lo que una persona contó sobre cómo funciona un proceso de trabajo (transcripción de voz) y extraes los estándares y normas que nombra.
+${REGLAS_ESTANDARES}
+Devuelve cuatro listas: "tdp", "tmc", "otros" y "normativa" (leyes y reglamentos peruanos que nombra). Lista vacía si no nombra ninguno de esa categoría.`,
+    messages: [{ role: 'user', content: 'GLOSARIO DE ESTÁNDARES DE LA CAMPAÑA: ' + estandaresDe(camp) + '\n\nRESPUESTA:\n' + frase }]
+  }).finalMessage();
+  registrarIA(ctx, 'revision', msg, cfg, t0);
+  let s = {};
+  try { s = JSON.parse((msg.content.find(c => c.type === 'text') || {}).text || '{}'); } catch (x) { throw new HttpError(502, 'Formato inesperado de la IA'); }
+  return { ok: true, tdp: s.tdp || [], tmc: s.tmc || [], otros: s.otros || [], normativa: s.normativa || [] };
+}
+
 async function rutaCampanaIA(env, b) {
   const v = b.ia_auto ? 1 : 0;
   const r = await env.DB.prepare('UPDATE campanas SET ia_auto=? WHERE id=?').bind(v, b.campana_id).run();
@@ -1286,6 +1338,8 @@ Para cada punto del checklist decide:
 Los sistemas marcados en la lista cuentan para el punto de qué sistemas usan, pero no para qué se usa cada uno.
 "sugerencia": una sola frase amable, en segunda persona (tú), que pida solo lo que falta, con un ejemplo corto si ayuda. Si no falta nada, cadena vacía.
 "sistemas": los sistemas, aplicaciones o herramientas informáticas que la respuesta dice que se usan en el proceso (un ERP, un Excel, un aplicativo del área, el correo, un portal). Solo los que se nombran o se identifican con claridad en la respuesta: no incluyas equipos físicos, no deduzcas por el tipo de proceso y no repitas. Si el nombre dicho coincide con uno del CATÁLOGO de la campaña, escribe el nombre EXACTO del catálogo (corrige los errores de transcripción: «es a pe» es SAP); si no está en el catálogo, escríbelo corto, tal como lo dijo. Si no menciona ninguno, lista vacía.
+Estándares: el punto de estándares es "cubierto" cuando la persona nombra al menos un estándar, política, procedimiento o norma concreta (de TDP, de TMC u otros), o dice claramente que no aplica ninguno; es "falta" si solo habla de estándares o normas en general sin nombrar ninguno.
+${REGLAS_ESTANDARES}
 No inventes información ni opines sobre el proceso.`;
 
 // Une los sistemas que la IA detectó en el texto con los que la persona marcó. Los que la persona desmarcó después de una
@@ -1346,6 +1400,7 @@ async function rutaVerificar(env, b, ctx) {
     const cfg = iaDe(env, 'revision'), t0 = Date.now();
     // Solo el bloque con la lista de sistemas lleva el catálogo: ahí se detectan los sistemas que menciona la persona.
     const catalogo = bloque.sistemas ? (await env.DB.prepare('SELECT nombre FROM sistemas WHERE campana_id=? ORDER BY nombre LIMIT 300').bind(e.campana_id).all()).results.map(x => x.nombre) : [];
+    const glosarioEst = bloque.puntos.some(x => x[0] === 'estandares') ? estandaresDe(await env.DB.prepare('SELECT estandares FROM campanas WHERE id=?').bind(e.campana_id).first()) : '';
     try {
       msg = await clienteClaude(env).beta.messages.stream({
         model: cfg.modelo,
@@ -1360,6 +1415,7 @@ async function rutaVerificar(env, b, ctx) {
           'CHECKLIST:', ...bloque.puntos.map(([id, t]) => `- ${id}: ${t}`),
           '', 'RESPUESTA:', texto || '(sin texto)',
           sistemas.length ? '\nSISTEMAS MARCADOS EN LA LISTA: ' + sistemas.join(', ') : '',
+          glosarioEst ? '\nGLOSARIO DE ESTÁNDARES DE LA CAMPAÑA: ' + glosarioEst : '',
           bloque.sistemas ? '\nCATÁLOGO DE SISTEMAS DE LA CAMPAÑA: ' + (catalogo.length ? catalogo.join('; ') : '(vacío)') : '(Este bloque no detecta sistemas: devuelve "sistemas" vacío.)'
         ].join('\n') }]
       }).finalMessage();
@@ -1573,6 +1629,8 @@ export default {
           if (url.pathname === '/a/campana/glosario') return json(await rutaGlosario(env, b), 200, h);
           if (url.pathname === '/a/campana/logo') return json(await rutaLogo(env, b), 200, h);
           if (url.pathname === '/a/campana/ia') return json(await rutaCampanaIA(env, b), 200, h);
+          if (url.pathname === '/a/campana/estandares') return json(await rutaEstandares(env, b), 200, h);
+          if (url.pathname === '/a/estandares/probar') return json(await rutaEstandaresProbar(env, b, ctx), 200, h);
           if (url.pathname === '/a/asignar') return json(await rutaAsignar(env, b), 200, h);
           if (url.pathname === '/a/asignar-por-inventario') return json(await rutaAsignarInventario(env, b), 200, h);
           if (url.pathname === '/a/enlace') return json(await rutaEnlace(env, b), 200, h);

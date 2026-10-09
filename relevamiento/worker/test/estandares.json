@@ -1,0 +1,22 @@
+[
+  { "frase": "Seguimos el Toyota Way, la ISO 14001 y el procedimiento SO-GCM-P-010.",
+    "tdp": ["SO-GCM-P-010"], "tmc": ["Toyota Way"], "otros": ["ISO 14001"], "normativa": [] },
+  { "frase": "En el taller aplicamos el TPS y hacemos Jidoka cuando una línea se detiene.",
+    "tdp": [], "tmc": ["TPS", "Jidoka"], "otros": [], "normativa": [] },
+  { "frase": "Cumplimos la Ley 29733 de protección de datos personales y la política MO-GCM-PT-005.",
+    "tdp": ["MO-GCM-PT-005"], "tmc": [], "otros": [], "normativa": ["Ley 29733"] },
+  { "frase": "La entrega de repuestos sigue el JIT que pide Toyota Motor Corporation.",
+    "tdp": [], "tmc": ["JIT"], "otros": [], "normativa": [] },
+  { "frase": "Estamos certificados en ISO 9001 e ISO 45001 y usamos la NTP 399.010 para la señalización.",
+    "tdp": [], "tmc": [], "otros": ["ISO 9001", "ISO 45001", "NTP 399.010"], "normativa": [] },
+  { "frase": "Nos guiamos por el manual de compras de la empresa y por el código de ética.",
+    "tdp": ["manual de compras", "código de ética"], "tmc": [], "otros": [], "normativa": [] },
+  { "frase": "Seguimos los estándares de calidad pero ahora no recuerdo cuáles son.",
+    "tdp": [], "tmc": [], "otros": [], "normativa": [] },
+  { "frase": "Aplicamos los TMC Global Standards y también nuestro instructivo GO-FIN-I-004.",
+    "tdp": ["GO-FIN-I-004"], "tmc": ["TMC Global Standards"], "otros": [], "normativa": [] },
+  { "frase": "Trabajamos con el toyota uay y con la iso nueve mil uno.",
+    "tdp": [], "tmc": ["Toyota Way"], "otros": ["ISO 9001"], "normativa": [] },
+  { "frase": "No aplican estándares externos, solo el procedimiento interno MO-LOG-P-007.",
+    "tdp": ["MO-LOG-P-007"], "tmc": [], "otros": [], "normativa": [] }
+]

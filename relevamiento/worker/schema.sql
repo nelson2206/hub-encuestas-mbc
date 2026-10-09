@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS campanas (
   abierta INTEGER NOT NULL DEFAULT 0,  -- 1 = el enlace abierto acepta registros
   dominio TEXT NOT NULL DEFAULT '',    -- dominio de correo exigido al registrarse (opcional)
   logo TEXT NOT NULL DEFAULT '',       -- logo del cliente (data URI) que se muestra en la encuesta
-  ia_auto INTEGER NOT NULL DEFAULT 1   -- 1 = la tarea programada completa la matriz con la IA
+  ia_auto INTEGER NOT NULL DEFAULT 1,  -- 1 = la tarea programada completa la matriz con la IA
+  estandares TEXT NOT NULL DEFAULT ''  -- glosario de estándares (TPS, Toyota Way, ISO…); vacío = el glosario base del Worker
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_camp_codigo ON campanas(codigo_publico);
 

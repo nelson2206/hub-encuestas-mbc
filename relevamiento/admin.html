@@ -261,6 +261,10 @@
             <p class="muted">Ayuda al reconocimiento de voz con siglas y nombres propios. Los nombres de la hoja Sistemas se agregan solos.</p>
             <input type="text" id="inGlosario">
             <div class="row" style="margin-top:8px"><button class="btn btn-ghost btn-xs" id="btnGlosario">Guardar glosario</button><span class="muted" id="msgGlosario"></span></div>
+            <h3 style="font-size:14px;margin-top:22px">Glosario de estándares</h3>
+            <p class="muted">Estándares, normas y marcos que la IA debe reconocer al leer las respuestas (separados por «;» o por línea). Con esta lista clasifica lo que nombran en corporativo del cliente, global de la casa matriz u otros (NTP, ISO). Vacío usa el glosario base.</p>
+            <textarea id="inEstandares" rows="4" aria-label="Glosario de estándares" style="min-height:80px"></textarea>
+            <div class="row" style="margin-top:8px"><button class="btn btn-ghost btn-xs" id="btnEstandares">Guardar estándares</button><button class="btn btn-ghost btn-xs" id="btnEstandaresBase">Restablecer glosario base</button><span class="muted" id="msgEstandares"></span></div>
             <h3 style="font-size:14px;margin-top:22px">La IA completa la matriz</h3>
             <p class="muted">Cada 15 minutos, la IA lee lo nuevo que respondieron (voz, texto o imágenes) y llena los campos vacíos de la matriz con lo que la persona dijo. Lo que la IA solo deduce queda como sugerencia en la ficha. Lo que completa queda marcado como «IA» hasta la validación; nunca reemplaza un dato que ya estaba ni lo que escribió el equipo, y no toca filas validadas.</p>
             <div class="row"><label class="chk"><input type="checkbox" id="inIaAuto"> Completar la matriz automáticamente</label><span class="muted" id="msgIaAuto"></span></div>
@@ -474,6 +478,8 @@
       $('#cTitulo').textContent = C.campana.nombre;
       $('#cSub').textContent = C.campana.cliente + ' · creada el ' + C.campana.creada.slice(0,10);
       $('#inGlosario').value = C.campana.glosario || '';
+      $('#inEstandares').value = C.campana.estandares || C.estandares_base || '';
+      $('#msgEstandares').textContent = C.campana.estandares ? '' : 'Usando el glosario base.';
       pintarLogo();
       $('#inIaAuto').checked = !!C.campana.ia_auto;
       llenarFiltros();
@@ -1801,6 +1807,13 @@
     api('/a/campana/glosario', {campana_id: C.campana.id, glosario: $('#inGlosario').value}).then(function(){ $('#msgGlosario').textContent = 'Guardado'; })
       .catch(function(err){ $('#msgGlosario').textContent = err.message; });
   });
+  $('#btnEstandares').addEventListener('click', function(){
+    var t = $('#inEstandares').value.trim();
+    api('/a/campana/estandares', {campana_id: C.campana.id, estandares: t}).then(function(){
+      C.campana.estandares = t; $('#msgEstandares').textContent = t ? 'Guardado' : 'Guardado: se usa el glosario base.';
+    }).catch(function(err){ $('#msgEstandares').textContent = err.message; });
+  });
+  $('#btnEstandaresBase').addEventListener('click', function(){ $('#inEstandares').value = C.estandares_base || ''; $('#msgEstandares').textContent = 'Glosario base cargado: pulsa «Guardar estándares».'; });
   $('#btnBorrar').addEventListener('click', function(){
     if (!confirm('Se borrará TODO lo de la campaña "' + C.campana.nombre + '". No se puede deshacer. ¿Continuar?')) return;
     api('/a/borrar-campana', {campana_id: C.campana.id, confirmar: $('#inBorrar').value}).then(function(){
