@@ -164,14 +164,32 @@
   .mx-ia{font-style:italic;color:var(--muted);margin-top:2px}
   .mx-de-ia{border-left:2px solid var(--inf);padding-left:6px}
   .mx tr.mx-sec td{background:var(--panel);border-top:2px solid var(--heading);padding:8px;vertical-align:middle}
-  .mx tr.mx-mac td{color:var(--muted);font-family:Montserrat,sans-serif;font-weight:600;font-size:11.5px;padding:9px 8px 4px;border-bottom:none}
+  .mx tr.mx-ger td{background:var(--navy);color:#fff;border-top:3px solid var(--navy);padding:10px 8px;vertical-align:middle;font-family:Montserrat,sans-serif;font-weight:800;font-size:14px}
+  .mx tr.mx-ger .mx-plegar,.mx tr.mx-ger .mx-llen{color:#fff}
+  .mx tr.mx-ger .mx-plegar{font-size:14px;font-weight:800}
+  .mx tr.mx-sec .mx-plegar{padding-left:18px}
+  .mx tr.mx-pro td{color:var(--ink);font-family:Montserrat,sans-serif;font-weight:600;font-size:12px;padding:8px 8px 4px 8px;border-bottom:none}
+  .mx tr.mx-pro .mx-pin{padding-left:20px}
+  .mx tr.mx-pro .mx-plegar{font-size:12px;font-weight:600}
+  .mx td.fijo1 .mx-proc{padding-left:48px}
+  .mtabla tr.mx-ger td{background:var(--navy);color:#fff;font-family:Montserrat,sans-serif;font-weight:800;padding:9px 10px}
+  .mtabla tr.mx-ger .mx-plegar,.mtabla tr.mx-ger .muted{color:#fff;font-size:14px}
+  .mtabla tr.mx-sec td{background:var(--panel);padding:8px 10px 8px 28px;font-family:Montserrat,sans-serif;font-weight:700}
+  .mtabla tr.mx-pro td{padding:6px 10px 4px 46px;font-family:Montserrat,sans-serif;font-weight:600;font-size:12px}
+  .mtabla tr.mx-fila td:nth-child(4){padding-left:64px}
   .mx-pin{position:sticky;left:8px;display:flex;gap:12px;align-items:baseline;width:max-content;white-space:nowrap}
   .mx-plegar{appearance:none;background:none;border:none;padding:0;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;color:var(--heading);text-align:left;display:flex;gap:4px}
   .mx-signo{flex:none;width:14px}
-  .mx-llen{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:11.5px;color:var(--muted)}
-  .mx-llen span{flex:1;min-width:28px;height:5px;border-radius:9px;background:var(--line);overflow:hidden}
-  .mx-llen i{display:block;height:100%;background:var(--inf)}
-  .mx-llen.contrato i{background:var(--accent)}
+  .mx-llen{font-variant-numeric:tabular-nums;white-space:nowrap;font-size:11.5px;color:var(--muted)}
+  .mx-llen.contrato{color:var(--accent);font-weight:700}
+  .filtros-mx{grid-template-columns:2fr 1fr 1fr auto auto}
+  @media (max-width:800px){ .filtros-mx{grid-template-columns:1fr} }
+  .mas{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0 0;background:var(--card)}
+  .mas .row{margin:4px 0}
+  .ayuda{appearance:none;display:inline-grid;place-content:center;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--field-line);background:var(--card);color:var(--muted);font:700 11px Montserrat,sans-serif;cursor:help;padding:0;position:relative;vertical-align:middle;margin-left:6px}
+  .ayuda:hover,.ayuda:focus-visible{border-color:var(--navy);color:var(--navy)}
+  @media (max-width:600px){ .ayuda:hover::after,.ayuda:focus::after{position:fixed;left:16px;right:16px;width:auto;top:auto;margin-top:8px} }
+  .ayuda:hover::after,.ayuda:focus::after{content:attr(data-tip);position:absolute;z-index:40;left:0;top:calc(100% + 6px);width:min(360px,78vw);background:var(--navy);color:#fff;border-radius:8px;padding:9px 11px;font:400 12.5px/1.4 "Trebuchet MS","Segoe UI",sans-serif;text-align:left;white-space:normal;box-shadow:0 6px 18px rgba(0,0,0,.28)}
 </style>
 </head>
 <body>
@@ -740,7 +758,7 @@
     return ULTIMO_VALIDADOR;
   }
 
-  var FM = {texto:'', ger:'', act:'', falt:false,   // filtros de la pestaña Matriz
+  var FM = {texto:'', ger:'', act:'', falt:false, mas:false,   // filtros de la pestaña Matriz
     vista:'completa', ocultos:{id:1}, largo:false, cerradas:{}, abiertas:{}};   // matriz completa: grupos ocultos, texto completo, secciones abiertas o cerradas a mano, filas desplegadas
   // La vista y los grupos ocultos se recuerdan en este navegador (comodidad de quien usa la consola, no datos).
   try {
@@ -748,30 +766,53 @@
     if (PM && typeof PM === 'object'){
       if (PM.vista === 'completa' || PM.vista === 'resumen') FM.vista = PM.vista;
       if (PM.ocultos && typeof PM.ocultos === 'object') FM.ocultos = PM.ocultos;
-      FM.largo = !!PM.largo;
+      FM.largo = !!PM.largo; FM.mas = !!PM.mas;
+      if (PM.cerradas && typeof PM.cerradas === 'object') FM.cerradas = PM.cerradas;   // lo plegado a mano se recuerda
     }
   } catch(e){}
-  function guardarPrefMx(){ try { localStorage.setItem('relev-matriz', JSON.stringify({vista: FM.vista, ocultos: FM.ocultos, largo: FM.largo})); } catch(e){} }
+  function guardarPrefMx(){ try { localStorage.setItem('relev-matriz', JSON.stringify({vista: FM.vista, ocultos: FM.ocultos, largo: FM.largo, mas: FM.mas, cerradas: FM.cerradas})); } catch(e){} }
+  function ayuda(t){ return '<button type="button" class="ayuda" data-tip="' + esc(t) + '" aria-label="Ayuda: ' + esc(t) + '">?</button>'; }
+  // Lo menos usado va plegado en «Más filtros»: filas pendientes, vista, texto completo, expandir y grupos de columnas.
+  function panelMas(){
+    return '<div class="row"><label class="chk"><input type="checkbox" id="mFalt"' + (FM.falt ? ' checked' : '') + '> Solo filas con datos obligatorios pendientes</label>' +
+      '<div class="seg" role="group" aria-label="Vista de la matriz">' +
+        '<button type="button" data-vista="completa" aria-pressed="' + (FM.vista === 'completa') + '">Matriz completa</button>' +
+        '<button type="button" data-vista="resumen" aria-pressed="' + (FM.vista !== 'completa') + '">Resumen</button></div>' +
+      '<label class="chk"><input type="checkbox" id="mxLargo"' + (FM.largo ? ' checked' : '') + '> Ver el texto completo de todas las filas</label>' +
+      '<button type="button" class="btn btn-ghost btn-xs" data-todo="abrir">Expandir todo</button><button type="button" class="btn btn-ghost btn-xs" data-todo="cerrar">Contraer todo</button></div>' +
+      '<div class="row mx-barra' + (FM.vista === 'completa' ? '' : ' hidden') + '" id="mGrupos"><span class="muted">Grupos de columnas:</span>' +
+      GRUPOS.map(function(g){ return '<label class="chk"><input type="checkbox" data-grp="' + g[0] + '"' + (FM.ocultos[g[0]] ? '' : ' checked') + '> ' + esc(g[1]) + '</label>'; }).join('') + '</div>';
+  }
+  // Mantiene el panel al día cuando la vista o los grupos cambian desde la tabla.
+  function sincronizarMas(){
+    Array.prototype.forEach.call(document.querySelectorAll('#mMas [data-vista]'), function(b){ b.setAttribute('aria-pressed', String(b.dataset.vista === (FM.vista === 'completa' ? 'completa' : 'resumen'))); });
+    Array.prototype.forEach.call(document.querySelectorAll('#mMas [data-grp]'), function(c){ c.checked = !FM.ocultos[c.dataset.grp]; });
+    if ($('#mGrupos')) $('#mGrupos').classList.toggle('hidden', FM.vista !== 'completa');
+  }
   function pintarMatriz(){
     var gers = {};
     C.procesos.forEach(function(p){ gers[p.gerencia] = 1; });
     if (FM.ger && !gers[FM.ger]) FM.ger = '';
     $('#tMatriz').innerHTML =
-      '<p class="muted" style="margin-top:0">Cada fila es un proceso de la matriz final, con los campos que definió TDP y las aprobaciones externas de las que depende. ' +
-      'Marca el check cuando la gerencia dueña dé su conformidad; el Excel que exportas es el entregable.</p>' +
-      '<div class="filtros">' +
+      '<div class="filtros filtros-mx">' +
         '<div><label for="mTexto">Buscar</label><input type="search" id="mTexto" placeholder="Código, proceso, subproceso…" value="' + esc(FM.texto) + '"></div>' +
         '<div><label for="mGer">Gerencia</label><select id="mGer"><option value="">Todas</option>' +
           Object.keys(gers).sort(function(a, b){ return a.localeCompare(b, 'es'); }).map(function(g){ return '<option' + (g === FM.ger ? ' selected' : '') + '>' + esc(g) + '</option>'; }).join('') + '</select></div>' +
         '<div><label for="mAct">Estado de actualización</label><select id="mAct"><option value="">Todos</option>' +
           ACT_ORDEN.map(function(k){ return '<option value="' + k + '"' + (k === FM.act ? ' selected' : '') + '>' + ACT_TXT[k] + '</option>'; }).join('') + '</select></div>' +
+        '<div><button class="btn btn-ghost" id="mMasBtn" type="button" aria-expanded="' + FM.mas + '" aria-controls="mMas">Más filtros</button></div>' +
         '<div><button class="btn btn-navy" id="mExportar" type="button">Exportar matriz (Excel)</button></div>' +
-      '</div><div id="mResumen" class="cob"></div><div id="mLista"></div>';
+      '</div><div id="mMas" class="mas' + (FM.mas ? '' : ' hidden') + '">' + panelMas() + '</div>' +
+      '<div id="mResumen" class="cob"></div><div id="mLista"></div>';
     var repintar = function(){ pintarMatrizLista(); };
     var timer = null;
     $('#mTexto').addEventListener('input', function(){ FM.texto = this.value; clearTimeout(timer); timer = setTimeout(repintar, 150); });
     $('#mGer').addEventListener('change', function(){ FM.ger = this.value; repintar(); });
     $('#mAct').addEventListener('change', function(){ FM.act = this.value; repintar(); });
+    $('#mMasBtn').addEventListener('click', function(){
+      FM.mas = !FM.mas; guardarPrefMx();
+      this.setAttribute('aria-expanded', String(FM.mas)); $('#mMas').classList.toggle('hidden', !FM.mas);
+    });
     $('#mExportar').addEventListener('click', exportarMatriz);
     pintarMatrizLista();
   }
@@ -784,8 +825,8 @@
     $('#mResumen').innerHTML = total ? '<span class="cob-bar" role="img" aria-label="' + ACT_ORDEN.map(function(k){ return cuenta[k] + ' ' + ACT_TXT[k].toLowerCase(); }).join(', ') + '">' +
       ACT_ORDEN.map(function(k){ return cuenta[k] ? '<span class="act-' + k + '" style="width:' + (100 * cuenta[k] / total) + '%"></span>' : ''; }).join('') + '</span>' +
       '<div class="leyenda">' + ACT_ORDEN.map(function(k){ return '<span><i class="act-' + k + '"></i>' + ACT_TXT[k] + ': <b>' + cuenta[k] + '</b></span>'; }).join('') +
-      '<span>Validado: <b>' + pct(cuenta.validado, vigentes) + '</b> (' + cuenta.validado + ' de ' + vigentes + ' vigentes)</span></div>' +
-      '<p class="definicion">Validado: la gerencia dio su conformidad (check). Actualizado: el equipo editó la fila con lo relevado. Respondido y En levantamiento: avance de la encuesta. Por actualizar: sigue como en el inventario anterior. Por relevar: área nueva sin procesos en el inventario anterior.</p>' : '';
+      '<span>Validado: <b>' + pct(cuenta.validado, vigentes) + '</b> (' + cuenta.validado + ' de ' + vigentes + ' vigentes)</span>' +
+      ayuda('Validado: la gerencia dio su conformidad (check). Actualizado: el equipo editó la fila con lo relevado. Respondido y En levantamiento: avance de la encuesta. Por actualizar: sigue como en el inventario anterior. Por relevar: área nueva sin procesos en el inventario anterior.') + '</div>' : '';
 
     var texto = sinTildes(FM.texto.trim());
     var lista = C.procesos.filter(function(p){
@@ -796,36 +837,19 @@
       return true;
     }).sort(porCodigo);
     var pendientes = lista.filter(function(p){ return p.validacion !== 'validado'; });
-    var h = '<div class="row" style="margin:8px 0 10px"><div class="seg" role="group" aria-label="Vista de la matriz">' +
-        '<button type="button" data-vista="completa" aria-pressed="' + (FM.vista === 'completa') + '">Matriz completa</button>' +
-        '<button type="button" data-vista="resumen" aria-pressed="' + (FM.vista !== 'completa') + '">Resumen</button></div>' +
-      '<span class="muted">' + lista.length + ' de ' + total + ' filas</span>' +
-      '<label class="chk"><input type="checkbox" id="mFalt"' + (FM.falt ? ' checked' : '') + '> Solo filas con datos obligatorios pendientes</label>' +
+    var h = '<div class="row" style="margin:8px 0 10px"><span class="muted">' + lista.length + ' de ' + total + ' filas</span>' +
+      ayuda('Cada fila es un proceso de la matriz final, con los campos que definió TDP y las aprobaciones externas de las que depende. Marca el check cuando la gerencia dueña dé su conformidad; el Excel que exportas es el entregable. ' +
+        'Las filas se agrupan en Gerencia, Sección y Proceso: abre y cierra cada nivel con «+» y «−». Los porcentajes indican qué parte de los procesos tiene el dato (en rosado, los obligatorios). ' +
+        'Falta: dato obligatorio vacío; «—»: vacío o no aplica. Con línea azul: lo completó la IA con lo que contaron en la encuesta (se confirma en la validación). En cursiva: lo que la IA propone y no se escribió. ' +
+        (C.campana.ia_auto ? 'La IA completa esta matriz sola cada 15 minutos con lo nuevo que responden. ' : 'El completado automático con IA está apagado (Carga y configuración). ') +
+        'Clic en una fila para leer su texto completo; el nombre del proceso abre la ficha para editarla.') +
       (pendientes.length ? '<button class="btn btn-ghost btn-xs" id="mValidarTodo" type="button">Validar las ' + pendientes.length + ' filas filtradas</button>' : '') + '</div>';
-    if (FM.vista === 'completa') h += barraMx() + gridMatriz(lista);
-    else {
-      h += '<div class="tblwrap"><table class="mtabla"><thead><tr><th>Validado</th><th>Código</th><th>Gerencia · sección</th><th>Proceso</th><th>Actualización</th><th>Datos obligatorios</th><th>Validación</th><th></th></tr></thead><tbody>';
-      lista.slice(0, 400).forEach(function(p){
-        var st = actualizacion(p), f = faltantes(p), ok = p.validacion === 'validado';
-        var ruta = [p.macroproceso, p.proceso !== nombreProc(p) ? p.proceso : ''].filter(Boolean).join(' › ');
-        h += '<tr' + (ok ? ' class="fila-ok"' : '') + '><td><input type="checkbox" data-v="' + esc(p.id) + '"' + (ok ? ' checked' : '') + ' aria-label="Validado: ' + esc(nombreProc(p)) + '"></td>' +
-          '<td>' + esc(p.codigo || '') + '</td><td>' + esc(p.gerencia) + '<div class="muted">' + esc(p.seccion) + '</div></td>' +
-          '<td>' + (ruta ? '<div class="muted">' + esc(ruta) + '</div>' : '') + '<b>' + esc(nombreProc(p)) + '</b></td>' +
-          '<td><span class="chip ' + ACT_CHIP[st] + '">' + ACT_TXT[st] + '</span></td>' +
-          '<td>' + (f.length ? '<span title="Faltan: ' + esc(f.map(function(x){ return x[1]; }).join(', ')) + '">' + (obligatoriosDe(p).length - f.length) + ' de ' + obligatoriosDe(p).length + '</span>' : '<span class="chip c-ok">Completos</span>') + '</td>' +
-          '<td>' + (ok ? esc(p.validado_por || '—') + '<div class="muted">' + esc(fecha(p.validado_en)) + '</div>' : '') + '</td>' +
-          '<td><button class="btn btn-ghost btn-xs" type="button" data-m="' + esc(p.id) + '">Abrir fila</button></td></tr>';
-      });
-      if (lista.length > 400) h += '<tr><td colspan="8" class="muted">Se muestran 400 de ' + lista.length + ': usa los filtros para ver el resto.</td></tr>';
-      if (!lista.length) h += '<tr><td colspan="8" class="muted">Ninguna fila coincide con el filtro.</td></tr>';
-      h += '</tbody></table></div>';
-    }
+    h += FM.vista === 'completa' ? gridMatriz(lista) : tablaResumen(lista);
     // Al repintar (validar una fila, ocultar un grupo) la matriz completa conserva la posición del desplazamiento.
     var sc = $('#mLista .mx-scroll'), pos = sc ? [sc.scrollLeft, sc.scrollTop] : null;
     $('#mLista').innerHTML = h;
     sc = $('#mLista .mx-scroll');
     if (sc){ fijarEncabezado(); if (pos){ sc.scrollLeft = pos[0]; sc.scrollTop = pos[1]; } }
-    $('#mFalt').addEventListener('change', function(){ FM.falt = this.checked; pintarMatrizLista(); });
     if ($('#mValidarTodo')) $('#mValidarTodo').addEventListener('click', function(){
       if (!confirm('Se marcarán como validadas ' + pendientes.length + ' filas (las que ves con este filtro). Hazlo solo si la gerencia dio su conformidad a todas. ¿Continuar?')) return;
       var por = pedirValidador(); if (por === null) return;
@@ -844,7 +868,7 @@
   function lleno(v){ return String(v == null ? '' : v).trim() !== ''; }
   function barraLleno(n, total, contrato, texto){
     var pc = total ? Math.round(100 * n / total) : 0;
-    return '<div class="mx-llen' + (contrato ? ' contrato' : '') + '"><span><i style="width:' + pc + '%"></i></span>' + (texto || pc + '%') + '</div>';
+    return '<div class="mx-llen' + (contrato ? ' contrato' : '') + '">' + (texto || pc + '%') + '</div>';
   }
   // Texto de una celda: recortado a unas tres líneas según el ancho de la columna, salvo que se pida completo.
   function recorteMx(k, t, completo){
@@ -859,19 +883,6 @@
     return (falta ? '<span class="mx-falta">Falta</span>' : '<span class="mx-nada">—</span>') +
       (s && s.valor ? '<div class="mx-t mx-ia">IA: ' + esc(recorteMx(k, String(s.valor), completo)) + '</div>' : '');
   }
-  function barraMx(){
-    return '<div class="row mx-barra"><span class="muted">Grupos de columnas:</span>' +
-      GRUPOS.map(function(g){ return '<label class="chk"><input type="checkbox" data-grp="' + g[0] + '"' + (FM.ocultos[g[0]] ? '' : ' checked') + '> ' + esc(g[1]) + '</label>'; }).join('') + '</div>' +
-      '<div class="row mx-barra"><span class="muted">Secciones:</span><button type="button" class="btn btn-ghost btn-xs" data-secs="abrir">Expandir todas</button>' +
-      '<button type="button" class="btn btn-ghost btn-xs" data-secs="cerrar">Contraer todas</button>' +
-      '<label class="chk"><input type="checkbox" id="mxLargo"' + (FM.largo ? ' checked' : '') + '> Ver el texto completo de todas las filas</label></div>' +
-      '<p class="definicion" style="margin:0 0 8px">Las barras indican qué parte de los procesos tiene el dato: arriba, de todas las filas filtradas; en cada sección, de sus procesos (en rosado, los datos obligatorios). ' +
-      'Abre una sección con «+» para ver sus procesos. ' +
-      '<span class="mx-falta">Falta</span>: dato obligatorio vacío; «—»: vacío o no aplica. <span class="mx-de-ia">Con línea azul</span>: lo completó la IA con lo que contaron en la encuesta (se confirma en la validación). ' +
-      '<i>En cursiva</i>: lo que la IA propone y no se escribió, porque lo dedujo o porque ya había un dato (ábrela para usarlo). ' +
-      (C.campana.ia_auto ? 'La IA completa esta matriz sola cada 15 minutos con lo nuevo que responden por voz, texto o imagen. ' : 'El completado automático con IA está apagado (Carga y configuración). ') +
-      'Haz clic en una fila para leer su texto completo; el nombre del proceso abre la ficha para editarla.</p>';
-  }
   function gruposMx(){
     return GRUPOS.map(function(g){ return {id: g[0], nombre: g[1], cols: MATRIZ.filter(function(c){ return c[2] === g[0]; }), oculto: !!FM.ocultos[g[0]]}; });
   }
@@ -880,10 +891,10 @@
     MATRIZ.forEach(function(c){ v[c[0]] = valorMatriz(p, c[0]); });
     return {p: p, v: v, sug: sugerencias(p.id), falta: faltantes(p), oblig: obligatoriosDe(p).length};
   }
-  function filaMx(f, grupos, si, cerrada){
+  function filaMx(f, grupos, ids, cerrada){
     var p = f.p, st = actualizacion(p), ok = p.validacion === 'validado', abierta = !!FM.abiertas[p.id], faltaK = {}, iaK = p.matriz_ia || {};
     f.falta.forEach(function(o){ faltaK[o[0]] = 1; });
-    var h = '<tr class="mx-fila' + (ok ? ' fila-ok' : '') + (abierta ? ' mx-abierta' : '') + (cerrada ? ' hidden' : '') + '" data-s="' + si + '" data-p="' + esc(p.id) + '">' +
+    var h = '<tr class="mx-fila' + (ok ? ' fila-ok' : '') + (abierta ? ' mx-abierta' : '') + (cerrada ? ' hidden' : '') + '" data-niv="f" data-kg="' + ids.g + '" data-ks="' + ids.s + '" data-kp="' + ids.p + '" data-pid="' + esc(p.id) + '">' +
       '<td class="fijo0"><input type="checkbox" data-v="' + esc(p.id) + '"' + (ok ? ' checked' : '') + ' aria-label="Validado: ' + esc(nombreProc(p)) + '"></td>' +
       '<td class="fijo1"><div class="mx-proc"><span class="mx-cod">' + esc(p.codigo || '') + '</span><button type="button" class="mx-abrir" data-m="' + esc(p.id) + '">' + esc(nombreProc(p)) + '</button></div></td>' +
       '<td class="g-ini"><span class="chip ' + ACT_CHIP[st] + '">' + ACT_TXT[st] + '</span></td>' +
@@ -899,6 +910,93 @@
     });
     return h + '</tr>';
   }
+  // ---- Jerarquía de la matriz: Gerencia → Sección → Proceso → filas (subprocesos). Cada nivel se pliega y lo plegado se recuerda.
+  function porJerarquia(a, b){
+    return a.gerencia.localeCompare(b.gerencia, 'es') || a.seccion.localeCompare(b.seccion, 'es') ||
+      String(a.macroproceso || '').localeCompare(String(b.macroproceso || ''), 'es') || String(a.proceso || '').localeCompare(String(b.proceso || ''), 'es') || porCodigo(a, b);
+  }
+  var MXK = {g: [], s: [], p: [], defS: false};   // claves de cada nivel (en el orden en que aparecen) y si las secciones arrancan cerradas
+  function nuevoAcum(completo){ var a = {n: 0, val: 0, comp: 0, llenas: {}}; if (completo) MATRIZ.forEach(function(c){ a.llenas[c[0]] = 0; }); return a; }
+  function arbolMatriz(lista, completo){
+    var filas = lista.slice().sort(porJerarquia).slice(0, 400).map(function(p){
+      return completo ? datosFilaMx(p) : {p: p, falta: faltantes(p), oblig: obligatoriosDe(p).length};
+    });
+    // Con muchas filas, las secciones empiezan cerradas (así la tabla carga rápido y se lee como resumen por área); con pocas, abiertas.
+    MXK = {g: [], s: [], p: [], defS: filas.length > 60};
+    var nodos = [], tot = nuevoAcum(completo), G = null, S = null, P = null, kg = null, ks = null, kp = null;
+    filas.forEach(function(f){
+      var p = f.p, s2 = p.gerencia + '|' + p.seccion;
+      if (p.gerencia !== kg){
+        kg = p.gerencia; ks = null; kp = null; P = null; S = null;
+        MXK.g.push('g:' + kg);
+        G = {tipo: 'ger', g: MXK.g.length - 1, s: -1, p: -1, nombre: p.gerencia, a: nuevoAcum(completo)};
+        nodos.push(G);
+      }
+      if (s2 !== ks){
+        ks = s2; kp = null; P = null;
+        MXK.s.push('s:' + s2);
+        S = {tipo: 'sec', g: G.g, s: MXK.s.length - 1, p: -1, nombre: p.seccion, a: nuevoAcum(completo)};
+        nodos.push(S);
+      }
+      var ruta = [p.macroproceso, p.proceso !== nombreProc(p) ? p.proceso : ''].filter(Boolean).join(' › ');
+      var k3 = ruta ? s2 + '|' + p.macroproceso + '|' + p.proceso : '';
+      if (k3 !== kp){
+        kp = k3; P = null;
+        if (k3){
+          MXK.p.push('p:' + k3);
+          P = {tipo: 'pro', g: G.g, s: S.s, p: MXK.p.length - 1, nombre: ruta, a: {n: 0}};
+          nodos.push(P);
+        }
+      }
+      [tot, G.a, S.a].forEach(function(a){
+        a.n++;
+        if (p.validacion === 'validado') a.val++;
+        if (!f.falta.length) a.comp++;
+        if (completo) MATRIZ.forEach(function(c){ if (lleno(f.v[c[0]])) a.llenas[c[0]]++; });
+      });
+      if (P) P.a.n++;
+      nodos.push({tipo: 'fila', f: f, g: G.g, s: S.s, p: P ? P.p : -1});
+    });
+    return {nodos: nodos, tot: tot};
+  }
+  function cerradaMx(t, i){ var k = MXK[t][i]; return k in FM.cerradas ? !!FM.cerradas[k] : (t === 's' && MXK.defS); }
+  // Una fila se oculta si alguno de los niveles que la contienen está cerrado.
+  function ocultaMx(niv, g, s, p){
+    if (niv !== 'g' && cerradaMx('g', g)) return true;
+    if ((niv === 'p' || niv === 'f') && s >= 0 && cerradaMx('s', s)) return true;
+    if (niv === 'f' && p >= 0 && cerradaMx('p', p)) return true;
+    return false;
+  }
+  function btnPlegar(t, i, nombre){
+    var cerrada = cerradaMx(t, i);
+    return '<button type="button" class="mx-plegar" data-plegar="' + t + '" data-i="' + i + '" aria-expanded="' + !cerrada + '">' +
+      '<span class="mx-signo">' + (cerrada ? '+' : '−') + '</span><span>' + esc(nombre) + '</span></button>';
+  }
+  function attrsNivel(niv, n){ return ' data-niv="' + niv + '" data-kg="' + n.g + '" data-ks="' + n.s + '" data-kp="' + n.p + '"'; }
+  function filaGrupoMx(n, grupos){
+    var a = n.a, esG = n.tipo === 'ger', t = esG ? 'g' : 's';
+    var h = '<tr class="' + (esG ? 'mx-ger' : 'mx-sec') + (ocultaMx(t, n.g, n.s, -1) ? ' hidden' : '') + '"' + attrsNivel(t, n) + '>' +
+      '<td class="fijo01" colspan="2">' + btnPlegar(t, esG ? n.g : n.s, n.nombre) + '</td>' +
+      '<td class="g-ini">' + a.n + (a.n === 1 ? ' proceso' : ' procesos') + '</td>' +
+      '<td title="' + a.comp + ' de ' + a.n + ' con todos sus datos obligatorios">' + barraLleno(a.comp, a.n, true) + '</td>' +
+      '<td title="' + a.val + ' de ' + a.n + ' validados">' + barraLleno(a.val, a.n) + '</td>';
+    grupos.forEach(function(g){
+      if (g.oculto){
+        var k = 0;
+        g.cols.forEach(function(c){ k += a.llenas[c[0]]; });
+        h += '<td class="g-ini">' + barraLleno(k, a.n * g.cols.length) + '</td>';
+        return;
+      }
+      g.cols.forEach(function(c, i){
+        h += '<td' + (i ? '' : ' class="g-ini"') + ' title="' + a.llenas[c[0]] + ' de ' + a.n + '">' + barraLleno(a.llenas[c[0]], a.n, ES_OBLIG[c[0]]) + '</td>';
+      });
+    });
+    return h + '</tr>';
+  }
+  function filaProMx(n, ncols){
+    return '<tr class="mx-pro' + (ocultaMx('p', n.g, n.s, n.p) ? ' hidden' : '') + '"' + attrsNivel('p', n) + '><td colspan="' + ncols + '"><div class="mx-pin">' +
+      btnPlegar('p', n.p, n.nombre) + '<span class="muted">' + n.a.n + (n.a.n === 1 ? ' fila' : ' filas') + '</span></div></td></tr>';
+  }
   function gridMatriz(lista){
     var grupos = gruposMx();
     var ncols = 5, anchos = [72, 300, ANCHO_MX.m, ANCHO_MX.s, ANCHO_MX.m];
@@ -906,25 +1004,12 @@
       ncols += g.oculto ? 1 : g.cols.length;
       if (g.oculto) anchos.push(ANCHO_MX.grupo); else g.cols.forEach(function(c){ anchos.push(anchoMx(c[0])); });
     });
-    var filas = lista.slice(0, 400).map(datosFilaMx);
-    var total = filas.length, llenas = {}, secs = {}, comp = 0, val = 0;
-    MATRIZ.forEach(function(c){ llenas[c[0]] = 0; });
-    filas.forEach(function(f){
-      var k = f.p.gerencia + '|' + f.p.seccion, s = secs[k];
-      if (!s){ s = secs[k] = {n: 0, val: 0, comp: 0, llenas: {}}; MATRIZ.forEach(function(c){ s.llenas[c[0]] = 0; }); }
-      s.n++;
-      if (f.p.validacion === 'validado'){ s.val++; val++; }
-      if (!f.falta.length){ s.comp++; comp++; }
-      MATRIZ.forEach(function(c){ if (lleno(f.v[c[0]])){ s.llenas[c[0]]++; llenas[c[0]]++; } });
-    });
-    // Con muchas filas, las secciones empiezan cerradas (así la tabla carga rápido y se lee como resumen por área);
-    // con pocas (un filtro), abiertas. Lo que se abre o cierra a mano se respeta.
-    var cerradaPorDefecto = total > 60;
+    var arb = arbolMatriz(lista, true), tot = arb.tot, total = tot.n, llenas = tot.llenas, comp = tot.comp, val = tot.val;
 
     // Anchos fijos: el navegador no mide el texto de miles de celdas para decidir el ancho de cada columna.
     var h = '<div class="mx-scroll"><table class="mx" style="width:' + anchos.reduce(function(a, w){ return a + w; }, 0) + 'px" aria-label="Matriz de procesos con todas las columnas"><colgroup>' +
       anchos.map(function(w){ return '<col style="width:' + w + 'px">'; }).join('');
-    // Encabezado en tres filas: grupo, columna y cuánto está lleno cada columna.
+    // Encabezado en tres filas: grupo, columna y qué porcentaje de las filas tiene el dato.
     h += '</colgroup><thead><tr class="banda"><th class="fijo01" colspan="2">Proceso</th><th class="g-ini" colspan="3">Estado y validación</th>';
     grupos.forEach(function(g){
       h += '<th class="g-ini" colspan="' + (g.oculto ? 1 : g.cols.length) + '"><span class="mx-gnom">' + esc(g.nombre) + ' <button type="button" class="btn-link" data-grp="' + g.id + '" aria-expanded="' + !g.oculto + '">' +
@@ -952,41 +1037,40 @@
       });
     });
     h += '</tr></thead><tbody>';
-
-    var secAnt = null, macAnt = null, si = -1, cerrada = false;
-    filas.forEach(function(f){
-      var p = f.p, ks = p.gerencia + '|' + p.seccion;
-      if (ks !== secAnt){
-        var s = secs[ks];
-        secAnt = ks; macAnt = null; si++; cerrada = ks in FM.cerradas ? FM.cerradas[ks] : cerradaPorDefecto;
-        h += '<tr class="mx-sec"><td class="fijo01" colspan="2"><button type="button" class="mx-plegar" data-sec="' + si + '" data-sk="' + esc(ks) + '" aria-expanded="' + !cerrada + '">' +
-          '<span class="mx-signo">' + (cerrada ? '+' : '−') + '</span><span>' + esc(p.gerencia) + ' · ' + esc(p.seccion) + '</span></button></td>' +
-          '<td class="g-ini">' + s.n + (s.n === 1 ? ' proceso' : ' procesos') + '</td>' +
-          '<td title="' + s.comp + ' de ' + s.n + ' con todos sus datos obligatorios">' + barraLleno(s.comp, s.n, true) + '</td>' +
-          '<td title="' + s.val + ' de ' + s.n + ' validados">' + barraLleno(s.val, s.n) + '</td>';
-        grupos.forEach(function(g){
-          if (g.oculto){
-            var n = 0;
-            g.cols.forEach(function(c){ n += s.llenas[c[0]]; });
-            h += '<td class="g-ini">' + barraLleno(n, s.n * g.cols.length) + '</td>';
-            return;
-          }
-          g.cols.forEach(function(c, i){
-            h += '<td' + (i ? '' : ' class="g-ini"') + ' title="' + s.llenas[c[0]] + ' de ' + s.n + '">' + barraLleno(s.llenas[c[0]], s.n, ES_OBLIG[c[0]]) + '</td>';
-          });
-        });
-        h += '</tr>';
-      }
-      var km = p.macroproceso + '|' + p.proceso;
-      if (km !== macAnt){
-        macAnt = km;
-        var ruta = [p.macroproceso, p.proceso !== nombreProc(p) ? p.proceso : ''].filter(Boolean).join(' › ');
-        if (ruta) h += '<tr class="mx-mac' + (cerrada ? ' hidden' : '') + '" data-s="' + si + '"><td colspan="' + ncols + '"><div class="mx-pin">' + esc(ruta) + '</div></td></tr>';
-      }
-      h += filaMx(f, grupos, si, cerrada);
+    arb.nodos.forEach(function(n){
+      if (n.tipo === 'fila') h += filaMx(n.f, grupos, n, ocultaMx('f', n.g, n.s, n.p));
+      else if (n.tipo === 'pro') h += filaProMx(n, ncols);
+      else h += filaGrupoMx(n, grupos);
     });
     if (lista.length > 400) h += '<tr><td colspan="' + ncols + '" class="muted">Se muestran 400 de ' + lista.length + ': usa los filtros para ver el resto.</td></tr>';
     if (!lista.length) h += '<tr><td colspan="' + ncols + '" class="muted">Ninguna fila coincide con el filtro.</td></tr>';
+    return h + '</tbody></table></div>';
+  }
+  // Vista «Resumen»: una fila por proceso, con la misma jerarquía plegable.
+  function tablaResumen(lista){
+    var arb = arbolMatriz(lista, false);
+    var h = '<div class="tblwrap"><table class="mtabla"><thead><tr><th>Validado</th><th>Código</th><th>Gerencia · sección</th><th>Proceso</th><th>Actualización</th><th>Datos obligatorios</th><th>Validación</th><th></th></tr></thead><tbody>';
+    arb.nodos.forEach(function(n){
+      if (n.tipo !== 'fila'){
+        var t = n.tipo === 'ger' ? 'g' : n.tipo === 'sec' ? 's' : 'p', i = t === 'g' ? n.g : t === 's' ? n.s : n.p;
+        var det = n.tipo === 'pro' ? n.a.n + (n.a.n === 1 ? ' fila' : ' filas') :
+          n.a.n + (n.a.n === 1 ? ' proceso' : ' procesos') + ' · obligatorios completos ' + pct(n.a.comp, n.a.n) + ' · validados ' + pct(n.a.val, n.a.n);
+        h += '<tr class="mx-' + (t === 'g' ? 'ger' : t === 's' ? 'sec' : 'pro') + (ocultaMx(t, n.g, n.s, n.p) ? ' hidden' : '') + '"' + attrsNivel(t, n) + '><td colspan="8">' +
+          btnPlegar(t, i, n.nombre) + ' <span class="muted">' + det + '</span></td></tr>';
+        return;
+      }
+      var f = n.f, p = f.p, st = actualizacion(p), ok = p.validacion === 'validado';
+      var ruta = [p.macroproceso, p.proceso !== nombreProc(p) ? p.proceso : ''].filter(Boolean).join(' › ');
+      h += '<tr class="mx-fila' + (ok ? ' fila-ok' : '') + (ocultaMx('f', n.g, n.s, n.p) ? ' hidden' : '') + '"' + attrsNivel('f', n) + '><td><input type="checkbox" data-v="' + esc(p.id) + '"' + (ok ? ' checked' : '') + ' aria-label="Validado: ' + esc(nombreProc(p)) + '"></td>' +
+        '<td>' + esc(p.codigo || '') + '</td><td>' + esc(p.gerencia) + '<div class="muted">' + esc(p.seccion) + '</div></td>' +
+        '<td>' + (ruta ? '<div class="muted">' + esc(ruta) + '</div>' : '') + '<b>' + esc(nombreProc(p)) + '</b></td>' +
+        '<td><span class="chip ' + ACT_CHIP[st] + '">' + ACT_TXT[st] + '</span></td>' +
+        '<td>' + (f.falta.length ? '<span title="Faltan: ' + esc(f.falta.map(function(x){ return x[1]; }).join(', ')) + '">' + (f.oblig - f.falta.length) + ' de ' + f.oblig + '</span>' : '<span class="chip c-ok">Completos</span>') + '</td>' +
+        '<td>' + (ok ? esc(p.validado_por || '—') + '<div class="muted">' + esc(fecha(p.validado_en)) + '</div>' : '') + '</td>' +
+        '<td><button class="btn btn-ghost btn-xs" type="button" data-m="' + esc(p.id) + '">Abrir fila</button></td></tr>';
+    });
+    if (lista.length > 400) h += '<tr><td colspan="8" class="muted">Se muestran 400 de ' + lista.length + ': usa los filtros para ver el resto.</td></tr>';
+    if (!lista.length) h += '<tr><td colspan="8" class="muted">Ninguna fila coincide con el filtro.</td></tr>';
     return h + '</tbody></table></div>';
   }
   // Las tres filas del encabezado quedan fijas una debajo de otra (su alto depende del texto, por eso se mide).
@@ -1008,32 +1092,46 @@
     document.querySelector('main').classList.toggle('ancha', on);
     if (on) fijarEncabezado();
   }
-  function plegarSeccion(b, cerrar){
-    b.setAttribute('aria-expanded', String(!cerrar));
-    b.querySelector('.mx-signo').textContent = cerrar ? '+' : '−';
-    FM.cerradas[b.dataset.sk] = cerrar;
-    Array.prototype.forEach.call(document.querySelectorAll('#mLista tr[data-s="' + b.dataset.sec + '"]'), function(tr){ tr.classList.toggle('hidden', cerrar); });
+  // Aplica el estado de plegado a todas las filas y actualiza los signos «+» / «−» de los encabezados de nivel.
+  function aplicarPlegado(){
+    Array.prototype.forEach.call(document.querySelectorAll('#mLista tr[data-niv]'), function(tr){
+      var niv = tr.dataset.niv, g = +tr.dataset.kg, s = +tr.dataset.ks, p = +tr.dataset.kp;
+      tr.classList.toggle('hidden', ocultaMx(niv, g, s, p));
+      if (niv === 'f') return;
+      var cerrada = cerradaMx(niv, niv === 'g' ? g : niv === 's' ? s : p), b = tr.querySelector('[data-plegar]');
+      if (b){ b.setAttribute('aria-expanded', String(!cerrada)); b.querySelector('.mx-signo').textContent = cerrada ? '+' : '−'; }
+    });
+  }
+  function alternarPlegado(t, i){
+    var k = MXK[t][i];
+    FM.cerradas[k] = !cerradaMx(t, i);
+    guardarPrefMx(); aplicarPlegado();
+  }
+  function plegarTodo(cerrar){
+    ['g', 's', 'p'].forEach(function(t){ MXK[t].forEach(function(k){ FM.cerradas[k] = cerrar; }); });
+    guardarPrefMx(); aplicarPlegado();
   }
   $('#tMatriz').addEventListener('click', function(e){
     var b = e.target.closest('button[data-vista]');
-    if (b){ FM.vista = b.dataset.vista; guardarPrefMx(); ajustarAncho(); pintarMatrizLista(); return; }
+    if (b){ FM.vista = b.dataset.vista; guardarPrefMx(); sincronizarMas(); ajustarAncho(); pintarMatrizLista(); return; }
     b = e.target.closest('button[data-grp]');
-    if (b){ FM.ocultos[b.dataset.grp] = !FM.ocultos[b.dataset.grp]; guardarPrefMx(); pintarMatrizLista(); return; }
-    b = e.target.closest('[data-sec]');
-    if (b){ plegarSeccion(b, b.getAttribute('aria-expanded') === 'true'); return; }
-    b = e.target.closest('[data-secs]');
-    if (b){ Array.prototype.forEach.call(document.querySelectorAll('#mLista [data-sec]'), function(x){ plegarSeccion(x, b.dataset.secs === 'cerrar'); }); return; }
+    if (b){ FM.ocultos[b.dataset.grp] = !FM.ocultos[b.dataset.grp]; guardarPrefMx(); sincronizarMas(); pintarMatrizLista(); return; }
+    b = e.target.closest('[data-plegar]');
+    if (b){ alternarPlegado(b.dataset.plegar, +b.dataset.i); return; }
+    b = e.target.closest('[data-todo]');
+    if (b){ plegarTodo(b.dataset.todo === 'cerrar'); return; }
     // Clic en una fila: muestra u oculta su texto completo (no si se está seleccionando texto para copiarlo).
     var fila = e.target.closest('tr.mx-fila');
     if (!fila || e.target.closest('input, button, a, label') || String(window.getSelection ? window.getSelection() : '')) return;
-    var p = C.procesos.filter(function(x){ return x.id === fila.dataset.p; })[0];
+    var p = C.procesos.filter(function(x){ return x.id === fila.dataset.pid; })[0];
     if (!p) return;
     if (FM.abiertas[p.id]) delete FM.abiertas[p.id]; else FM.abiertas[p.id] = 1;
-    fila.outerHTML = filaMx(datosFilaMx(p), gruposMx(), fila.dataset.s, false);
+    fila.outerHTML = filaMx(datosFilaMx(p), gruposMx(), {g: fila.dataset.kg, s: fila.dataset.ks, p: fila.dataset.kp}, false);
   });
   $('#tMatriz').addEventListener('change', function(e){
     if (e.target.dataset.grp){ FM.ocultos[e.target.dataset.grp] = !e.target.checked; guardarPrefMx(); pintarMatrizLista(); }
     else if (e.target.id === 'mxLargo'){ FM.largo = e.target.checked; guardarPrefMx(); pintarMatrizLista(); }
+    else if (e.target.id === 'mFalt'){ FM.falt = e.target.checked; pintarMatrizLista(); }
   });
 
   $('#tMatriz').addEventListener('change', function(e){
