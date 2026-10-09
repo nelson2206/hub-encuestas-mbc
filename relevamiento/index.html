@@ -77,6 +77,9 @@
   .pill input:checked + span{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:700}
   .pill .det{display:inline-block;margin-left:7px;font-size:10.5px;font-weight:700;opacity:.85;border:1px solid currentColor;border-radius:999px;padding:0 6px;vertical-align:middle}
   .pill input:focus-visible + span{outline:3px solid var(--accent);outline-offset:2px}
+  .guia{margin:0;padding-left:20px;font-size:15px;color:var(--muted)}
+  .guia li{margin:3px 0}
+  .guia strong{color:var(--heading)}
   .sub-t{font-family:Montserrat,sans-serif;font-weight:700;font-size:14px;color:var(--heading);margin:22px 0 2px}
   .proc-rev{border-top:1px solid var(--line);padding:14px 0}
   .proc-rev:first-child{border-top:none}
@@ -625,7 +628,7 @@
       '<div style="margin-top:14px"><button class="btn-link" type="button" id="btnAgregar">¿No encuentras tu proceso? Agrégalo como nuevo</button></div>' +
       '<div id="formNuevo" class="hidden" style="margin-top:12px;background:var(--panel);border-radius:12px;padding:14px 16px">' +
         '<label for="nvProceso">Nombre del proceso *</label><input type="text" id="nvProceso" maxlength="200" placeholder="Ej. Seguimiento de embarques">' +
-        '<label for="nvMacro">¿Dentro de qué proceso mayor está? (opcional)</label><input type="text" id="nvMacro" maxlength="200">' +
+        '<label for="nvArea">¿A qué sección o área pertenece el proceso? *</label><select id="nvArea"></select>' +
         '<label for="nvDesc">En una frase, ¿de qué se trata? (opcional)</label><input type="text" id="nvDesc" maxlength="300">' +
         '<div class="fila" style="margin-top:12px"><button class="btn btn-sm" type="button" id="btnGuardarNuevo">Agregar</button>' +
         '<button class="btn-link" type="button" id="btnCancelarNuevo">Cancelar</button><span class="estado" id="estNuevo"></span></div>' +
@@ -641,13 +644,29 @@
       agregar: function(q){ abrirNuevo(q); }, textoAgregar: 'Agregarlo como proceso nuevo'
     });
     $('#busP').appendChild(bus.el);
+    var selArea = $('#nvArea'), mia = S.encuestado.gerencia + '|' + S.encuestado.seccion, hayMia = false;
+    selArea.innerHTML = (S.areas || []).map(function(a){
+      return '<optgroup label="' + esc(a.gerencia) + '">' + a.secciones.map(function(sec){
+        var v = a.gerencia + '|' + sec, sel = v === mia;
+        hayMia = hayMia || sel;
+        return '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(sec) + '</option>';
+      }).join('') + '</optgroup>';
+    }).join('');
+    // Si la sección de la persona no figura en el inventario, se ofrece igualmente como primera opción.
+    if (!hayMia) selArea.insertAdjacentHTML('afterbegin', '<option value="' + esc(mia) + '" selected>' + esc(S.encuestado.seccion) + '</option>');
 
     // Paso 2: respuestas
     var p2 = document.createElement('section');
     p2.innerHTML = '<div class="card" style="margin-bottom:14px"><div class="paso"><span class="n">3</span><div><h2>Cuéntanos cómo funciona cada proceso</h2>' +
-      '<p class="lead" style="margin:0">Abre cada proceso y responde sus 3 bloques. Cada bloque trae la lista de lo que necesitamos saber: pulsa <strong>Grabar</strong> y cuéntalo como si se lo explicaras a un colega nuevo, o escríbelo. También puedes <strong>subir una imagen</strong> (un flujo, un formato, una pantalla): la IA escribe lo que ve. El texto aparece solo y lo puedes corregir; la imagen no se guarda. ' +
-      'Al terminar revisamos tu respuesta y marcamos lo que ya cubriste. Lo que no exista en tu proceso (por ejemplo, si no hay indicadores) márcalo como «No aplica». ' +
-      'Un proceso queda <strong>completo</strong> cuando todos sus puntos están marcados.</p></div></div></div>' +
+      '<p class="lead" style="margin:0 0 6px">Abre cada proceso y responde sus 3 bloques:</p>' +
+      '<ul class="guia">' +
+        '<li>Cada bloque trae la lista de lo que necesitamos saber.</li>' +
+        '<li>Pulsa <strong>Grabar</strong> y cuéntalo como si se lo explicaras a un colega nuevo, o escríbelo.</li>' +
+        '<li>También puedes <strong>subir una imagen</strong> (un flujo, un formato, una pantalla): la IA escribe lo que ve y la imagen no se guarda.</li>' +
+        '<li>El texto aparece solo y lo puedes corregir. Al terminar revisamos tu respuesta y marcamos lo que ya cubriste.</li>' +
+        '<li>Lo que no exista en tu proceso (por ejemplo, si no hay indicadores) márcalo como «No aplica».</li>' +
+        '<li>Un proceso queda <strong>completo</strong> cuando todos sus puntos están marcados.</li>' +
+      '</ul></div></div></div>' +
       '<div id="listaProc" style="display:flex;flex-direction:column;gap:12px"></div>';
     root.appendChild(p2);
 
@@ -810,10 +829,11 @@
     var est = $('#estNuevo');
     if (!nombre){ est.className = 'estado warn'; est.textContent = 'Escribe el nombre del proceso.'; return; }
     est.className = 'estado'; est.textContent = 'Guardando…';
-    api('/r/proceso', {proceso: nombre, macroproceso: $('#nvMacro').value, descripcion: $('#nvDesc').value}).then(function(j){
+    var area = ($('#nvArea').value || '').split('|');
+    api('/r/proceso', {proceso: nombre, gerencia: area[0] || undefined, seccion: area.slice(1).join('|') || undefined, descripcion: $('#nvDesc').value}).then(function(j){
       S.procesos.push(j.proceso);
       S.revisiones[j.proceso.id] = {estado:'vigente', comentario:''};
-      $('#nvProceso').value = ''; $('#nvMacro').value = ''; $('#nvDesc').value = '';
+      $('#nvProceso').value = ''; $('#nvDesc').value = '';
       $('#formNuevo').classList.add('hidden');
       est.textContent = '';
       pintarPaso1();

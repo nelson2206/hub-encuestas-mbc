@@ -350,7 +350,8 @@ async function rutaSesion(env, url) {
     procesos, revisiones, respuestas,
     sistemas: sis.results,
     bloques: BLOQUES,
-    fuera_alcance: (await env.DB.prepare('SELECT COUNT(*) AS n FROM procesos WHERE campana_id=? AND fuera_alcance=1').bind(e.campana_id).first()).n
+    fuera_alcance: (await env.DB.prepare('SELECT COUNT(*) AS n FROM procesos WHERE campana_id=? AND fuera_alcance=1').bind(e.campana_id).first()).n,
+    areas: await areasDeCampana(env, e.campana_id)
   };
 }
 
@@ -369,14 +370,22 @@ async function rutaProcesoNuevo(env, b) {
   const e = await encuestadoPorToken(env, b.k);
   const nombre = txt(b.proceso, 200);
   if (!nombre) throw new HttpError(400, 'Indica el nombre del proceso');
+  // Sección o área a la que pertenece el proceso: debe ser una del inventario; si no llega, la de la persona.
+  let gerencia = e.gerencia, seccion = e.seccion;
+  if (b.seccion) {
+    const hallada = (await areasDeCampana(env, e.campana_id)).flatMap(a => a.secciones.map(s => ({ gerencia: a.gerencia, seccion: s })))
+      .find(x => mismaArea(x.seccion, b.seccion) && (!b.gerencia || mismaArea(x.gerencia, b.gerencia)));
+    if (!hallada) throw new HttpError(400, 'Elige una sección de la lista');
+    gerencia = hallada.gerencia; seccion = hallada.seccion;
+  }
   const id = uid();
   await env.DB.prepare(`INSERT INTO procesos (id, campana_id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente, creado_por, orden)
     VALUES (?,?,?,?,?,?,?,?,?,'nuevo',?,9999)`)
-    .bind(id, e.campana_id, '', e.gerencia, e.seccion, txt(b.macroproceso, 200), nombre, txt(b.subproceso, 200), txt(b.descripcion, 1500), e.id).run();
+    .bind(id, e.campana_id, '', gerencia, seccion, txt(b.macroproceso, 200), nombre, txt(b.subproceso, 200), txt(b.descripcion, 1500), e.id).run();
   await env.DB.prepare(`INSERT INTO revisiones (encuestado_id, proceso_id, estado, comentario, actualizado) VALUES (?,?,'vigente','',?)`)
     .bind(e.id, id, ahora()).run();
   await marcarEnCurso(env, e);
-  return { ok: true, proceso: { id, codigo: '', gerencia: e.gerencia, seccion: e.seccion, macroproceso: txt(b.macroproceso, 200), proceso: nombre,
+  return { ok: true, proceso: { id, codigo: '', gerencia, seccion, macroproceso: txt(b.macroproceso, 200), proceso: nombre,
     subproceso: txt(b.subproceso, 200), descripcion: txt(b.descripcion, 1500), nuevo: true, enSeccion: false, propio: true, elegido: false } };
 }
 
