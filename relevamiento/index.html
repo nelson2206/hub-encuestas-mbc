@@ -604,7 +604,8 @@
       'Habla de cargos y áreas, no de personas, y no menciones datos reales de clientes o trabajadores.</p>' +
       (S.fuera_alcance ? '<p class="aviso" style="margin-top:10px"><strong>Compra de bienes y servicios.</strong> No incluyas el proceso de compra de bienes y servicios (los gastos): se levanta aparte con el equipo consultor, aunque tu área gestione compras. La compra de accesorios para vender a los clientes sí va.</p>' : '') +
       '<div class="enlace-box"><label for="miEnlace" style="margin:0">Tu enlace personal</label><input type="text" id="miEnlace" readonly value="' + esc(miEnlace()) + '">' +
-      '<button class="btn btn-ghost btn-sm" type="button" id="btnCopiarEnlace">Copiar</button></div>';
+      '<button class="btn btn-ghost btn-sm" type="button" id="btnCopiarEnlace">Copiar</button></div>' +
+      '<p class="lead" style="margin:14px 0 0"><strong>La siguiente información es la recopilada del último inventario del 2021.</strong> Agradeceremos tu apoyo para actualizarla y/o agregar los nuevos procesos que gestiona tu gerencia.</p>';
     root.appendChild(intro);
     intro.querySelector('#btnCopiarEnlace').addEventListener('click', function(){
       var b = this;
@@ -622,13 +623,16 @@
     root.appendChild(p1);
     var p1b = document.createElement('section');
     p1b.className = 'card';
-    p1b.innerHTML = '<div class="paso"><span class="n">2</span><div><h2>¿Participas en otros procesos?</h2>' +
-      '<p class="lead">Busca tus procesos u otros para saber dónde podrías participar por cambios organizacionales. También puedes escribir tu nombre y apellido para ver los procesos donde figuras en el inventario anterior.</p>' +
+    p1b.innerHTML = '<div class="paso"><span class="n">2</span><div><h2>¿En qué procesos participas?</h2>' +
+      '<p class="lead">Si participas en procesos que no están en tu lista (por ejemplo, por cambios organizacionales), búscalos escribiendo las primeras letras de su nombre. También puedes escribir tu nombre y apellido para ver los procesos donde figuras en el inventario anterior.</p>' +
       '<div id="busP" class="bus-fijo"></div>' +
-      '<div style="margin-top:14px"><button class="btn-link" type="button" id="btnAgregar">¿No encuentras tu proceso? Agrégalo como nuevo</button></div>' +
+      '<p class="sub-t">Nuevos procesos</p>' +
+      '<p class="lead" style="font-size:14px;margin:0 0 6px">¿Gestionas un proceso que no está en el inventario, por ejemplo de un negocio nuevo como Conectividad? Agrégalo aquí.</p>' +
+      '<div><button class="btn-link" type="button" id="btnAgregar">+ Agregar un proceso nuevo</button></div>' +
       '<div id="formNuevo" class="hidden" style="margin-top:12px;background:var(--panel);border-radius:12px;padding:14px 16px">' +
         '<label for="nvProceso">Nombre del proceso *</label><input type="text" id="nvProceso" maxlength="200" placeholder="Ej. Seguimiento de embarques">' +
         '<label for="nvArea">¿A qué sección o área pertenece el proceso? *</label><select id="nvArea"></select>' +
+        '<input type="text" id="nvAreaOtra" class="hidden" maxlength="150" placeholder="Escribe la sección o área" aria-label="Sección o área nueva" style="margin-top:8px">' +
         '<label for="nvDesc">En una frase, ¿de qué se trata? (opcional)</label><input type="text" id="nvDesc" maxlength="300">' +
         '<div class="fila" style="margin-top:12px"><button class="btn btn-sm" type="button" id="btnGuardarNuevo">Agregar</button>' +
         '<button class="btn-link" type="button" id="btnCancelarNuevo">Cancelar</button><span class="estado" id="estNuevo"></span></div>' +
@@ -652,6 +656,8 @@
         return '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(sec) + '</option>';
       }).join('') + '</optgroup>';
     }).join('');
+    selArea.insertAdjacentHTML('beforeend', '<option value="__otra__">Otra sección o área (escribe cuál)…</option>');
+    selArea.addEventListener('change', function(){ $('#nvAreaOtra').classList.toggle('hidden', selArea.value !== '__otra__'); });
     // Si la sección de la persona no figura en el inventario, se ofrece igualmente como primera opción.
     if (!hayMia) selArea.insertAdjacentHTML('afterbegin', '<option value="' + esc(mia) + '" selected>' + esc(S.encuestado.seccion) + '</option>');
 
@@ -814,6 +820,7 @@
     if (!sel) return;
     var cm = document.getElementById('cmt-' + p.id);
     document.getElementById('cm-' + p.id).classList.toggle('hidden', !(sel.value === 'cambio' || sel.value === 'no_existe'));
+    if ((sel.value === 'cambio' || sel.value === 'no_existe') && cm && !cm.value) cm.focus();
     var est = document.getElementById('rest-' + p.id);
     est.className = 'estado'; est.textContent = 'Guardando…';
     api('/r/revision', {proceso_id: p.id, estado: sel.value, comentario: cm ? cm.value : ''}).then(function(){
@@ -829,11 +836,12 @@
     var est = $('#estNuevo');
     if (!nombre){ est.className = 'estado warn'; est.textContent = 'Escribe el nombre del proceso.'; return; }
     est.className = 'estado'; est.textContent = 'Guardando…';
-    var area = ($('#nvArea').value || '').split('|');
-    api('/r/proceso', {proceso: nombre, gerencia: area[0] || undefined, seccion: area.slice(1).join('|') || undefined, descripcion: $('#nvDesc').value}).then(function(j){
+    var area = ($('#nvArea').value || '').split('|'), otra = $('#nvArea').value === '__otra__';
+    if (otra && !$('#nvAreaOtra').value.trim()){ est.className = 'estado warn'; est.textContent = 'Escribe la sección o área.'; return; }
+    api('/r/proceso', otra ? {proceso: nombre, seccion_nueva: $('#nvAreaOtra').value.trim(), descripcion: $('#nvDesc').value} : {proceso: nombre, gerencia: area[0] || undefined, seccion: area.slice(1).join('|') || undefined, descripcion: $('#nvDesc').value}).then(function(j){
       S.procesos.push(j.proceso);
       S.revisiones[j.proceso.id] = {estado:'vigente', comentario:''};
-      $('#nvProceso').value = ''; $('#nvDesc').value = '';
+      $('#nvProceso').value = ''; $('#nvDesc').value = ''; $('#nvAreaOtra').value = '';
       $('#formNuevo').classList.add('hidden');
       est.textContent = '';
       pintarPaso1();

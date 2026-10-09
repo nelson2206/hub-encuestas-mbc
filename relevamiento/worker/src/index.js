@@ -372,7 +372,8 @@ async function rutaProcesoNuevo(env, b) {
   if (!nombre) throw new HttpError(400, 'Indica el nombre del proceso');
   // Sección o área a la que pertenece el proceso: debe ser una del inventario; si no llega, la de la persona.
   let gerencia = e.gerencia, seccion = e.seccion;
-  if (b.seccion) {
+  if (b.seccion_nueva) seccion = txt(b.seccion_nueva, 150) || seccion;   // área que aún no está en el inventario (p. ej. un negocio nuevo)
+  else if (b.seccion) {
     const hallada = (await areasDeCampana(env, e.campana_id)).flatMap(a => a.secciones.map(s => ({ gerencia: a.gerencia, seccion: s })))
       .find(x => mismaArea(x.seccion, b.seccion) && (!b.gerencia || mismaArea(x.gerencia, b.gerencia)));
     if (!hallada) throw new HttpError(400, 'Elige una sección de la lista');
