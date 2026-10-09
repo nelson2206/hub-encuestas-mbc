@@ -54,6 +54,9 @@ CREATE TABLE IF NOT EXISTS procesos (
   validado_por TEXT NOT NULL DEFAULT '',        -- cargo de quien validó
   validado_en TEXT,
   actualizado_en TEXT,
+  entrevista TEXT NOT NULL DEFAULT '',          -- '' (pendiente) / agendada / realizada
+  entrevista_fecha TEXT,                        -- AAAA-MM-DD
+  entrevistado TEXT NOT NULL DEFAULT '',        -- cargo o persona entrevistada
   personas TEXT NOT NULL DEFAULT '',            -- nombres del inventario anterior, uno por línea (buscador por persona)
   matriz_ia TEXT NOT NULL DEFAULT '{}'          -- campos de la matriz que llenó la IA: {campo: {estado, en}}
 );

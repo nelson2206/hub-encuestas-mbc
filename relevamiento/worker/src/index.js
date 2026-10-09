@@ -42,6 +42,8 @@
  *   GET  /a/campana?id=          volcado completo de la campaña
  *   POST /a/proceso              {campana_id, id?, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion}
  *   POST /a/proceso/borrar       {proceso_id}   (solo si nadie lo respondió)
+ *   POST /a/proceso/renombrar    {campana_id, nivel: macroproceso|proceso, gerencia, seccion, macroproceso, proceso?, nuevo}
+ *   POST /a/entrevista           {campana_id, proceso_ids[], estado: ''|agendada|realizada, fecha?, entrevistado?}
  *   POST /a/proceso/mover        {campana_id, proceso_ids[], gerencia, seccion, macroproceso?} | {campana_id, movimientos[]} (constructor del mapa; movimientos restaura)
  *   POST /a/campana/logo         {campana_id, logo}   (data URI; vacío lo quita)
  *   POST /a/campana/ia           {campana_id, ia_auto}   (la tarea programada completa la matriz con la IA)
@@ -841,6 +843,65 @@ async function rutaProcesoMover(env, b) {
   }
   await env.DB.batch(st);
   log('mover', { campana: camp.id, procesos: procesos.length, restaura });
+  return { ok: true, procesos };
+}
+
+// Renombrar un macroproceso o un proceso en todas sus filas de una sección (el nivel Proceso del mapa y de la matriz no es una
+// fila propia: es el texto que comparten sus subprocesos). Actualiza también el campo de la matriz y deja la fila como
+// «actualizado» si no estaba validada.
+async function rutaProcesoRenombrar(env, b) {
+  const camp = await env.DB.prepare('SELECT id FROM campanas WHERE id=?').bind(b.campana_id).first();
+  if (!camp) throw new HttpError(404, 'Campaña no encontrada');
+  const nivel = b.nivel === 'macroproceso' ? 'macroproceso' : b.nivel === 'proceso' ? 'proceso' : '';
+  if (!nivel) throw new HttpError(400, 'Nivel inválido');
+  const nuevoNombre = txt(b.nuevo, 200);
+  if (!nuevoNombre) throw new HttpError(400, 'Escribe el nuevo nombre');
+  const g = txt(b.gerencia, 150), sec = txt(b.seccion, 150);
+  let sql = 'SELECT * FROM procesos WHERE campana_id=? AND gerencia=? AND seccion=? AND macroproceso=?';
+  const par = [camp.id, g, sec, txt(b.macroproceso, 200)];
+  if (nivel === 'proceso') { sql += ' AND proceso=?'; par.push(txt(b.proceso, 200)); }
+  const filas = (await env.DB.prepare(sql).bind(...par).all()).results;
+  if (!filas.length) throw new HttpError(404, 'No hay filas con ese nombre');
+  if (filas.length > 400) throw new HttpError(400, 'Demasiadas filas para un solo cambio');
+  const t = ahora(), st = [], procesos = [];
+  for (const p of filas) {
+    const mx = leerMatriz(p.matriz);
+    mx[nivel] = nuevoNombre;
+    const validacion = p.validacion === 'validado' ? 'validado' : 'actualizado';
+    st.push(env.DB.prepare(`UPDATE procesos SET ${nivel}=?, matriz=?, validacion=?, actualizado_en=? WHERE id=?`)
+      .bind(nuevoNombre, JSON.stringify(mx), validacion, t, p.id));
+    procesos.push({ id: p.id, [nivel]: nuevoNombre, matriz: mx, validacion, actualizado_en: t });
+  }
+  await env.DB.batch(st);
+  log('renombrar', { campana: camp.id, nivel, filas: procesos.length });
+  return { ok: true, procesos };
+}
+
+// Seguimiento de entrevistas: marca procesos como pendiente / agendada / realizada, con fecha y entrevistado.
+// Sin fecha, agendar o realizar usa hoy (hora de Lima). Pendiente borra fecha y entrevistado. No toca la validación.
+async function rutaEntrevista(env, b) {
+  const camp = await env.DB.prepare('SELECT id FROM campanas WHERE id=?').bind(b.campana_id).first();
+  if (!camp) throw new HttpError(404, 'Campaña no encontrada');
+  const estado = String(b.estado || '');
+  if (!['', 'agendada', 'realizada'].includes(estado)) throw new HttpError(400, 'Estado inválido');
+  const ids = [...new Set((Array.isArray(b.proceso_ids) ? b.proceso_ids : []).map(x => txt(x, 60)).filter(Boolean))];
+  if (!ids.length) throw new HttpError(400, 'No hay procesos');
+  if (ids.length > 400) throw new HttpError(400, 'Máximo 400 procesos por cambio');
+  let fecha = null;
+  if (estado) {
+    fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(b.fecha || '')) ? String(b.fecha) : new Date(Date.now() - 5 * 3600000).toISOString().slice(0, 10);
+  }
+  const quien = b.entrevistado === undefined ? undefined : txt(b.entrevistado, 200);
+  const st = [], procesos = [];
+  for (const id of ids) {
+    const p = await env.DB.prepare('SELECT id, entrevistado FROM procesos WHERE id=? AND campana_id=?').bind(id, camp.id).first();
+    if (!p) throw new HttpError(404, 'Proceso no encontrado');
+    const entrevistado = !estado ? '' : (quien === undefined ? p.entrevistado : quien);
+    st.push(env.DB.prepare('UPDATE procesos SET entrevista=?, entrevista_fecha=?, entrevistado=? WHERE id=?').bind(estado, fecha, entrevistado, id));
+    procesos.push({ id, entrevista: estado, entrevista_fecha: fecha, entrevistado });
+  }
+  await env.DB.batch(st);
+  log('entrevista', { campana: camp.id, estado, procesos: procesos.length });
   return { ok: true, procesos };
 }
 
@@ -1677,6 +1738,8 @@ export default {
           if (url.pathname === '/a/proceso') return json(await rutaProcesoAdmin(env, b), 200, h);
           if (url.pathname === '/a/proceso/borrar') return json(await rutaProcesoBorrar(env, b), 200, h);
           if (url.pathname === '/a/proceso/mover') return json(await rutaProcesoMover(env, b), 200, h);
+          if (url.pathname === '/a/proceso/renombrar') return json(await rutaProcesoRenombrar(env, b), 200, h);
+          if (url.pathname === '/a/entrevista') return json(await rutaEntrevista(env, b), 200, h);
           if (url.pathname === '/a/matriz') return json(await rutaMatriz(env, b), 200, h);
           if (url.pathname === '/a/validacion') return json(await rutaValidacion(env, b), 200, h);
           if (url.pathname === '/a/encuestado/borrar') return json(await rutaEncuestadoBorrar(env, b), 200, h);

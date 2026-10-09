@@ -168,15 +168,33 @@
   .mx tr.mx-ger .mx-plegar,.mx tr.mx-ger .mx-llen{color:#fff}
   .mx tr.mx-ger .mx-plegar{font-size:14px;font-weight:800}
   .mx tr.mx-sec .mx-plegar{padding-left:18px}
-  .mx tr.mx-pro td{color:var(--ink);font-family:Montserrat,sans-serif;font-weight:600;font-size:12px;padding:8px 8px 4px 8px;border-bottom:none}
-  .mx tr.mx-pro .mx-pin{padding-left:20px}
+  .mx tr.mx-mac td,.mx tr.mx-pro td{color:var(--ink);font-family:Montserrat,sans-serif;font-weight:600;font-size:12px;padding:8px 8px 4px 8px;border-bottom:none}
+  .mx tr.mx-mac .mx-pin{padding-left:18px}
+  .mx tr.mx-mac .mx-plegar{font-size:12.5px;font-weight:700}
+  .mx tr.mx-pro .mx-pin{padding-left:38px}
   .mx tr.mx-pro .mx-plegar{font-size:12px;font-weight:600}
-  .mx td.fijo1 .mx-proc{padding-left:48px}
+  .mx td.fijo1 .mx-proc{padding-left:62px}
   .mtabla tr.mx-ger td{background:var(--navy);color:#fff;font-family:Montserrat,sans-serif;font-weight:800;padding:9px 10px}
   .mtabla tr.mx-ger .mx-plegar,.mtabla tr.mx-ger .muted{color:#fff;font-size:14px}
   .mtabla tr.mx-sec td{background:var(--panel);padding:8px 10px 8px 28px;font-family:Montserrat,sans-serif;font-weight:700}
-  .mtabla tr.mx-pro td{padding:6px 10px 4px 46px;font-family:Montserrat,sans-serif;font-weight:600;font-size:12px}
-  .mtabla tr.mx-fila td:nth-child(4){padding-left:64px}
+  .mtabla tr.mx-mac td{padding:6px 10px 4px 46px;font-family:Montserrat,sans-serif;font-weight:700;font-size:12.5px}
+  .mtabla tr.mx-pro td{padding:6px 10px 4px 64px;font-family:Montserrat,sans-serif;font-weight:600;font-size:12px}
+  .mtabla tr.mx-fila td:nth-child(4){padding-left:80px}
+  .mx-tipo{font:700 9.5px Montserrat,sans-serif;color:var(--muted);border:1px solid var(--field-line);border-radius:4px;padding:0 5px;margin-right:6px;vertical-align:middle}
+  .proc-t{font:600 11.5px Montserrat,sans-serif;color:var(--ink);margin:8px 0 5px 14px}
+  .cn-proc-t{font:600 11px Montserrat,sans-serif;color:var(--heading);margin:6px 0 0 6px}
+  .filtros-en{grid-template-columns:2fr 1fr 1fr}
+  @media (max-width:800px){ .filtros-en{grid-template-columns:1fr} }
+  .en-sem{display:grid;grid-template-columns:130px 70px 90px 60px 1fr;gap:4px 12px;align-items:center;font-size:13px;max-width:760px}
+  .en-sem .bar{height:8px;border-radius:99px;background:var(--panel);overflow:hidden}
+  .en-sem .bar i{display:block;height:100%;background:var(--ok)}
+  .en-ger{border:1px solid var(--line);border-radius:10px;margin:8px 0;background:var(--card)}
+  .en-ger > summary,.en-sec > summary{cursor:pointer;padding:10px 12px;font-family:Montserrat,sans-serif;font-weight:700;color:var(--heading)}
+  .en-sec{margin:0 10px 8px;border:1px solid var(--line);border-radius:8px}
+  .en-sec > summary{font-size:13px;font-weight:600}
+  .en-t{width:100%;border-collapse:collapse;font-size:13px}
+  .en-t td{padding:5px 8px;border-top:1px solid var(--line);vertical-align:middle}
+  .en-t input[type=text],.en-t input[type=date],.en-t select{padding:5px 8px;font-size:12.5px}
   .mx-pin{position:sticky;left:8px;display:flex;gap:12px;align-items:baseline;width:max-content;white-space:nowrap}
   .mx-plegar{appearance:none;background:none;border:none;padding:0;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;color:var(--heading);text-align:left;display:flex;gap:4px}
   .mx-signo{flex:none;width:14px}
@@ -259,6 +277,7 @@
         <button class="tab" role="tab" data-tab="matriz" aria-selected="false">Matriz y validación</button>
         <button class="tab" role="tab" data-tab="barrido" aria-selected="false">Plan de barrido</button>
         <button class="tab" role="tab" data-tab="encuestados" aria-selected="false">Personas y enlaces</button>
+        <button class="tab" role="tab" data-tab="entrevistas" aria-selected="false">Entrevistas</button>
         <button class="tab" role="tab" data-tab="carga" aria-selected="false">Carga y configuración</button>
       </div>
 
@@ -294,6 +313,7 @@
 
       <div id="tMatriz" class="hidden"></div>
       <div id="tBarrido" class="hidden"></div>
+      <div id="tEntrevistas" class="hidden"></div>
       <div id="tEncuestados" class="hidden"></div>
 
       <div id="tCarga" class="hidden">
@@ -547,7 +567,7 @@
       pintarTodo();
     }).catch(function(err){ alert(err.message); });
   }
-  function pintarTodo(){ pintarKpis(); pintarMapa(); pintarConstructor(); pintarMatriz(); pintarBarrido(); pintarEncuestados(); }
+  function pintarTodo(){ pintarKpis(); pintarMapa(); pintarConstructor(); pintarMatriz(); pintarBarrido(); pintarEncuestados(); if (!$('#tEntrevistas').classList.contains('hidden')) pintarEntrevistas(); }
 
   // Índices por proceso: quién lo tomó, quién respondió y qué dijo cada uno.
   function indexar(){
@@ -631,9 +651,10 @@
   document.querySelector('.tabs').addEventListener('click', function(e){
     var t = e.target.closest('.tab'); if (!t) return;
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(x){ x.setAttribute('aria-selected', x === t ? 'true' : 'false'); });
-    [['mapa','#tMapa'], ['matriz','#tMatriz'], ['barrido','#tBarrido'], ['encuestados','#tEncuestados'], ['carga','#tCarga']].forEach(function(k){
+    [['mapa','#tMapa'], ['matriz','#tMatriz'], ['barrido','#tBarrido'], ['entrevistas','#tEntrevistas'], ['encuestados','#tEncuestados'], ['carga','#tCarga']].forEach(function(k){
       $(k[1]).classList.toggle('hidden', t.dataset.tab !== k[0]);
     });
+    if (t.dataset.tab === 'entrevistas') pintarEntrevistas();
     ajustarAncho();
   });
 
@@ -704,8 +725,15 @@
           '<button class="btn-link" data-agregar="' + esc(g) + '|' + esc(s) + '">+ Agregar aquí</button></div>';
         var macros = arbol[g][s];
         Object.keys(macros).sort(orden).forEach(function(m){
-          html += '<div class="macro-t">' + esc(m || 'Sin macroproceso') + '</div><div class="tiles">';
-          macros[m].forEach(function(p){
+          html += '<div class="macro-t"><span class="mx-tipo">Macroproceso</span>' + esc(m || 'Sin macroproceso') +
+            (m ? ' <button type="button" class="btn-link" data-rnm="' + esc(g + '|' + s + '|' + m) + '">Editar nombre</button>' : '') + '</div><div class="tiles">';
+          var prAnt = '';
+          macros[m].slice().sort(porJerarquia).forEach(function(p){
+            var pr = p.proceso && p.proceso !== nombreProc(p) ? p.proceso : '';
+            if (pr !== prAnt){
+              prAnt = pr;
+              html += '</div>' + (pr ? '<div class="proc-t"><span class="mx-tipo">Proceso</span>' + esc(pr) + ' <button type="button" class="btn-link" data-rnp="' + esc(g + '|' + s + '|' + m + '|' + pr) + '">Editar nombre</button></div>' : '') + '<div class="tiles">';
+            }
             var cb = cobertura(p.id), e = estructuradoDe(p.id);
             var meta = [];
             if (p.codigo) meta.push(esc(p.codigo));
@@ -729,6 +757,8 @@
     var b;
     if ((b = e.target.closest('[data-p]'))) return detalle(b.dataset.p);
     if ((b = e.target.closest('[data-agregar]'))){ var gs = b.dataset.agregar.split('|'); return editarProceso(null, gs[0], gs[1]); }
+    if ((b = e.target.closest('[data-rnm]'))){ var r1 = b.dataset.rnm.split('|'); return renombrarGrupo('macroproceso', {gerencia: r1[0], seccion: r1[1], macroproceso: r1[2]}); }
+    if ((b = e.target.closest('[data-rnp]'))){ var r2 = b.dataset.rnp.split('|'); return renombrarGrupo('proceso', {gerencia: r2[0], seccion: r2[1], macroproceso: r2[2], proceso: r2[3]}); }
     if ((b = e.target.closest('[data-lote]'))){
       var gs2 = b.dataset.lote.split('|');
       var ps = C.procesos.filter(function(p){ return p.gerencia === gs2[0] && p.seccion === gs2[1] && pendienteIA(p.id); });
@@ -781,7 +811,7 @@
     CN.extras.forEach(function(x){ var g = arbol[x.g] = arbol[x.g] || {}; if (x.s) g[x.s] = g[x.s] || {}; });
     guardarExtras();
     var vacio = function(g, s){ return CN.extras.some(function(x){ return x.g === g && (s === undefined ? !x.s : x.s === s); }); };
-    var html = '<div class="cn-cols">';
+    var html = '<div class="cn-cols">', prAntC = '';
     Object.keys(arbol).sort(orden).forEach(function(g){
       var secs = Object.keys(arbol[g]).sort(orden), n = C.procesos.filter(function(p){ return p.gerencia === g; }).length;
       html += '<section class="cn-ger" aria-label="Gerencia ' + esc(g) + '"><div class="cn-ger-h"><h3>' + esc(g) + '</h3><span class="muted">' + n + (n === 1 ? ' proceso' : ' procesos') + '</span>' +
@@ -798,6 +828,8 @@
           html += '<div class="cn-mac" data-g="' + esc(g) + '" data-s="' + esc(sc) + '" data-m="' + esc(m) + '"><div class="cn-mac-t">' + esc(m || 'Sin macroproceso') + '</div>';
           macros[m].forEach(function(p){
             var cb = cobertura(p.id), nom = nombreProc(p), sub = p.subproceso && p.proceso && p.proceso !== nom ? p.proceso + ' › ' : '';
+            var kc = m + '|' + (p.proceso && p.proceso !== nom ? p.proceso : '');
+            if (kc !== prAntC){ prAntC = kc; if (p.proceso && p.proceso !== nom) html += '<div class="cn-proc-t">' + esc(p.proceso) + '</div>'; }
             html += '<div class="cn-nodo st-' + cb.estado + (CN.sel[p.id] ? ' sel' : '') + '" draggable="true" tabindex="0" role="button" aria-pressed="' + !!CN.sel[p.id] + '" data-p="' + esc(p.id) + '" title="' + esc(sub + nom + ' · ' + ESTADO_TXT[cb.estado]) + '">' +
               '<span class="cn-grip" aria-hidden="true">⋮⋮</span><span class="cn-n">' + esc(nom) + '</span>' +
               '<div class="cn-meta">' + (p.codigo ? '<span>' + esc(p.codigo) + '</span>' : '') +
@@ -1052,6 +1084,171 @@
     });
   }
 
+
+  // ------------------------------------------------------------ entrevistas
+  // Seguimiento de las entrevistas por proceso: pendiente / agendada / realizada, con fecha y a quién se entrevistó.
+  var EN = {camp: '', sel: {}, abiertas: {}};
+  var EN_TXT = {'': 'Pendiente', agendada: 'Agendada', realizada: 'Realizada'};
+  function enEst(p){ return p.entrevista || ''; }
+  function hoyLima(){ return new Date(Date.now() - 5 * 3600000).toISOString().slice(0, 10); }
+  function lunesDe(iso){ var d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); }
+  function fechaCorta(iso){ var m = String(iso).split('-'); return m[2] + '/' + m[1]; }
+  function enBase(){ return C.procesos.filter(function(p){ return cobertura(p.id).estado !== 'no_vigente'; }); }
+  function cuentaEn(ps){ var c = {realizada: 0, agendada: 0, '': 0}; ps.forEach(function(p){ c[enEst(p)]++; }); return c; }
+  function opcionesEst(v){ return ['', 'agendada', 'realizada'].map(function(k){ return '<option value="' + k + '"' + (k === v ? ' selected' : '') + '>' + EN_TXT[k] + '</option>'; }).join(''); }
+
+  function pintarEntrevistas(){
+    if (!C || !C.campana) return;
+    var cont = $('#tEntrevistas');
+    if (EN.camp !== C.campana.id){ EN.camp = C.campana.id; EN.sel = {}; EN.abiertas = {}; cont.innerHTML = ''; }
+    if (!cont.innerHTML){
+      cont.innerHTML = '<div id="enResumen"></div>' +
+        '<div class="filtros filtros-en" style="margin-top:18px"><div><label for="enTexto">Buscar</label><input type="search" id="enTexto" placeholder="Código, proceso, subproceso o entrevistado…"></div>' +
+        '<div><label for="enGer">Gerencia</label><select id="enGer"></select></div>' +
+        '<div><label for="enEst">Estado de la entrevista</label><select id="enEst"><option value="">Todos</option><option value="pend">Pendiente</option><option value="agendada">Agendada</option><option value="realizada">Realizada</option></select></div></div>' +
+        '<div class="mas hidden" id="enBarra"><div class="row"><b id="enSelTxt"></b>' +
+          '<label class="chk">Marcar como <select id="enAplEst" style="width:auto">' + opcionesEst('realizada') + '</select></label>' +
+          '<label class="chk">Fecha <input type="date" id="enAplFecha" style="width:auto"></label>' +
+          '<label class="chk">Entrevistado <input type="text" id="enAplQuien" placeholder="Cargo o persona (opcional)" style="width:200px"></label>' +
+          '<button class="btn btn-xs" id="enAplicar" type="button">Aplicar</button><button class="btn-link" id="enQuitar" type="button">Quitar selección</button><span class="muted" id="enMsg"></span></div></div>' +
+        '<div id="enLista" style="margin-top:12px"></div>';
+      $('#enAplFecha').value = hoyLima();
+    }
+    var sel = $('#enGer'), antes = sel.value, gers = {};
+    C.procesos.forEach(function(p){ gers[p.gerencia] = 1; });
+    sel.innerHTML = '<option value="">Todas</option>' + Object.keys(gers).sort(function(a, b){ return a.localeCompare(b, 'es'); }).map(function(g){ return '<option>' + esc(g) + '</option>'; }).join('');
+    if (antes && gers[antes]) sel.value = antes;
+    pintarEntrResumen();
+    pintarEntrLista();
+  }
+
+  function pintarEntrResumen(){
+    var base = enBase(), n = base.length, c = cuentaEn(base);
+    var h = '<div class="kpis"><div class="kpi"><b>' + pct(c.realizada, n) + '</b><span>entrevistado (' + c.realizada + ' de ' + n + ' procesos vigentes)</span></div>' +
+      '<div class="kpi"><b>' + c.agendada + '</b><span>agendadas</span></div><div class="kpi"><b>' + c[''] + '</b><span>pendientes</span></div></div>' +
+      '<div class="cob"><span class="cob-bar" role="img" aria-label="' + c.realizada + ' realizadas, ' + c.agendada + ' agendadas, ' + c[''] + ' pendientes">' +
+        (c.realizada ? '<span class="seg-respondido" style="width:' + (100 * c.realizada / n) + '%"></span>' : '') +
+        (c.agendada ? '<span class="seg-en_curso" style="width:' + (100 * c.agendada / n) + '%"></span>' : '') + '</span></div>';
+    // Avance por semana: entrevistas realizadas según su fecha y acumulado.
+    var reales = base.filter(function(p){ return enEst(p) === 'realizada' && p.entrevista_fecha; }), sem = {};
+    reales.forEach(function(p){ var l = lunesDe(p.entrevista_fecha); sem[l] = (sem[l] || 0) + 1; });
+    var claves = Object.keys(sem).sort();
+    h += '<h3 style="font-size:14px;margin:18px 0 6px">Avance por semana</h3>';
+    if (!claves.length) h += '<p class="muted">Todavía no hay entrevistas realizadas con fecha. Márcalas abajo y aquí verás el avance semana a semana.</p>';
+    else {
+      var d = new Date(claves[0] + 'T12:00:00Z'), fin = lunesDe(hoyLima()), acum = 0;
+      if (claves[claves.length - 1] > fin) fin = claves[claves.length - 1];
+      h += '<div class="en-sem"><b>Semana</b><b>Realizadas</b><b>Acumulado</b><b>%</b><span></span>';
+      for (var iso = d.toISOString().slice(0, 10); iso <= fin; d.setUTCDate(d.getUTCDate() + 7), iso = d.toISOString().slice(0, 10)){
+        var k = sem[iso] || 0; acum += k;
+        h += '<span>Semana del ' + fechaCorta(iso) + '</span><span>' + (k ? '+' + k : '0') + '</span><span>' + acum + '</span><span>' + pct(acum, n) + '</span>' +
+          '<span class="bar"><i style="width:' + (n ? 100 * acum / n : 0) + '%"></i></span>';
+      }
+      h += '</div>';
+    }
+    // Por gerencia.
+    var porG = {};
+    base.forEach(function(p){ (porG[p.gerencia] = porG[p.gerencia] || []).push(p); });
+    h += '<h3 style="font-size:14px;margin:18px 0 6px">Por gerencia</h3><div class="tblwrap"><table class="mtabla"><thead><tr><th>Gerencia</th><th>Procesos</th><th>Realizadas</th><th>Agendadas</th><th>Pendientes</th><th>% entrevistado</th></tr></thead><tbody>' +
+      Object.keys(porG).sort(function(a, b){ return a.localeCompare(b, 'es'); }).map(function(g){
+        var cg = cuentaEn(porG[g]);
+        return '<tr><td>' + esc(g) + '</td><td>' + porG[g].length + '</td><td>' + cg.realizada + '</td><td>' + cg.agendada + '</td><td>' + cg[''] + '</td><td><b>' + pct(cg.realizada, porG[g].length) + '</b></td></tr>';
+      }).join('') + '</tbody></table></div>';
+    $('#enResumen').innerHTML = h;
+  }
+
+  function filtradasEn(){
+    var texto = sinTildes($('#enTexto').value.trim()), g = $('#enGer').value, e = $('#enEst').value;
+    return enBase().filter(function(p){
+      if (g && p.gerencia !== g) return false;
+      if (e && enEst(p) !== (e === 'pend' ? '' : e)) return false;
+      if (texto && sinTildes([p.codigo, p.macroproceso, p.proceso, p.subproceso, p.seccion, p.entrevistado || ''].join(' ')).indexOf(texto) < 0) return false;
+      return true;
+    }).sort(porJerarquia);
+  }
+  function resumenGrupoEn(ps){ var c = cuentaEn(ps); return ps.length + (ps.length === 1 ? ' proceso' : ' procesos') + ' · ' + c.realizada + ' realizadas (' + pct(c.realizada, ps.length) + ') · ' + c.agendada + ' agendadas'; }
+  function pintarEntrLista(){
+    var lista = filtradasEn(), arbol = {}, activo = !!($('#enTexto').value.trim() || $('#enGer').value || $('#enEst').value);
+    lista.forEach(function(p){ var g = arbol[p.gerencia] = arbol[p.gerencia] || {}; (g[p.seccion] = g[p.seccion] || []).push(p); });
+    var h = lista.length ? '' : '<p class="muted">Ningún proceso coincide con el filtro.</p>';
+    Object.keys(arbol).sort(function(a, b){ return a.localeCompare(b, 'es'); }).forEach(function(g){
+      var todo = []; Object.keys(arbol[g]).forEach(function(s){ todo = todo.concat(arbol[g][s]); });
+      h += '<details class="en-ger" data-k="' + esc(g) + '"' + (activo || EN.abiertas[g] ? ' open' : '') + '><summary><span data-rg="' + esc(g) + '">' + esc(g) + ' — ' + resumenGrupoEn(todo) + '</span></summary>';
+      Object.keys(arbol[g]).sort(function(a, b){ return a.localeCompare(b, 'es'); }).forEach(function(s){
+        var ps = arbol[g][s], k = g + '|' + s;
+        h += '<details class="en-sec" data-k="' + esc(k) + '"' + (activo || EN.abiertas[k] ? ' open' : '') + '><summary><span data-rg="' + esc(k) + '">' + esc(s) + ' — ' + resumenGrupoEn(ps) + '</span></summary>' +
+          '<div style="padding:0 10px 6px"><button type="button" class="btn-link" data-elegir="' + esc(k) + '">Elegir todas</button></div><table class="en-t"><tbody>';
+        ps.forEach(function(p){
+          var ruta = [p.macroproceso, p.proceso !== nombreProc(p) ? p.proceso : ''].filter(Boolean).join(' › ');
+          h += '<tr data-id="' + esc(p.id) + '"><td style="width:30px"><input type="checkbox" data-sel="' + esc(p.id) + '"' + (EN.sel[p.id] ? ' checked' : '') + ' aria-label="Elegir ' + esc(nombreProc(p)) + '"></td>' +
+            '<td>' + (p.codigo ? '<span class="muted">' + esc(p.codigo) + '</span> ' : '') + (ruta ? '<span class="muted">' + esc(ruta) + ' › </span>' : '') + '<b>' + esc(nombreProc(p)) + '</b></td>' +
+            '<td style="width:130px"><select data-f="estado" aria-label="Estado de la entrevista">' + opcionesEst(enEst(p)) + '</select></td>' +
+            '<td style="width:140px"><input type="date" data-f="fecha" value="' + esc(p.entrevista_fecha || '') + '"' + (enEst(p) ? '' : ' disabled') + ' aria-label="Fecha"></td>' +
+            '<td style="width:210px"><input type="text" data-f="quien" value="' + esc(p.entrevistado || '') + '" placeholder="Cargo o persona"' + (enEst(p) ? '' : ' disabled') + ' aria-label="Entrevistado"></td></tr>';
+        });
+        h += '</tbody></table></details>';
+      });
+      h += '</details>';
+    });
+    $('#enLista').innerHTML = h;
+    pintarSeleccionEn();
+  }
+  function actualizarGruposEn(){
+    var base = enBase();
+    Array.prototype.forEach.call(document.querySelectorAll('#enLista [data-rg]'), function(el){
+      var k = el.dataset.rg, partes = k.split('|');
+      var ps = base.filter(function(p){ return p.gerencia === partes[0] && (partes.length < 2 || p.seccion === partes[1]); });
+      el.textContent = (partes.length < 2 ? partes[0] : partes[1]) + ' — ' + resumenGrupoEn(ps);
+    });
+  }
+  function pintarSeleccionEn(){
+    var n = Object.keys(EN.sel).length;
+    $('#enBarra').classList.toggle('hidden', !n);
+    $('#enSelTxt').textContent = n + (n === 1 ? ' proceso elegido' : ' procesos elegidos');
+  }
+  function guardarEntrevista(ids, estado, fecha, quien){
+    var cuerpo = {campana_id: C.campana.id, proceso_ids: ids, estado: estado};
+    if (fecha) cuerpo.fecha = fecha;
+    if (quien !== undefined) cuerpo.entrevistado = quien;
+    return api('/a/entrevista', cuerpo).then(function(j){ j.procesos.forEach(aplicarProceso); return j; });
+  }
+  $('#tEntrevistas').addEventListener('toggle', function(e){
+    var d = e.target; if (d.dataset && d.dataset.k) EN.abiertas[d.dataset.k] = d.open;
+  }, true);
+  $('#tEntrevistas').addEventListener('input', function(e){
+    if (e.target.id === 'enTexto') pintarEntrLista();
+  });
+  $('#tEntrevistas').addEventListener('change', function(e){
+    var t = e.target;
+    if (t.id === 'enGer' || t.id === 'enEst'){ pintarEntrLista(); return; }
+    if (t.dataset.sel){ if (t.checked) EN.sel[t.dataset.sel] = 1; else delete EN.sel[t.dataset.sel]; pintarSeleccionEn(); return; }
+    if (!t.dataset.f) return;
+    var tr = t.closest('tr'), id = tr.dataset.id, estado = tr.querySelector('[data-f="estado"]').value;
+    var f = tr.querySelector('[data-f="fecha"]'), q = tr.querySelector('[data-f="quien"]');
+    if (t.dataset.f === 'estado'){
+      f.disabled = q.disabled = !estado;
+      if (!estado){ f.value = ''; q.value = ''; } else if (!f.value) f.value = hoyLima();
+    }
+    guardarEntrevista([id], estado, estado ? f.value : '', estado ? q.value : '').then(function(){ pintarEntrResumen(); actualizarGruposEn(); })
+      .catch(function(err){ alert(err.message); pintarEntrLista(); });
+  });
+  $('#tEntrevistas').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.elegir){
+      var partes = b.dataset.elegir.split('|');
+      enBase().filter(function(p){ return p.gerencia === partes[0] && p.seccion === partes[1]; }).forEach(function(p){ EN.sel[p.id] = 1; });
+      pintarEntrLista();
+    } else if (b.id === 'enQuitar'){ EN.sel = {}; pintarEntrLista(); }
+    else if (b.id === 'enAplicar'){
+      var ids = Object.keys(EN.sel); if (!ids.length) return;
+      var estado = $('#enAplEst').value, quien = $('#enAplQuien').value.trim();
+      b.disabled = true; $('#enMsg').textContent = 'Guardando…';
+      guardarEntrevista(ids, estado, estado ? $('#enAplFecha').value : '', quien ? quien : undefined).then(function(){
+        EN.sel = {}; $('#enMsg').textContent = ''; b.disabled = false; pintarEntrevistas();
+      }).catch(function(err){ b.disabled = false; $('#enMsg').textContent = err.message; });
+    }
+  });
+
   // ------------------------------------------------------------ matriz de procesos y validación
   // Estado de actualización de una fila: el check manda (validado / actualizado); si no, lo dice la encuesta.
   function actualizacion(p){
@@ -1233,11 +1430,11 @@
   function filaMx(f, grupos, ids, cerrada){
     var p = f.p, st = actualizacion(p), ok = p.validacion === 'validado', abierta = !!FM.abiertas[p.id], faltaK = {}, iaK = p.matriz_ia || {};
     f.falta.forEach(function(o){ faltaK[o[0]] = 1; });
-    var h = '<tr class="mx-fila' + (ok ? ' fila-ok' : '') + (abierta ? ' mx-abierta' : '') + (cerrada ? ' hidden' : '') + '" data-niv="f" data-kg="' + ids.g + '" data-ks="' + ids.s + '" data-kp="' + ids.p + '" data-pid="' + esc(p.id) + '">' +
+    var h = '<tr class="mx-fila' + (ok ? ' fila-ok' : '') + (abierta ? ' mx-abierta' : '') + (cerrada ? ' hidden' : '') + '" data-niv="f" data-kg="' + ids.g + '" data-ks="' + ids.s + '" data-km="' + ids.m + '" data-kp="' + ids.p + '" data-pid="' + esc(p.id) + '">' +
       '<td class="fijo0"><input type="checkbox" data-v="' + esc(p.id) + '"' + (ok ? ' checked' : '') + ' aria-label="Validado: ' + esc(nombreProc(p)) + '"></td>' +
       '<td class="fijo1"><div class="mx-proc"><span class="mx-cod">' + esc(p.codigo || '') + '</span><button type="button" class="mx-abrir" data-m="' + esc(p.id) + '">' + esc(nombreProc(p)) + '</button></div></td>' +
       '<td class="g-ini"><span class="chip ' + ACT_CHIP[st] + '">' + ACT_TXT[st] + '</span></td>' +
-      '<td>' + (f.falta.length ? '<span title="Faltan: ' + esc(f.falta.map(function(x){ return x[1]; }).join(', ')) + '">' + (f.oblig - f.falta.length) + ' de ' + f.oblig + '</span>' : '<span class="chip c-ok">Completos</span>') + '</td>' +
+      '<td>' + (f.falta.length ? '<span title="Faltan: ' + esc(f.falta.map(function(x){ return x[1]; }).join(', ')) + '">' + (f.oblig - f.falta.length) + ' de ' + f.oblig + '</span> <button type="button" class="btn-link" data-m="' + esc(p.id) + '">Completar</button>' : '<span class="chip c-ok">Completos</span>') + '</td>' +
       '<td>' + (ok ? esc(p.validado_por || '—') + '<div class="muted">' + esc(fecha(p.validado_en)) + '</div>' : '') + '</td>';
     grupos.forEach(function(g){
       if (g.oculto){
@@ -1249,41 +1446,50 @@
     });
     return h + '</tr>';
   }
-  // ---- Jerarquía de la matriz: Gerencia → Sección → Proceso → filas (subprocesos). Cada nivel se pliega y lo plegado se recuerda.
+  // ---- Jerarquía de la matriz: Gerencia → Sección → Macroproceso → Proceso → filas (subprocesos). Cada nivel se pliega y lo plegado se recuerda.
   function porJerarquia(a, b){
     return a.gerencia.localeCompare(b.gerencia, 'es') || a.seccion.localeCompare(b.seccion, 'es') ||
       String(a.macroproceso || '').localeCompare(String(b.macroproceso || ''), 'es') || String(a.proceso || '').localeCompare(String(b.proceso || ''), 'es') || porCodigo(a, b);
   }
-  var MXK = {g: [], s: [], p: [], defS: false};   // claves de cada nivel (en el orden en que aparecen) y si las secciones arrancan cerradas
+  var MXK = {g: [], s: [], m: [], p: [], defS: false, ctx: {m: [], p: []}};   // claves de cada nivel, su contexto (para renombrar) y si las secciones arrancan cerradas
   function nuevoAcum(completo){ var a = {n: 0, val: 0, comp: 0, llenas: {}}; if (completo) MATRIZ.forEach(function(c){ a.llenas[c[0]] = 0; }); return a; }
   function arbolMatriz(lista, completo){
     var filas = lista.slice().sort(porJerarquia).slice(0, 400).map(function(p){
       return completo ? datosFilaMx(p) : {p: p, falta: faltantes(p), oblig: obligatoriosDe(p).length};
     });
     // Con muchas filas, las secciones empiezan cerradas (así la tabla carga rápido y se lee como resumen por área); con pocas, abiertas.
-    MXK = {g: [], s: [], p: [], defS: filas.length > 60};
-    var nodos = [], tot = nuevoAcum(completo), G = null, S = null, P = null, kg = null, ks = null, kp = null;
+    MXK = {g: [], s: [], m: [], p: [], defS: filas.length > 60, ctx: {m: [], p: []}};
+    var nodos = [], tot = nuevoAcum(completo), G = null, S = null, M = null, P = null, kg = null, ks = null, km = null, kp = null;
     filas.forEach(function(f){
-      var p = f.p, s2 = p.gerencia + '|' + p.seccion;
+      var p = f.p, s2 = p.gerencia + '|' + p.seccion, nom = nombreProc(p);
       if (p.gerencia !== kg){
-        kg = p.gerencia; ks = null; kp = null; P = null; S = null;
+        kg = p.gerencia; ks = null; km = null; kp = null; S = null; M = null; P = null;
         MXK.g.push('g:' + kg);
-        G = {tipo: 'ger', g: MXK.g.length - 1, s: -1, p: -1, nombre: p.gerencia, a: nuevoAcum(completo)};
+        G = {tipo: 'ger', g: MXK.g.length - 1, s: -1, m: -1, p: -1, nombre: p.gerencia, a: nuevoAcum(completo)};
         nodos.push(G);
       }
       if (s2 !== ks){
-        ks = s2; kp = null; P = null;
+        ks = s2; km = null; kp = null; M = null; P = null;
         MXK.s.push('s:' + s2);
-        S = {tipo: 'sec', g: G.g, s: MXK.s.length - 1, p: -1, nombre: p.seccion, a: nuevoAcum(completo)};
+        S = {tipo: 'sec', g: G.g, s: MXK.s.length - 1, m: -1, p: -1, nombre: p.seccion, a: nuevoAcum(completo)};
         nodos.push(S);
       }
-      var ruta = [p.macroproceso, p.proceso !== nombreProc(p) ? p.proceso : ''].filter(Boolean).join(' › ');
-      var k3 = ruta ? s2 + '|' + p.macroproceso + '|' + p.proceso : '';
+      // El nivel Macroproceso y el nivel Proceso aparecen solo si la fila tiene algo debajo (si no, la fila es el propio macroproceso o proceso).
+      var k2 = p.macroproceso && p.macroproceso !== nom ? s2 + '|' + p.macroproceso : '';
+      if (k2 !== km){
+        km = k2; kp = null; M = null; P = null;
+        if (k2){
+          MXK.m.push('m:' + k2); MXK.ctx.m.push({gerencia: p.gerencia, seccion: p.seccion, macroproceso: p.macroproceso});
+          M = {tipo: 'mac', g: G.g, s: S.s, m: MXK.m.length - 1, p: -1, nombre: p.macroproceso, a: {n: 0}};
+          nodos.push(M);
+        }
+      }
+      var k3 = p.proceso && p.proceso !== nom ? (k2 || s2 + '|') + '|' + p.proceso : '';
       if (k3 !== kp){
         kp = k3; P = null;
         if (k3){
-          MXK.p.push('p:' + k3);
-          P = {tipo: 'pro', g: G.g, s: S.s, p: MXK.p.length - 1, nombre: ruta, a: {n: 0}};
+          MXK.p.push('p:' + k3); MXK.ctx.p.push({gerencia: p.gerencia, seccion: p.seccion, macroproceso: p.macroproceso || '', proceso: p.proceso});
+          P = {tipo: 'pro', g: G.g, s: S.s, m: M ? M.m : -1, p: MXK.p.length - 1, nombre: p.proceso, a: {n: 0}};
           nodos.push(P);
         }
       }
@@ -1293,16 +1499,18 @@
         if (!f.falta.length) a.comp++;
         if (completo) MATRIZ.forEach(function(c){ if (lleno(f.v[c[0]])) a.llenas[c[0]]++; });
       });
+      if (M) M.a.n++;
       if (P) P.a.n++;
-      nodos.push({tipo: 'fila', f: f, g: G.g, s: S.s, p: P ? P.p : -1});
+      nodos.push({tipo: 'fila', f: f, g: G.g, s: S.s, m: M ? M.m : -1, p: P ? P.p : -1});
     });
     return {nodos: nodos, tot: tot};
   }
   function cerradaMx(t, i){ var k = MXK[t][i]; return k in FM.cerradas ? !!FM.cerradas[k] : (t === 's' && MXK.defS); }
   // Una fila se oculta si alguno de los niveles que la contienen está cerrado.
-  function ocultaMx(niv, g, s, p){
+  function ocultaMx(niv, g, s, m, p){
     if (niv !== 'g' && cerradaMx('g', g)) return true;
-    if ((niv === 'p' || niv === 'f') && s >= 0 && cerradaMx('s', s)) return true;
+    if (niv !== 'g' && niv !== 's' && s >= 0 && cerradaMx('s', s)) return true;
+    if ((niv === 'p' || niv === 'f') && m >= 0 && cerradaMx('m', m)) return true;
     if (niv === 'f' && p >= 0 && cerradaMx('p', p)) return true;
     return false;
   }
@@ -1311,30 +1519,31 @@
     return '<button type="button" class="mx-plegar" data-plegar="' + t + '" data-i="' + i + '" aria-expanded="' + !cerrada + '">' +
       '<span class="mx-signo">' + (cerrada ? '+' : '−') + '</span><span>' + esc(nombre) + '</span></button>';
   }
-  function attrsNivel(niv, n){ return ' data-niv="' + niv + '" data-kg="' + n.g + '" data-ks="' + n.s + '" data-kp="' + n.p + '"'; }
+  function attrsNivel(niv, n){ return ' data-niv="' + niv + '" data-kg="' + n.g + '" data-ks="' + n.s + '" data-km="' + n.m + '" data-kp="' + n.p + '"'; }
+  function oculta(niv, n){ return ocultaMx(niv, n.g, n.s, n.m, n.p); }
+  // Un solo porcentaje por sección del formulario (grupo de columnas), no uno por campo.
+  function celdasGrupos(a, grupos, th){
+    var tag = th ? 'th' : 'td', h = '';
+    grupos.forEach(function(g){
+      var k = 0;
+      g.cols.forEach(function(c){ k += a.llenas[c[0]]; });
+      h += '<' + tag + ' class="g-ini" colspan="' + (g.oculto ? 1 : g.cols.length) + '" title="Campos llenos de «' + esc(g.nombre) + '»: ' + k + ' de ' + (a.n * g.cols.length) + '">' + barraLleno(k, a.n * g.cols.length) + '</' + tag + '>';
+    });
+    return h;
+  }
   function filaGrupoMx(n, grupos){
     var a = n.a, esG = n.tipo === 'ger', t = esG ? 'g' : 's';
-    var h = '<tr class="' + (esG ? 'mx-ger' : 'mx-sec') + (ocultaMx(t, n.g, n.s, -1) ? ' hidden' : '') + '"' + attrsNivel(t, n) + '>' +
+    return '<tr class="' + (esG ? 'mx-ger' : 'mx-sec') + (oculta(t, n) ? ' hidden' : '') + '"' + attrsNivel(t, n) + '>' +
       '<td class="fijo01" colspan="2">' + btnPlegar(t, esG ? n.g : n.s, n.nombre) + '</td>' +
       '<td class="g-ini">' + a.n + (a.n === 1 ? ' proceso' : ' procesos') + '</td>' +
       '<td title="' + a.comp + ' de ' + a.n + ' con todos sus datos obligatorios">' + barraLleno(a.comp, a.n, true) + '</td>' +
-      '<td title="' + a.val + ' de ' + a.n + ' validados">' + barraLleno(a.val, a.n) + '</td>';
-    grupos.forEach(function(g){
-      if (g.oculto){
-        var k = 0;
-        g.cols.forEach(function(c){ k += a.llenas[c[0]]; });
-        h += '<td class="g-ini">' + barraLleno(k, a.n * g.cols.length) + '</td>';
-        return;
-      }
-      g.cols.forEach(function(c, i){
-        h += '<td' + (i ? '' : ' class="g-ini"') + ' title="' + a.llenas[c[0]] + ' de ' + a.n + '">' + barraLleno(a.llenas[c[0]], a.n, ES_OBLIG[c[0]]) + '</td>';
-      });
-    });
-    return h + '</tr>';
+      '<td title="' + a.val + ' de ' + a.n + ' validados">' + barraLleno(a.val, a.n) + '</td>' + celdasGrupos(a, grupos, false) + '</tr>';
   }
-  function filaProMx(n, ncols){
-    return '<tr class="mx-pro' + (ocultaMx('p', n.g, n.s, n.p) ? ' hidden' : '') + '"' + attrsNivel('p', n) + '><td colspan="' + ncols + '"><div class="mx-pin">' +
-      btnPlegar('p', n.p, n.nombre) + '<span class="muted">' + n.a.n + (n.a.n === 1 ? ' fila' : ' filas') + '</span></div></td></tr>';
+  function filaNivelMx(n, ncols){
+    var esM = n.tipo === 'mac', t = esM ? 'm' : 'p', i = esM ? n.m : n.p;
+    return '<tr class="' + (esM ? 'mx-mac' : 'mx-pro') + (oculta(t, n) ? ' hidden' : '') + '"' + attrsNivel(t, n) + '><td colspan="' + ncols + '"><div class="mx-pin">' +
+      '<span class="mx-tipo">' + (esM ? 'Macroproceso' : 'Proceso') + '</span>' + btnPlegar(t, i, n.nombre) + '<span class="muted">' + n.a.n + (n.a.n === 1 ? ' fila' : ' filas') + '</span>' +
+      '<button type="button" class="btn-link" data-rn="' + t + ':' + i + '">Editar nombre</button></div></td></tr>';
   }
   function gridMatriz(lista){
     var grupos = gruposMx();
@@ -1343,12 +1552,12 @@
       ncols += g.oculto ? 1 : g.cols.length;
       if (g.oculto) anchos.push(ANCHO_MX.grupo); else g.cols.forEach(function(c){ anchos.push(anchoMx(c[0])); });
     });
-    var arb = arbolMatriz(lista, true), tot = arb.tot, total = tot.n, llenas = tot.llenas, comp = tot.comp, val = tot.val;
+    var arb = arbolMatriz(lista, true), tot = arb.tot, total = tot.n, comp = tot.comp, val = tot.val;
 
     // Anchos fijos: el navegador no mide el texto de miles de celdas para decidir el ancho de cada columna.
     var h = '<div class="mx-scroll"><table class="mx" style="width:' + anchos.reduce(function(a, w){ return a + w; }, 0) + 'px" aria-label="Matriz de procesos con todas las columnas"><colgroup>' +
       anchos.map(function(w){ return '<col style="width:' + w + 'px">'; }).join('');
-    // Encabezado en tres filas: grupo, columna y qué porcentaje de las filas tiene el dato.
+    // Encabezado en tres filas: grupo, columna y qué porcentaje de los campos de cada sección del formulario está lleno.
     h += '</colgroup><thead><tr class="banda"><th class="fijo01" colspan="2">Proceso</th><th class="g-ini" colspan="3">Estado y validación</th>';
     grupos.forEach(function(g){
       h += '<th class="g-ini" colspan="' + (g.oculto ? 1 : g.cols.length) + '"><span class="mx-gnom">' + esc(g.nombre) + ' <button type="button" class="btn-link" data-grp="' + g.id + '" aria-expanded="' + !g.oculto + '">' +
@@ -1362,23 +1571,12 @@
         h += '<th' + (i ? '' : ' class="g-ini"') + ' title="Columna del Excel: ' + esc(c[1]) + '">' + esc(c[3]) + etiquetaOblig(c[0]) + '</th>';
       });
     });
-    h += '</tr><tr class="llenado"><th class="fijo01" colspan="2">Filas con dato (de ' + total + ')</th><th class="g-ini"></th>' +
-      '<th title="Filas con todos sus datos obligatorios">' + barraLleno(comp, total, true) + '</th><th title="Filas validadas">' + barraLleno(val, total) + '</th>';
-    grupos.forEach(function(g){
-      if (g.oculto){
-        var n = 0;
-        g.cols.forEach(function(c){ n += llenas[c[0]]; });
-        h += '<th class="g-ini">' + barraLleno(n, total * g.cols.length) + '</th>';
-        return;
-      }
-      g.cols.forEach(function(c, i){
-        h += '<th' + (i ? '' : ' class="g-ini"') + ' title="' + llenas[c[0]] + ' de ' + total + ' filas">' + barraLleno(llenas[c[0]], total, ES_OBLIG[c[0]]) + '</th>';
-      });
-    });
-    h += '</tr></thead><tbody>';
+    h += '</tr><tr class="llenado"><th class="fijo01" colspan="2">Campos llenos por sección del formulario (de ' + total + ' filas)</th><th class="g-ini"></th>' +
+      '<th title="Filas con todos sus datos obligatorios">' + barraLleno(comp, total, true) + '</th><th title="Filas validadas">' + barraLleno(val, total) + '</th>' +
+      celdasGrupos(tot, grupos, true) + '</tr></thead><tbody>';
     arb.nodos.forEach(function(n){
-      if (n.tipo === 'fila') h += filaMx(n.f, grupos, n, ocultaMx('f', n.g, n.s, n.p));
-      else if (n.tipo === 'pro') h += filaProMx(n, ncols);
+      if (n.tipo === 'fila') h += filaMx(n.f, grupos, n, oculta('f', n));
+      else if (n.tipo === 'mac' || n.tipo === 'pro') h += filaNivelMx(n, ncols);
       else h += filaGrupoMx(n, grupos);
     });
     if (lista.length > 400) h += '<tr><td colspan="' + ncols + '" class="muted">Se muestran 400 de ' + lista.length + ': usa los filtros para ver el resto.</td></tr>';
@@ -1391,26 +1589,39 @@
     var h = '<div class="tblwrap"><table class="mtabla"><thead><tr><th>Validado</th><th>Código</th><th>Gerencia · sección</th><th>Proceso</th><th>Actualización</th><th>Datos obligatorios</th><th>Validación</th><th></th></tr></thead><tbody>';
     arb.nodos.forEach(function(n){
       if (n.tipo !== 'fila'){
-        var t = n.tipo === 'ger' ? 'g' : n.tipo === 'sec' ? 's' : 'p', i = t === 'g' ? n.g : t === 's' ? n.s : n.p;
-        var det = n.tipo === 'pro' ? n.a.n + (n.a.n === 1 ? ' fila' : ' filas') :
-          n.a.n + (n.a.n === 1 ? ' proceso' : ' procesos') + ' · obligatorios completos ' + pct(n.a.comp, n.a.n) + ' · validados ' + pct(n.a.val, n.a.n);
-        h += '<tr class="mx-' + (t === 'g' ? 'ger' : t === 's' ? 'sec' : 'pro') + (ocultaMx(t, n.g, n.s, n.p) ? ' hidden' : '') + '"' + attrsNivel(t, n) + '><td colspan="8">' +
-          btnPlegar(t, i, n.nombre) + ' <span class="muted">' + det + '</span></td></tr>';
+        var t = {ger: 'g', sec: 's', mac: 'm', pro: 'p'}[n.tipo], i = n[t], clase = {ger: 'ger', sec: 'sec', mac: 'mac', pro: 'pro'}[n.tipo];
+        var det = n.tipo === 'ger' || n.tipo === 'sec' ?
+          n.a.n + (n.a.n === 1 ? ' proceso' : ' procesos') + ' · obligatorios completos ' + pct(n.a.comp, n.a.n) + ' · validados ' + pct(n.a.val, n.a.n) :
+          n.a.n + (n.a.n === 1 ? ' fila' : ' filas');
+        var tipo = n.tipo === 'mac' ? '<span class="mx-tipo">Macroproceso</span>' : n.tipo === 'pro' ? '<span class="mx-tipo">Proceso</span>' : '';
+        var ren = n.tipo === 'mac' || n.tipo === 'pro' ? ' <button type="button" class="btn-link" data-rn="' + t + ':' + i + '">Editar nombre</button>' : '';
+        h += '<tr class="mx-' + clase + (oculta(t, n) ? ' hidden' : '') + '"' + attrsNivel(t, n) + '><td colspan="8">' + tipo + btnPlegar(t, i, n.nombre) + ' <span class="muted">' + det + '</span>' + ren + '</td></tr>';
         return;
       }
       var f = n.f, p = f.p, st = actualizacion(p), ok = p.validacion === 'validado';
-      var ruta = [p.macroproceso, p.proceso !== nombreProc(p) ? p.proceso : ''].filter(Boolean).join(' › ');
-      h += '<tr class="mx-fila' + (ok ? ' fila-ok' : '') + (ocultaMx('f', n.g, n.s, n.p) ? ' hidden' : '') + '"' + attrsNivel('f', n) + '><td><input type="checkbox" data-v="' + esc(p.id) + '"' + (ok ? ' checked' : '') + ' aria-label="Validado: ' + esc(nombreProc(p)) + '"></td>' +
+      h += '<tr class="mx-fila' + (ok ? ' fila-ok' : '') + (oculta('f', n) ? ' hidden' : '') + '"' + attrsNivel('f', n) + '><td><input type="checkbox" data-v="' + esc(p.id) + '"' + (ok ? ' checked' : '') + ' aria-label="Validado: ' + esc(nombreProc(p)) + '"></td>' +
         '<td>' + esc(p.codigo || '') + '</td><td>' + esc(p.gerencia) + '<div class="muted">' + esc(p.seccion) + '</div></td>' +
-        '<td>' + (ruta ? '<div class="muted">' + esc(ruta) + '</div>' : '') + '<b>' + esc(nombreProc(p)) + '</b></td>' +
+        '<td><b>' + esc(nombreProc(p)) + '</b></td>' +
         '<td><span class="chip ' + ACT_CHIP[st] + '">' + ACT_TXT[st] + '</span></td>' +
-        '<td>' + (f.falta.length ? '<span title="Faltan: ' + esc(f.falta.map(function(x){ return x[1]; }).join(', ')) + '">' + (f.oblig - f.falta.length) + ' de ' + f.oblig + '</span>' : '<span class="chip c-ok">Completos</span>') + '</td>' +
+        '<td>' + (f.falta.length ? '<span title="Faltan: ' + esc(f.falta.map(function(x){ return x[1]; }).join(', ')) + '">' + (f.oblig - f.falta.length) + ' de ' + f.oblig + '</span> <button type="button" class="btn-link" data-m="' + esc(p.id) + '">Completar</button>' : '<span class="chip c-ok">Completos</span>') + '</td>' +
         '<td>' + (ok ? esc(p.validado_por || '—') + '<div class="muted">' + esc(fecha(p.validado_en)) + '</div>' : '') + '</td>' +
         '<td><button class="btn btn-ghost btn-xs" type="button" data-m="' + esc(p.id) + '">Abrir fila</button></td></tr>';
     });
     if (lista.length > 400) h += '<tr><td colspan="8" class="muted">Se muestran 400 de ' + lista.length + ': usa los filtros para ver el resto.</td></tr>';
     if (!lista.length) h += '<tr><td colspan="8" class="muted">Ninguna fila coincide con el filtro.</td></tr>';
     return h + '</tbody></table></div>';
+  }
+  // Renombrar un macroproceso o un proceso: cambia el texto en todas sus filas de la sección.
+  function renombrarGrupo(nivel, ctx){
+    var actual = ctx[nivel];
+    var afectadas = C.procesos.filter(function(p){
+      return p.gerencia === ctx.gerencia && p.seccion === ctx.seccion && (p.macroproceso || '') === (ctx.macroproceso || '') && (nivel === 'macroproceso' || p.proceso === ctx.proceso);
+    }).length;
+    var n = (prompt('Nuevo nombre del ' + nivel + ' «' + actual + '»:\nSe cambia en ' + afectadas + (afectadas === 1 ? ' fila' : ' filas') + ' de «' + ctx.seccion + '».', actual) || '').trim();
+    if (!n || n === actual) return;
+    api('/a/proceso/renombrar', {campana_id: C.campana.id, nivel: nivel, gerencia: ctx.gerencia, seccion: ctx.seccion, macroproceso: ctx.macroproceso || '', proceso: ctx.proceso || '', nuevo: n})
+      .then(function(j){ j.procesos.forEach(aplicarProceso); pintarTodo(); })
+      .catch(function(err){ alert(err.message); });
   }
   // Las tres filas del encabezado quedan fijas una debajo de otra (su alto depende del texto, por eso se mide).
   function fijarEncabezado(){
@@ -1434,10 +1645,10 @@
   // Aplica el estado de plegado a todas las filas y actualiza los signos «+» / «−» de los encabezados de nivel.
   function aplicarPlegado(){
     Array.prototype.forEach.call(document.querySelectorAll('#mLista tr[data-niv]'), function(tr){
-      var niv = tr.dataset.niv, g = +tr.dataset.kg, s = +tr.dataset.ks, p = +tr.dataset.kp;
-      tr.classList.toggle('hidden', ocultaMx(niv, g, s, p));
+      var niv = tr.dataset.niv, ix = {g: +tr.dataset.kg, s: +tr.dataset.ks, m: +tr.dataset.km, p: +tr.dataset.kp};
+      tr.classList.toggle('hidden', ocultaMx(niv, ix.g, ix.s, ix.m, ix.p));
       if (niv === 'f') return;
-      var cerrada = cerradaMx(niv, niv === 'g' ? g : niv === 's' ? s : p), b = tr.querySelector('[data-plegar]');
+      var cerrada = cerradaMx(niv, ix[niv]), b = tr.querySelector('[data-plegar]');
       if (b){ b.setAttribute('aria-expanded', String(!cerrada)); b.querySelector('.mx-signo').textContent = cerrada ? '+' : '−'; }
     });
   }
@@ -1447,7 +1658,7 @@
     guardarPrefMx(); aplicarPlegado();
   }
   function plegarTodo(cerrar){
-    ['g', 's', 'p'].forEach(function(t){ MXK[t].forEach(function(k){ FM.cerradas[k] = cerrar; }); });
+    ['g', 's', 'm', 'p'].forEach(function(t){ MXK[t].forEach(function(k){ FM.cerradas[k] = cerrar; }); });
     guardarPrefMx(); aplicarPlegado();
   }
   $('#tMatriz').addEventListener('click', function(e){
@@ -1459,13 +1670,15 @@
     if (b){ alternarPlegado(b.dataset.plegar, +b.dataset.i); return; }
     b = e.target.closest('[data-todo]');
     if (b){ plegarTodo(b.dataset.todo === 'cerrar'); return; }
+    b = e.target.closest('[data-rn]');
+    if (b){ var rn = b.dataset.rn.split(':'); var cx = MXK.ctx[rn[0]][+rn[1]]; if (cx) renombrarGrupo(rn[0] === 'm' ? 'macroproceso' : 'proceso', cx); return; }
     // Clic en una fila: muestra u oculta su texto completo (no si se está seleccionando texto para copiarlo).
     var fila = e.target.closest('tr.mx-fila');
     if (!fila || e.target.closest('input, button, a, label') || String(window.getSelection ? window.getSelection() : '')) return;
     var p = C.procesos.filter(function(x){ return x.id === fila.dataset.pid; })[0];
     if (!p) return;
     if (FM.abiertas[p.id]) delete FM.abiertas[p.id]; else FM.abiertas[p.id] = 1;
-    fila.outerHTML = filaMx(datosFilaMx(p), gruposMx(), {g: fila.dataset.kg, s: fila.dataset.ks, p: fila.dataset.kp}, false);
+    fila.outerHTML = filaMx(datosFilaMx(p), gruposMx(), {g: fila.dataset.kg, s: fila.dataset.ks, m: fila.dataset.km, p: fila.dataset.kp}, false);
   });
   $('#tMatriz').addEventListener('change', function(e){
     if (e.target.dataset.grp){ FM.ocultos[e.target.dataset.grp] = !e.target.checked; guardarPrefMx(); pintarMatrizLista(); }
