@@ -304,7 +304,9 @@
             <button class="btn btn-ghost btn-xs" id="cnGer" type="button">+ Gerencia</button>
             <span class="muted" id="cnSel"></span>
             <button class="btn btn-ghost btn-xs hidden" id="cnMoverSel" type="button">Mover seleccionados…</button>
+            <button class="btn btn-ghost btn-xs hidden" id="cnFuera" type="button">Marcar como fuera de alcance</button>
             <button class="btn-link hidden" id="cnLimpiar" type="button">Quitar selección</button>
+            <button class="btn btn-ghost btn-xs" id="cnSugerir" type="button">Sugerir compras de bienes y servicios</button>
             <span id="cnAyuda"></span>
           </div>
           <div id="constr"></div>
@@ -378,18 +380,20 @@
   // Carpeta de la encuesta: la misma si la consola se abrió como ".../admin.html" o como ".../admin".
   var URL_ENCUESTA = new URL('./', location.href).href;
   var PREG = {q1:'Objetivo, inicio y fin', q2:'Actividades y participantes', q3:'Sistemas y manualidad', q4:'Terceros', q5:'Datos personales', q6:'Indicadores, normas y frecuencia',
-    b1:'Bloque 1 · Objetivo, alcance, frecuencia y aprobaciones externas', b2:'Bloque 2 · Sistemas, interacción y terceros',
-    b3:'Bloque 3 · Datos personales, normas, estándares, documentación e indicadores'};
+    b1:'Bloque 1 · Objetivo, actividades, riesgos y aprobaciones', b2:'Bloque 2 · Sistemas y terceros',
+    b3:'Bloque 3 · Datos personales, documentación, estándares e indicadores'};
   var PREG_ANTES = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6'];
   var ORIGEN_TXT = {encuestado:'La eligió', consultor:'Asignado por el equipo', inventario:'Inventario anterior (por nombre)'};
   // Campos que llena la IA al estructurar un proceso (mismas claves que la matriz; ver CAMPOS en el Worker).
   var CAMPOS = [
-    ['objetivo','Objetivo del subproceso'], ['alcance','Actividades principales (Alcance)'], ['frecuencia','Frecuencia de ejecución'],
-    ['documentacion','Documentación del subproceso'], ['tecnologia','ERP, aplicativos y plataformas digitales'], ['interaccion','Interacción digital / presencial'],
-    ['uso_tecnologia','Finalidad de interacción'], ['terceros','Terceros involucrados'], ['finalidad_terceros','Finalidad del tratamiento con tercero'],
-    ['datos_personales','Datos personales'], ['detalle_dp','Tipo/detalle de datos personales'], ['finalidad_dp','Finalidad del tratamiento de datos personales'],
-    ['normativa','Normativa legal peruana'], ['estandar_tdp','Estándar corporativo TDP'], ['estandar_tmc','Estándar global TMC'],
-    ['otros_estandares','Otros estándares (NTP, ISO, etc.)'], ['kpis','Indicadores / KPIs existentes'],
+    ['objetivo','Objetivo del subproceso'], ['riesgos','Riesgo que mitiga'], ['origen_proceso','De qué proceso viene / qué genera después'],
+    ['alcance','Actividades principales (Alcance)'], ['frecuencia','Frecuencia de ejecución'],
+    ['documentacion','Documentación del subproceso'], ['tecnologia','ERP, aplicativos y plataformas digitales'],
+    ['terceros','Terceros involucrados'], ['finalidad_terceros','Actividades y forma de participación del tercero'],
+    ['datos_personales','Datos personales'], ['detalle_dp','Tipo/detalle de datos personales'], ['finalidad_dp','¿Para qué usan esos datos?'],
+    ['normativa','Normativa legal peruana'], ['estandar_tdp','Estándar corporativo TDP'], ['estandar_tmc','Estándar global (TMC / Mitsui & Company)'],
+    ['otros_estandares','Otros estándares (NTP, ISO, etc.)'], ['kpis','Indicadores / KPIs existentes'], ['carga','Entre los 3 procesos de mayor carga'],
+    ['aprob_niveles','Niveles de aprobación'], ['aprob_formalizacion','Cómo se formaliza la aprobación'],
     ['aprob_externa','Aprobaciones externas'], ['aprob_area','Aprobación externa: de dónde'], ['aprob_responsable','Aprobación externa: de quién'],
     ['aprob_momento','Aprobación externa: cuándo']
   ];
@@ -407,7 +411,8 @@
     ['proceso','Proceso','id','Proceso','PROCESO (NIV.1)'],
     ['subproceso','Subproceso','id','Subproceso','SUBPROCESO (NIV.2)'],
     ['objetivo','Objetivo del subproceso','desc','Objetivo del subproceso','OBJETIVO'],
-    ['gerencia','Gerencia involucrada de TDP','id','Gerencia involucrada de TDP','GERENCIA'],
+    ['riesgos','Riesgo que mitiga el proceso (si aplica)','desc','Riesgo que mitiga el proceso (si aplica)','RIESGOS'],
+    ['origen_proceso','De qué proceso viene / qué genera después','desc','De qué proceso viene y qué genera después'],
     ['seccion','Secciones involucradas de TDP','id','Secciones involucradas de TDP','SECCIÓN'],
     ['documentacion','Documentación del subproceso','desc','Documentación del subproceso','DOCUMENTACIÓN'],
     ['normativa','Normativa legal peruana','norma','Normativa legal peruana','NORMATIVA'],
@@ -419,34 +424,35 @@
     ['estandar_tdp','Estándar corporativo TDP','norma','Estándar corporativo TDP','CUENTA CON ESTÁNDAR DE TDP'],
     ['alcance','Actividades principales (Alcance)','desc','Actividades principales (Alcance)','ALCANCE'],
     ['frecuencia','Frecuencia de ejecución','desc','Frecuencia de ejecución','FRECUENCIA Y VOLUMEN'],
-    ['interaccion','Interacción Digital / presencial','tec','Interacción Digital / presencial'],
-    ['uso_tecnologia','Finalidad de interacción','tec','Finalidad de interacción','USO ESPECÍFICO DE LA TECNOLOGÍA'],
     ['finalidad_terceros','Finalidad del tratamiento con tercero','ter','Finalidad del tratamiento con tercero'],
     ['finalidad_dp','Finalidad del tratamiento de datos personales','dp','Finalidad del tratamiento de datos personales'],
     ['estandar_tmc','Estándar global TMC','norma','Estándar global TMC'],
     ['otros_estandares','Otros estándares nacionales/internacionales (NTP, ISO, etc)','norma','Otros estándares nacionales/internacionales (NTP, ISO, etc)'],
     ['kpis','Indicadores / KPIs existentes (Opcional)','desc','Indicadores / KPIs existentes (Opcional)','KPIs'],
+    ['carga','¿Entre los 3 procesos de mayor carga? (Sí/No)','desc','¿Es uno de los 3 procesos que más carga generan? (Sí/No)'],
     // Pedido de TDP: de quién y de dónde depende el proceso para completarse, y en qué momento.
+    ['aprob_niveles','Niveles de aprobación del proceso','aprob','Niveles de aprobación del proceso (jefe, gerente, comité…)'],
+    ['aprob_formalizacion','Cómo se formaliza la aprobación','aprob','Cómo se formaliza (reunión, correo…)'],
     ['aprob_externa','Aprobaciones externas (Sí/No)','aprob','¿Depende de aprobaciones externas?'],
     ['aprob_area','Aprobación externa: de dónde (gerencia / sección)','aprob','De dónde (gerencia / sección)'],
     ['aprob_responsable','Aprobación externa: de quién (cargo)','aprob','De quién (cargo)'],
     ['aprob_momento','Aprobación externa: cuándo (momento del proceso)','aprob','Cuándo (momento del proceso)']
   ];
-  var GRUPOS = [['id','Identificación'], ['desc','Descripción del subproceso'], ['tec','Tecnología e interacción'], ['ter','Terceros'],
-    ['dp','Datos personales'], ['norma','Normativa y estándares'], ['aprob','Aprobaciones externas']];
+  var GRUPOS = [['id','Identificación'], ['desc','Descripción del subproceso'], ['tec','Tecnología y plataformas'], ['ter','Terceros'],
+    ['dp','Datos personales'], ['norma','Normativa y estándares'], ['aprob','Aprobaciones']];
   var ES_MATRIZ = {}; MATRIZ.forEach(function(c){ ES_MATRIZ[c[0]] = 1; });
   var OPCIONES = {datos_personales:['Sí','No'], estandar_tdp:['Sí','No','Parcialmente','Programado (en proceso)'],
-    interaccion:['Digital','Presencial','Digital y presencial'], aprob_externa:['Sí','No']};
-  var LARGOS = {objetivo:1, documentacion:1, alcance:1, normativa:1, detalle_dp:1, terceros:1, tecnologia:1, uso_tecnologia:1,
+    carga:['Sí','No'], aprob_externa:['Sí','No']};
+  var LARGOS = {objetivo:1, documentacion:1, alcance:1, normativa:1, detalle_dp:1, terceros:1, tecnologia:1, riesgos:1, origen_proceso:1, aprob_niveles:1, aprob_formalizacion:1,
     finalidad_terceros:1, finalidad_dp:1, estandar_tmc:1, otros_estandares:1, kpis:1, aprob_area:1, aprob_momento:1};
   // Datos que pide la matriz de TDP: con alguno vacío, la fila no está lista para validar («No aplica» cuenta como respuesta).
   // KPIs es opcional. El tercer elemento es la pregunta Sí/No de la que depende: ese dato solo se pide si la respuesta es «Sí».
-  var OBLIGATORIOS = [['objetivo','Objetivo'], ['documentacion','Documentación'], ['normativa','Normativa legal peruana'],
+  var OBLIGATORIOS = [['objetivo','Objetivo'], ['riesgos','Riesgo que mitiga (o «No aplica»)'], ['documentacion','Documentación'],
     ['datos_personales','Datos personales'], ['detalle_dp','Tipo/detalle de datos personales','datos_personales'], ['terceros','Terceros involucrados'],
     ['tecnologia','ERP, aplicativos y plataformas'], ['estandar_tdp','Estándar corporativo TDP'], ['alcance','Actividades principales (Alcance)'],
-    ['frecuencia','Frecuencia de ejecución'], ['interaccion','Interacción digital / presencial'], ['uso_tecnologia','Finalidad de interacción'],
-    ['finalidad_terceros','Finalidad del tratamiento con tercero'], ['finalidad_dp','Finalidad del tratamiento de datos personales','datos_personales'],
-    ['estandar_tmc','Estándar global TMC'], ['otros_estandares','Otros estándares'], ['aprob_externa','Aprobaciones externas (Sí/No)'],
+    ['frecuencia','Frecuencia de ejecución'], ['finalidad_terceros','Actividades y participación del tercero'],
+    ['finalidad_dp','¿Para qué usan esos datos?','datos_personales'], ['estandar_tmc','Estándar global (TMC / Mitsui & Company)'],
+    ['aprob_niveles','Niveles de aprobación'], ['aprob_formalizacion','Cómo se formaliza la aprobación'], ['aprob_externa','Aprobaciones externas (Sí/No)'],
     ['aprob_area','Aprobación externa: de dónde','aprob_externa'], ['aprob_responsable','Aprobación externa: de quién','aprob_externa'],
     ['aprob_momento','Aprobación externa: cuándo','aprob_externa']];
   var ES_OBLIG = {}; OBLIGATORIOS.forEach(function(o){ ES_OBLIG[o[0]] = o[2] ? 'si' : 1; });
@@ -553,6 +559,9 @@
     return api('/a/campana?id=' + encodeURIComponent(id)).then(function(j){
       C = j;
       C.asignaciones = C.asignaciones || [];
+      // Los procesos fuera de alcance (p. ej. compra de bienes y servicios) no cuentan en el mapa, la matriz, las entrevistas ni el Excel.
+      C.fuera = C.procesos.filter(function(p){ return p.fuera_alcance; });
+      C.procesos = C.procesos.filter(function(p){ return !p.fuera_alcance; });
       indexar();
       history.replaceState(null, '', location.pathname + '?c=' + encodeURIComponent(id));
       ver('vCampana');
@@ -782,7 +791,7 @@
   function claveCn(){ return 'relev-cn-' + (C && C.campana ? C.campana.id : ''); }
   function cargarExtras(){ try { CN.extras = JSON.parse(localStorage.getItem(claveCn()) || '[]') || []; } catch(e){ CN.extras = []; } }
   function guardarExtras(){ try { localStorage.setItem(claveCn(), JSON.stringify(CN.extras)); } catch(e){} }
-  function procPorId(id){ return C.procesos.filter(function(p){ return p.id === id; })[0]; }
+  function procPorId(id){ return C.procesos.concat(C.fuera || []).filter(function(p){ return p.id === id; })[0]; }
   function igualArea(a, b){ return sinTildes(String(a || '')).replace(/\s+/g, ' ').trim() === sinTildes(String(b || '')).replace(/\s+/g, ' ').trim(); }
   function fijarVistaMapa(v){
     MAPAV = v;
@@ -835,6 +844,7 @@
               '<div class="cn-meta">' + (p.codigo ? '<span>' + esc(p.codigo) + '</span>' : '') +
               '<button type="button" data-cn="mover" data-p="' + esc(p.id) + '" aria-label="Mover ' + esc(nom) + ' a otra sección">Mover…</button>' +
               '<button type="button" data-cn="editar" data-p="' + esc(p.id) + '" aria-label="Editar ' + esc(nom) + '">Editar</button>' +
+              '<button type="button" data-cn="fuera" data-p="' + esc(p.id) + '" aria-label="Dejar ' + esc(nom) + ' fuera de alcance">Fuera de alcance</button>' +
               '<button type="button" data-cn="borrar" data-p="' + esc(p.id) + '" aria-label="Borrar ' + esc(nom) + '">Borrar</button></div></div>';
           });
           html += '</div>';
@@ -843,6 +853,16 @@
       });
       html += '</section>';
     });
+    // Columna de procesos fuera de alcance: no se ven en la encuesta ni cuentan; se pueden reincorporar.
+    if ((C.fuera || []).length){
+      html += '<section class="cn-ger" aria-label="Fuera de alcance"><div class="cn-ger-h"><h3>Fuera de alcance</h3><span class="muted">' + C.fuera.length + (C.fuera.length === 1 ? ' proceso' : ' procesos') + ' · no se ven en la encuesta ni cuentan en el avance</span></div><div class="cn-sec" style="border-style:solid">';
+      C.fuera.slice().sort(porJerarquia).forEach(function(p){
+        html += '<div class="cn-nodo' + (CN.sel[p.id] ? ' sel' : '') + '" tabindex="0" role="button" aria-pressed="' + !!CN.sel[p.id] + '" data-p="' + esc(p.id) + '">' +
+          '<span class="cn-n">' + esc(nombreProc(p)) + '</span><div class="cn-meta"><span>' + esc(p.gerencia + ' › ' + p.seccion) + '</span>' +
+          '<button type="button" data-cn="dentro" data-p="' + esc(p.id) + '">Reincorporar</button></div></div>';
+      });
+      html += '</div></section>';
+    }
     $('#constr').innerHTML = html + '</div>';
     $('#cnAyuda').innerHTML = ayuda('Arrastra un proceso a otra sección para reasignarlo (a un macroproceso concreto si lo sueltas sobre él). Ctrl o Mayús + clic elige varios. «Mover…» hace lo mismo sin arrastrar, y funciona con el teclado. ' +
       'Al mover se actualizan el mapa, la matriz y la encuesta; las respuestas y asignaciones se conservan. Un proceso con respuestas no se puede borrar. Tienes 10 segundos para deshacer.');
@@ -856,6 +876,7 @@
     $('#cnSel').textContent = ids.length ? ids.length + (ids.length === 1 ? ' proceso elegido' : ' procesos elegidos') : '';
     $('#cnMoverSel').classList.toggle('hidden', !ids.length);
     $('#cnLimpiar').classList.toggle('hidden', !ids.length);
+    $('#cnFuera').classList.toggle('hidden', !ids.length);
   }
   // Ctrl/Cmd suma o quita; Mayús elige el tramo entre el último clic y este; un clic solo deja únicamente ese.
   function elegirNodo(id, ev){
@@ -897,6 +918,8 @@
       } else if (a === 'editar') editarProceso(procPorId(b.dataset.p));
       else if (a === 'mover') dialogoMover(CN.sel[b.dataset.p] ? Object.keys(CN.sel) : [b.dataset.p]);
       else if (a === 'borrar') borrarNodo(b.dataset.p);
+      else if (a === 'fuera') marcarFuera(CN.sel[b.dataset.p] ? Object.keys(CN.sel) : [b.dataset.p], true);
+      else if (a === 'dentro') marcarFuera(CN.sel[b.dataset.p] ? Object.keys(CN.sel) : [b.dataset.p], false);
       return;
     }
     var nodo = e.target.closest('.cn-nodo');
@@ -908,6 +931,42 @@
     if (e.key === ' '){ e.preventDefault(); elegirNodo(nodo.dataset.p, {ctrlKey: true}); }
     else if (e.key === 'Enter'){ e.preventDefault(); dialogoMover(CN.sel[nodo.dataset.p] ? Object.keys(CN.sel) : [nodo.dataset.p]); }
   });
+
+  // Deja procesos fuera de alcance (o los reincorpora). No se borra nada.
+  function marcarFuera(ids, valor){
+    ids = ids.filter(function(id){ return !!procPorId(id); });
+    if (!ids.length) return;
+    var conResp = ids.filter(function(id){ return Object.keys(IX.todas[id] || {}).length; }).length;
+    var msg = valor ?
+      'Dejar ' + (ids.length === 1 ? '«' + nombreProc(procPorId(ids[0])) + '»' : ids.length + ' procesos') + ' fuera de alcance?\n\nDejan de verse en la encuesta, de contar en el avance y de estructurarse con IA. No se borra nada: se pueden reincorporar desde la columna «Fuera de alcance».' +
+        (conResp ? '\n\n' + conResp + (conResp === 1 ? ' tiene' : ' tienen') + ' respuestas, que se conservan.' : '') :
+      'Reincorporar ' + (ids.length === 1 ? '«' + nombreProc(procPorId(ids[0])) + '»' : ids.length + ' procesos') + ' al alcance? Volverán a verse en la encuesta.';
+    if (!confirm(msg)) return;
+    api('/a/fuera-alcance', {campana_id: C.campana.id, proceso_ids: ids, valor: valor ? 1 : 0}).then(function(){
+      ids.forEach(function(id){
+        var de = valor ? C.procesos : C.fuera, a = valor ? C.fuera : C.procesos;
+        var p = de.filter(function(x){ return x.id === id; })[0];
+        if (!p) return;
+        p.fuera_alcance = valor ? 1 : 0;
+        de.splice(de.indexOf(p), 1); a.push(p);
+      });
+      CN.sel = {};
+      pintarTodo();
+    }).catch(function(err){ alert(err.message); });
+  }
+  // Propone (sin aplicar) los procesos de compra de bienes y servicios; la compra de accesorios para vender se queda.
+  $('#cnSugerir').addEventListener('click', function(){
+    var hallados = C.procesos.filter(function(p){
+      // Se busca en el nombre del proceso o subproceso; la compra para la reventa (vehículos, repuestos, accesorios, importaciones) se excluye.
+      var hoja = sinTildes([p.proceso, p.subproceso].join(' ')), todo = sinTildes([p.macroproceso, p.proceso, p.subproceso].join(' '));
+      return /compra|adquisicion|bienes y servicios|contratacion de servicios|maestro de proveedores/.test(hoja) && !/accesorio|vehiculo|repuesto|importa|nave|courier/.test(todo);
+    });
+    CN.sel = {};
+    hallados.forEach(function(p){ CN.sel[p.id] = 1; });
+    pintarSeleccion();
+    alert(hallados.length ? 'Se eligieron ' + hallados.length + ' procesos que parecen de compra de bienes y servicios (la compra para la reventa —vehículos, repuestos, accesorios, importaciones— queda fuera de la propuesta).\n\nRevísalos en el mapa (Ctrl + clic quita uno) y pulsa «Marcar como fuera de alcance».' : 'No se encontraron procesos de compra de bienes y servicios.');
+  });
+  $('#cnFuera').addEventListener('click', function(){ marcarFuera(Object.keys(CN.sel), true); });
 
   function borrarNodo(id){
     var p = procPorId(id); if (!p) return;
@@ -1279,6 +1338,7 @@
   }
   function aplicarProceso(np){
     C.procesos = C.procesos.map(function(x){ return x.id === np.id ? Object.assign({}, x, np) : x; });
+    C.fuera = (C.fuera || []).map(function(x){ return x.id === np.id ? Object.assign({}, x, np) : x; });
   }
   function porCodigo(a, b){
     return a.gerencia.localeCompare(b.gerencia, 'es') || a.seccion.localeCompare(b.seccion, 'es') ||
@@ -1398,7 +1458,7 @@
   }
 
   // ---- Matriz completa: las columnas del entregable agrupadas como en la ficha; las filas, por sección y macroproceso.
-  var CORTOS_MX = {datos_personales:1, estandar_tdp:1, interaccion:1, aprob_externa:1};
+  var CORTOS_MX = {datos_personales:1, estandar_tdp:1, carga:1, aprob_externa:1};
   var ANCHO_MX = {s:108, m:165, l:270, grupo:190};
   function anchoMx(k){ return LARGOS[k] ? ANCHO_MX.l : CORTOS_MX[k] ? ANCHO_MX.s : ANCHO_MX.m; }
   function lleno(v){ return String(v == null ? '' : v).trim() !== ''; }

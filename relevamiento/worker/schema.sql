@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS procesos (
   entrevista TEXT NOT NULL DEFAULT '',          -- '' (pendiente) / agendada / realizada
   entrevista_fecha TEXT,                        -- AAAA-MM-DD
   entrevistado TEXT NOT NULL DEFAULT '',        -- cargo o persona entrevistada
+  fuera_alcance INTEGER NOT NULL DEFAULT 0,     -- 1 = no se levanta en la encuesta (p. ej. compra de bienes y servicios)
   personas TEXT NOT NULL DEFAULT '',            -- nombres del inventario anterior, uno por línea (buscador por persona)
   matriz_ia TEXT NOT NULL DEFAULT '{}'          -- campos de la matriz que llenó la IA: {campo: {estado, en}}
 );

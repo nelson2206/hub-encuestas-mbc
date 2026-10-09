@@ -586,7 +586,7 @@
     if (bienvenida || nuevo !== null) history.replaceState(null, '', location.pathname + '?k=' + encodeURIComponent(K));
     $('#heroEyebrow').textContent = (S.campana ? S.campana.cliente + ' · ' : '') + e.gerencia + ' · ' + e.seccion;
     $('#heroTitle').textContent = 'Hola, ' + e.nombre.split(' ')[0] + ': cuéntanos cómo funcionan tus procesos';
-    $('#heroIntro').innerHTML = 'Son dos pasos. Primero eliges los procesos en los que participas; luego nos cuentas, <strong>hablando</strong> o escribiendo, cómo funciona cada uno. Todo se guarda solo: puedes dejarlo y volver con tu enlace.';
+    $('#heroIntro').innerHTML = 'Son tres partes. Primero confirmas tus procesos del inventario; luego, si hace falta, buscas otros en los que participes; y al final nos cuentas, <strong>hablando</strong> o escribiendo, cómo funciona cada uno. Todo se guarda solo: puedes dejarlo y volver con tu enlace.';
     ponerLogo(S.campana);
 
     var root = $('#root');
@@ -595,10 +595,11 @@
     var porNombre = S.procesos.filter(function(p){ return p.asignado === 'inventario' && !S.revisiones[p.id]; }).length;
     intro.className = 'card' + (bienvenida ? ' destacado' : '');
     intro.innerHTML = (bienvenida ? '<h2>Listo, ya estás registrado</h2><p class="lead">Guarda tu enlace personal: con él vuelves a tu encuesta desde cualquier equipo. Es solo tuyo, no lo compartas.' +
-        (porNombre ? ' Figuras en ' + (porNombre === 1 ? '1 proceso' : porNombre + ' procesos') + ' del inventario anterior: están en el paso 1 para que confirmes tu relación con cada uno.' : '') + '</p>' : '') +
+        (porNombre ? ' Figuras en ' + (porNombre === 1 ? '1 proceso' : porNombre + ' procesos') + ' del inventario anterior: están en la parte 1 para que confirmes tu relación con cada uno.' : '') + '</p>' : '') +
       '<p class="aviso"><strong>Cómo tratamos lo que nos cuentas.</strong> Tu voz se convierte en texto y el audio se descarta al instante: no se guarda. ' +
       'Antes de guardar, puedes leer y corregir el texto. La información se usa solo para el inventario de procesos y se borra al cierre del proyecto. ' +
       'Habla de cargos y áreas, no de personas, y no menciones datos reales de clientes o trabajadores.</p>' +
+      (S.fuera_alcance ? '<p class="aviso" style="margin-top:10px"><strong>Compra de bienes y servicios.</strong> No incluyas el proceso de compra de bienes y servicios (los gastos): se levanta aparte con el equipo consultor, aunque tu área gestione compras. La compra de accesorios para vender a los clientes sí va.</p>' : '') +
       '<div class="enlace-box"><label for="miEnlace" style="margin:0">Tu enlace personal</label><input type="text" id="miEnlace" readonly value="' + esc(miEnlace()) + '">' +
       '<button class="btn btn-ghost btn-sm" type="button" id="btnCopiarEnlace">Copiar</button></div>';
     root.appendChild(intro);
@@ -607,19 +608,20 @@
       navigator.clipboard.writeText(miEnlace()).then(function(){ b.textContent = 'Copiado ✓'; setTimeout(function(){ b.textContent = 'Copiar'; }, 1600); });
     });
 
-    // Paso 1: elegir procesos
-    var hayDeSeccion = S.procesos.some(function(p){ return p.enSeccion; });
+    // Parte 1: tus procesos del inventario (no se mueven al marcarlos: así nadie cree que se eliminaron).
+    // Parte 2: buscar otros procesos (cambios de área) o agregar uno nuevo.
     var p1 = document.createElement('section');
     p1.className = 'card';
-    p1.innerHTML = '<div class="paso"><span class="n">1</span><div><h2>¿En qué procesos participas?</h2>' +
-      '<p class="lead">Busca tus procesos escribiendo unas letras y elígelos, o escribe tu nombre para ver los procesos donde figuras en el inventario anterior. Puedes elegir procesos de cualquier área.</p>' +
+    p1.innerHTML = '<div class="paso"><span class="n">1</span><div><h2>Tus procesos</h2>' +
+      '<p class="lead">Aquí están todos los procesos que tienes mapeados en el inventario anterior. Confirma tu relación con cada uno: los que marques como «Participo» pasan a la parte 3 para que nos cuentes cómo funcionan.</p>' +
+      '<div id="listaRev"></div><p class="lead hidden" id="revVacio" style="margin-top:6px">No tienes procesos del inventario anterior asignados. Búscalos en la parte 2.</p>' +
+      '<p class="sub-t hidden" id="elegidosT">Procesos que elegiste</p><ul class="lista-el hidden" id="listaElegidos"></ul></div></div>';
+    root.appendChild(p1);
+    var p1b = document.createElement('section');
+    p1b.className = 'card';
+    p1b.innerHTML = '<div class="paso"><span class="n">2</span><div><h2>¿Participas en otros procesos?</h2>' +
+      '<p class="lead">Busca tus procesos u otros para saber dónde podrías participar por cambios organizacionales. También puedes escribir tu nombre y apellido para ver los procesos donde figuras en el inventario anterior.</p>' +
       '<div id="busP" class="bus-fijo"></div>' +
-      // Orden: tus procesos (elegidos o confirmados) → asignados por marcar → de tu sección por marcar → agregar nuevo → no participo / ya no se hace.
-      '<p class="sub-t" id="elegidosT">Tus procesos</p><ul class="lista-el" id="listaElegidos"></ul><div id="listaConfirmados"></div>' +
-      '<div id="bloqueAsig" class="hidden"><p class="sub-t">Procesos asignados a ti, por marcar</p>' +
-      '<p class="lead" style="font-size:14px;margin:0 0 4px">Figuras en ellos en el inventario anterior o te los asignó el equipo consultor. Marca tu relación con cada uno.</p><div id="listaAsig"></div></div>' +
-      '<div id="bloqueSeccion"' + (hayDeSeccion ? '' : ' class="hidden"') + '><p class="sub-t">Procesos de tu sección en el inventario, por marcar</p>' +
-      '<p class="lead" style="font-size:14px;margin:0 0 4px">Vienen del inventario anterior. Marca tu relación con cada uno.</p><div id="listaRev"></div></div>' +
       '<div style="margin-top:14px"><button class="btn-link" type="button" id="btnAgregar">¿No encuentras tu proceso? Agrégalo como nuevo</button></div>' +
       '<div id="formNuevo" class="hidden" style="margin-top:12px;background:var(--panel);border-radius:12px;padding:14px 16px">' +
         '<label for="nvProceso">Nombre del proceso *</label><input type="text" id="nvProceso" maxlength="200" placeholder="Ej. Seguimiento de embarques">' +
@@ -627,11 +629,8 @@
         '<label for="nvDesc">En una frase, ¿de qué se trata? (opcional)</label><input type="text" id="nvDesc" maxlength="300">' +
         '<div class="fila" style="margin-top:12px"><button class="btn btn-sm" type="button" id="btnGuardarNuevo">Agregar</button>' +
         '<button class="btn-link" type="button" id="btnCancelarNuevo">Cancelar</button><span class="estado" id="estNuevo"></span></div>' +
-      '</div>' +
-      '<div id="bloqueNoPart" class="hidden"><p class="sub-t">No participo o ya no se hace</p>' +
-      '<p class="lead" style="font-size:14px;margin:0 0 4px">Si te equivocaste, vuelve a marcar tu relación con el proceso.</p><div id="listaNoPart"></div></div>' +
-      '</div></div>';
-    root.appendChild(p1);
+      '</div></div></div>';
+    root.appendChild(p1b);
 
     var bus = crearBuscador({
       etiqueta: 'Busca un proceso o tu nombre', placeholder: 'Ej.: importación, facturación… o tu nombre y apellido',
@@ -641,11 +640,11 @@
       elegirVarios: elegirVariosPersonal,
       agregar: function(q){ abrirNuevo(q); }, textoAgregar: 'Agregarlo como proceso nuevo'
     });
-    p1.querySelector('#busP').appendChild(bus.el);
+    $('#busP').appendChild(bus.el);
 
     // Paso 2: respuestas
     var p2 = document.createElement('section');
-    p2.innerHTML = '<div class="card" style="margin-bottom:14px"><div class="paso"><span class="n">2</span><div><h2>Cuéntanos cómo funciona cada proceso</h2>' +
+    p2.innerHTML = '<div class="card" style="margin-bottom:14px"><div class="paso"><span class="n">3</span><div><h2>Cuéntanos cómo funciona cada proceso</h2>' +
       '<p class="lead" style="margin:0">Abre cada proceso y responde sus 3 bloques. Cada bloque trae la lista de lo que necesitamos saber: pulsa <strong>Grabar</strong> y cuéntalo como si se lo explicaras a un colega nuevo, o escríbelo. También puedes <strong>subir una imagen</strong> (un flujo, un formato, una pantalla): la IA escribe lo que ve. El texto aparece solo y lo puedes corregir; la imagen no se guarda. ' +
       'Al terminar revisamos tu respuesta y marcamos lo que ya cubriste. Lo que no exista en tu proceso (por ejemplo, si no hay indicadores) márcalo como «No aplica». ' +
       'Un proceso queda <strong>completo</strong> cuando todos sus puntos están marcados.</p></div></div></div>' +
@@ -692,41 +691,16 @@
   function pintarPaso1(){
     var ul = $('#listaElegidos');
     ul.innerHTML = '';
-    // Los asignados (por el equipo o por su nombre en el inventario anterior) se confirman como los de su sección.
+    // Procesos que la persona buscó y eligió (no vienen de su sección ni se los asignaron).
     var el = S.procesos.filter(function(p){ return !p.enSeccion && !p.asignado && (p.elegido || p.propio); });
     el.forEach(function(p){ ul.appendChild(filaElegido(p)); });
-    var sec = S.procesos.filter(function(p){ return p.enSeccion; });
-    var asig = S.procesos.filter(function(p){ return !p.enSeccion && p.asignado; });
-    // Si lo que eligió es de su propia sección, ya aparece marcado abajo: no se muestra una lista vacía que confunda.
-    var nada = !el.length && !procesosActivos().length;
-    if (nada) ul.innerHTML = '<li class="vacio">Todavía no tienes procesos elegidos. Búscalos arriba' + (sec.length || asig.length ? ' o marca «Participo» en los procesos de las listas.' : '.') + '</li>';
-    ul.classList.toggle('hidden', !el.length && !nada);
-    // Solo se agregan las filas que faltan: las existentes conservan lo que la persona está escribiendo.
-    var cont = $('#listaRev'), contA = $('#listaAsig');
-    sec.forEach(function(p){ if (!document.getElementById('rev-' + p.id)) cont.appendChild(tarjetaRevision(p)); });
-    asig.forEach(function(p){ if (!document.getElementById('rev-' + p.id)) contA.appendChild(tarjetaRevision(p)); });
-    ordenarPaso1(el.length || nada);
-  }
-
-  // Cada tarjeta de revisión va al grupo que le toca según lo que la persona marcó:
-  // participa → «Tus procesos» (arriba); sin marcar → asignados o de tu sección; no participa / ya no se hace → al final.
-  // Mover un nodo existente conserva lo escrito; si tenía el foco, se lo devolvemos.
-  function ordenarPaso1(hayElegidos){
-    var activo = document.activeElement;
-    var destino = {act: $('#listaConfirmados'), nop: $('#listaNoPart'), sec: $('#listaRev'), asig: $('#listaAsig')};
-    Array.prototype.slice.call(document.querySelectorAll('.proc-rev')).forEach(function(d){
-      var pid = d.id.slice(4);
-      var p = S.procesos.filter(function(x){ return x.id === pid; })[0];
-      if (!p) return;
-      var e = (S.revisiones[pid] || {}).estado;
-      var a = (e === 'vigente' || e === 'cambio') ? destino.act : (e === 'no_participo' || e === 'no_existe') ? destino.nop : (p.enSeccion ? destino.sec : destino.asig);
-      if (d.parentNode !== a) a.appendChild(d);
-    });
-    if (activo && activo !== document.body && document.contains(activo) && document.activeElement !== activo) activo.focus({preventScroll: true});
-    $('#elegidosT').classList.toggle('hidden', !hayElegidos && !destino.act.children.length);
-    $('#bloqueAsig').classList.toggle('hidden', !destino.asig.children.length);
-    $('#bloqueSeccion').classList.toggle('hidden', !destino.sec.children.length);
-    $('#bloqueNoPart').classList.toggle('hidden', !destino.nop.children.length);
+    ul.classList.toggle('hidden', !el.length);
+    $('#elegidosT').classList.toggle('hidden', !el.length);
+    // Los de su sección o asignados se confirman uno por uno y se quedan en su lugar. Solo se agregan las filas que faltan:
+    // las existentes conservan lo que la persona está escribiendo.
+    var todos = S.procesos.filter(function(p){ return p.enSeccion || p.asignado; }), cont = $('#listaRev');
+    todos.forEach(function(p){ if (!document.getElementById('rev-' + p.id)) cont.appendChild(tarjetaRevision(p)); });
+    $('#revVacio').classList.toggle('hidden', !!todos.length);
   }
 
   // El buscador fijo se pega bajo la barra de avance (si está visible); la sombra aparece solo cuando está pegado.
@@ -924,10 +898,10 @@
         '<textarea id="tx-' + esc(key) + '" maxlength="12000" aria-label="Respuesta al bloque ' + (i+1) + '" placeholder="Pulsa Grabar y habla, escribe aquí o sube una imagen…">' + esc(r.texto) + '</textarea>';
       if (q.sistemas){
         // El cuadro existe siempre (aunque la campaña no tenga catálogo): los sistemas que la IA detecta en lo que cuentas aparecen aquí marcados.
-        html += '<div id="sbox-' + esc(key) + '"' + (S.sistemas.length ? '' : ' class="hidden"') + '><div class="sis-t">Marca los sistemas que usan en este proceso</div>' +
+        html += '<div id="sbox-' + esc(key) + '"' + (S.sistemas.length ? '' : ' class="hidden"') + '><div class="sis-t">Marca los sistemas y plataformas que usan en este proceso (también los de otras empresas)</div>' +
           '<div class="pillbox" data-pills="' + esc(key) + '">' + S.sistemas.map(function(s){ return pastillaSistema(key, s, (r.sistemas || []).indexOf(s.nombre) >= 0); }).join('') + '</div>' +
           '<p class="estado ok hidden" id="sd-' + esc(key) + '" aria-live="polite" style="margin:8px 0 0"></p>' +
-          '<p class="preg-g" style="margin:8px 0 0">Si mencionas un sistema al contarlo, lo marcamos solos. Si marcamos uno que no es, desmárcalo.</p></div>';
+          '<p class="preg-g" style="margin:8px 0 0">Si mencionas un sistema al contarlo, lo marcamos solos; incluye las plataformas de otras empresas (Toyota Brasil, Quinto, portal SUNAT). Si marcamos uno que no es, desmárcalo.</p></div>';
       }
       html += '<p class="sug hidden" id="sg-' + esc(key) + '"></p>' +
         '<div class="fila" style="margin-top:8px;gap:10px"><button type="button" class="btn-link" data-verif="' + esc(key) + '">Revisar mi respuesta</button>' +
@@ -1116,7 +1090,7 @@
     S.procesos.forEach(function(p){ pintarAvanceProc(p.id); });
     var pendientesRev = S.procesos.filter(function(p){ return (p.enSeccion || p.asignado) && !S.revisiones[p.id]; }).length;
     $('#pfill').style.width = (activos.length && tot ? Math.round(puntos * 100 / (activos.length * tot)) : 0) + '%';
-    $('#ptext').textContent = (pendientesRev ? pendientesRev + ' por marcar en el paso 1 · ' : '') + completos + ' de ' + activos.length +
+    $('#ptext').textContent = (pendientesRev ? pendientesRev + ' por marcar en la parte 1 · ' : '') + completos + ' de ' + activos.length +
       (activos.length === 1 ? ' proceso completo' : ' procesos completos');
   }
 

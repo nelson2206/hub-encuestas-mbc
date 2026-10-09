@@ -28,7 +28,7 @@ export function comparar(esperado, obtenido) {
 }
 
 // Autoprueba del comparador y de los casos (sin red).
-if (casos.length !== 10) throw new Error('El archivo debe tener 10 casos');
+if (casos.length < 10) throw new Error('El archivo debe tener al menos 10 casos');
 casos.forEach((c, i) => {
   if (!c.frase || CATS.some(k => !Array.isArray(c[k]))) throw new Error(`Caso ${i + 1} incompleto`);
   if (comparar(c, c).length) throw new Error(`Caso ${i + 1}: el comparador falla con la respuesta perfecta`);
@@ -59,5 +59,6 @@ for (const [i, c] of casos.entries()) {
   if (!fallas.length) ok++;
   console.log(`${i + 1}. ${fallas.length ? 'FALLA' : 'ok   '} ${c.frase}${fallas.length ? '\n      ' + fallas.join('\n      ') + '\n      obtuvo: ' + JSON.stringify(CATS.reduce((a, k) => (a[k] = j[k], a), {})) : ''}`);
 }
-console.log(`\nAciertos: ${ok} de ${casos.length} (meta: 9)`);
-process.exit(ok >= 9 ? 0 : 1);
+const meta = Math.ceil(casos.length * 0.9);
+console.log(`\nAciertos: ${ok} de ${casos.length} (meta: ${meta})`);
+process.exit(ok >= meta ? 0 : 1);

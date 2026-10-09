@@ -43,6 +43,7 @@
  *   POST /a/proceso              {campana_id, id?, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion}
  *   POST /a/proceso/borrar       {proceso_id}   (solo si nadie lo respondió)
  *   POST /a/proceso/renombrar    {campana_id, nivel: macroproceso|proceso, gerencia, seccion, macroproceso, proceso?, nuevo}
+ *   POST /a/fuera-alcance        {campana_id, proceso_ids[], valor}   (1 = fuera de alcance: no se ve en la encuesta ni se estructura)
  *   POST /a/entrevista           {campana_id, proceso_ids[], estado: ''|agendada|realizada, fecha?, entrevistado?}
  *   POST /a/proceso/mover        {campana_id, proceso_ids[], gerencia, seccion, macroproceso?} | {campana_id, movimientos[]} (constructor del mapa; movimientos restaura)
  *   POST /a/campana/logo         {campana_id, logo}   (data URI; vacío lo quita)
@@ -89,32 +90,33 @@ const MAX_TEXTO = 12000;
 // Objetivo, inicio y fin, pasos, frecuencia e interacción existen siempre: esos solo se cumplen contándolos.
 // Los puntos siguen los campos de la matriz que definió TDP (2026-10-06), más las aprobaciones externas que pidió.
 const BLOQUES = [
-  { id: 'b1', t: 'El proceso: objetivo, alcance y de quién depende',
-    g: 'Cuéntanos para qué existe el proceso, qué lo inicia y dónde termina, sus pasos principales y cada cuánto se ejecuta. Si para completarlo esperan la aprobación de otra área, de la casa matriz o de una entidad, dinos de quién (cargo), de qué área y en qué paso.',
+  { id: 'b1', t: 'El proceso: objetivo, actividades, riesgos y aprobaciones',
+    g: 'Cuéntanos para qué existe el proceso y si ayuda a mitigar algún riesgo; si viene de otro proceso o genera actividades después; sus actividades principales en orden (qué se hace, cada cuánto, si es manual o en un sistema, y cómo y dónde se registra); quién lo aprueba, en qué niveles y cómo se formaliza (reunión, correo); y si es uno de los 3 procesos que más carga o esfuerzo te generan.',
     puntos: [
       ['objetivo', 'Para qué existe el proceso (su objetivo)'],
-      ['inicio_fin', 'Qué lo inicia y dónde termina'],
-      ['actividades', 'Los pasos principales, en orden'],
-      ['frecuencia', 'Cada cuánto se ejecuta (y qué volumen maneja)'],
-      ['aprobaciones', 'Si dependen de aprobaciones de otras áreas: de quién, de qué área y en qué paso', 1]
+      ['riesgos', 'Si el proceso o sus actividades ayudan a mitigar algún riesgo (por ejemplo, de cumplimiento normativo)', 1],
+      ['inicio_fin', 'Si viene de otro proceso o genera actividades después (qué lo inicia y dónde termina)'],
+      ['actividades', 'Las actividades principales, en orden: qué se hace, cuándo, cómo y dónde se registra'],
+      ['frecuencia', 'Cada cuánto se ejecuta cada actividad (y qué volumen maneja)'],
+      ['manual_sistema', 'Si cada actividad es manual o por sistema (y en cuál: SAP, Excel…)'],
+      ['aprobaciones', 'Quién aprueba el proceso, en qué niveles (jefe, gerente, comité…) y cómo se formaliza (reunión, correo…); y si depende de otras áreas'],
+      ['carga', 'Si es uno de los 3 procesos que más carga o esfuerzo te generan (sí o no)', 1]
     ] },
-  { id: 'b2', t: 'Sistemas, interacción y terceros', sistemas: true,
-    g: 'Cuéntanos qué ERP, aplicativos o plataformas digitales usan y para qué, si el trabajo es digital, presencial o ambos, y con qué terceros se relacionan (proveedores, concesionarios, clientes, funcionarios públicos u otros) y con qué fin.',
+  { id: 'b2', t: 'Sistemas y terceros', sistemas: true,
+    g: 'Cuéntanos qué ERP, aplicativos o plataformas digitales usan, también los de otras empresas de las que dependen (Toyota Brasil, Quinto, el portal de SUNAT), y con qué terceros se relacionan (proveedores, concesionarios, clientes, funcionarios públicos u otros), en qué actividades participa cada uno y de qué forma.',
     puntos: [
-      ['sistemas', 'Qué ERP, aplicativos o plataformas digitales usan (su nombre)', 1],
-      ['uso_sistemas', 'Para qué los usan o con qué fin interactúan', 1],
-      ['interaccion', 'Si la interacción es digital, presencial o ambas'],
+      ['sistemas', 'Qué ERP, aplicativos o plataformas digitales usan, incluidas las de terceros (Toyota Brasil, Quinto, portal SUNAT) (su nombre)', 1],
       ['terceros', 'Con qué terceros se relacionan (proveedores, concesionarios, clientes, funcionarios públicos u otros)', 1],
-      ['finalidad_terceros', 'Para qué se relacionan con esos terceros o qué información les comparten', 1]
+      ['finalidad_terceros', 'En qué actividades participa cada tercero y de qué forma', 1]
     ] },
-  { id: 'b3', t: 'Datos personales, normas, estándares e indicadores',
-    g: 'Cuéntanos si manejan datos de personas (de quiénes, qué datos y para qué), qué normas legales peruanas lo regulan, qué estándares aplican (corporativo de TDP, global de TMC u otros como NTP o ISO), si el proceso está documentado y, si existen, con qué indicadores lo miden.',
+  { id: 'b3', t: 'Datos personales, documentación, estándares e indicadores',
+    g: 'Cuéntanos si manejan datos de personas (de clientes, proveedores, trabajadores, dealers, funcionarios públicos u otros), qué datos y para qué los usan; qué documentos respaldan el proceso (procedimientos, formatos, reportes, informes finales, comprobantes de pago…); qué estándares aplican (un estándar oficial de TDP, de TMC o de Mitsui & Company, u otros como NTP o ISO) y, si existen, con qué indicadores lo miden. La normativa legal solo si la mencionan.',
     puntos: [
-      ['datos_personales', 'Si manejan datos de personas: de quiénes y qué datos', 1],
-      ['finalidad_dp', 'Para qué usan esos datos personales', 1],
-      ['normativa', 'Qué normas legales peruanas lo regulan', 1],
-      ['estandares', 'Qué estándares aplican: corporativo TDP, global TMC u otros (NTP, ISO)', 1],
-      ['documentacion', 'Si está documentado (procedimiento, instructivo, flujo)', 1],
+      ['datos_personales', 'Si manejan datos de personas (de clientes, proveedores, trabajadores, dealers, funcionarios públicos u otros): de quiénes y qué datos', 1],
+      ['finalidad_dp', '¿Para qué usan esos datos personales?', 1],
+      ['documentacion', 'Qué documentos o registros respaldan el proceso: procedimientos, instructivos, flujos, formatos, reportes, informes finales, comprobantes de pago…', 1],
+      ['estandares', 'Estándares: corporativo oficial de TDP, global de TMC o de Mitsui & Company, u otros (NTP, ISO)', 1],
+      ['normativa', 'Qué normas legales peruanas lo regulan (opcional: solo si la mencionan)', 1],
       ['kpis', 'Con qué indicadores lo miden (opcional)', 1]
     ] }
 ];
@@ -203,7 +205,8 @@ const MATRIZ_CLAVES = ['division', 'gerencia', 'seccion', 'participantes', 'niv0
   'frecuencia', 'uso_tecnologia', 'sistemas_dp', 'automatizacion', 'cod_riesgo', 'categoria_mapa', 'proceso_mapa', 'comentarios',
   'codigo_2021', 'division_2021', 'gerencia_2021', 'seccion_2021', 'mapeo_org', 'origen',
   'interaccion', 'finalidad_terceros', 'finalidad_dp', 'estandar_tmc', 'otros_estandares',
-  'aprob_externa', 'aprob_area', 'aprob_responsable', 'aprob_momento'];
+  'aprob_externa', 'aprob_area', 'aprob_responsable', 'aprob_momento',
+  'origen_proceso', 'aprob_niveles', 'aprob_formalizacion', 'carga'];
 const VALIDACIONES = ['', 'actualizado', 'validado'];
 
 function limpiarMatriz(m) {
@@ -299,6 +302,7 @@ async function marcarEnCurso(env, e) {
 async function procesoPermitido(env, e, procesoId) {
   const p = await env.DB.prepare('SELECT * FROM procesos WHERE id=? AND campana_id=?').bind(procesoId, e.campana_id).first();
   if (!p) throw new HttpError(404, 'Proceso no encontrado');
+  if (p.fuera_alcance) throw new HttpError(409, 'Este proceso no se levanta en esta encuesta');
   if ((mismaArea(p.gerencia, e.gerencia) && mismaArea(p.seccion, e.seccion)) || p.creado_por === e.id) return p;
   const a = await env.DB.prepare('SELECT 1 AS x FROM asignaciones WHERE encuestado_id=? AND proceso_id=?').bind(e.id, p.id).first();
   if (!a) throw new HttpError(403, 'Primero elige este proceso en el paso 1');
@@ -310,7 +314,7 @@ async function rutaSesion(env, url) {
   const [camp, procs, asig, revs, resps, sis] = await Promise.all([
     env.DB.prepare('SELECT nombre, cliente, logo FROM campanas WHERE id=?').bind(e.campana_id).first(),
     env.DB.prepare(`SELECT id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente, creado_por, orden
-      FROM procesos WHERE campana_id=?`).bind(e.campana_id).all(),
+      FROM procesos WHERE campana_id=? AND fuera_alcance=0`).bind(e.campana_id).all(),
     env.DB.prepare('SELECT proceso_id, origen FROM asignaciones WHERE encuestado_id=?').bind(e.id).all(),
     env.DB.prepare('SELECT proceso_id, estado, comentario FROM revisiones WHERE encuestado_id=?').bind(e.id).all(),
     env.DB.prepare('SELECT proceso_id, pregunta, texto, sistemas, checklist FROM respuestas WHERE encuestado_id=?').bind(e.id).all(),
@@ -347,7 +351,8 @@ async function rutaSesion(env, url) {
     encuestado: { nombre: e.nombre, gerencia: e.gerencia, seccion: e.seccion, rol: e.rol, estado: e.estado, origen: e.origen },
     procesos, revisiones, respuestas,
     sistemas: sis.results,
-    bloques: BLOQUES
+    bloques: BLOQUES,
+    fuera_alcance: (await env.DB.prepare('SELECT COUNT(*) AS n FROM procesos WHERE campana_id=? AND fuera_alcance=1').bind(e.campana_id).first()).n
   };
 }
 
@@ -384,7 +389,7 @@ async function asignarProcesos(env, e, ids, origen) {
   const t = ahora(), procesos = [];
   for (let i = 0; i < ids.length; i += 30) {
     const tanda = ids.slice(i, i + 30);
-    const r = await env.DB.prepare(`SELECT * FROM procesos WHERE campana_id=? AND id IN (${tanda.map(() => '?').join(',')})`)
+    const r = await env.DB.prepare(`SELECT * FROM procesos WHERE campana_id=? AND fuera_alcance=0 AND id IN (${tanda.map(() => '?').join(',')})`)
       .bind(e.campana_id, ...tanda).all();
     procesos.push(...r.results);
   }
@@ -556,7 +561,7 @@ async function rutaBuscar(env, url) {
   // Mínimo 2 letras y máximo 15 resultados: el buscador ayuda a encontrar, no a descargar el inventario.
   if (normal(q).length < 2) return { ok: true, total: 0, resultados: [], personas: [] };
   const procs = await env.DB.prepare(`SELECT id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente, personas
-    FROM procesos WHERE campana_id=?`).bind(campId).all();
+    FROM procesos WHERE campana_id=? AND fuera_alcance=0`).bind(campId).all();
   const r = buscarProcesos(procs.results, q, preferida);
   // Quien escribe su nombre ve todos los procesos donde figura en el inventario anterior y puede elegirlos de una vez.
   const grupos = {};
@@ -592,7 +597,7 @@ async function rutaRegistro(env, b) {
   const e = { id, campana_id: camp.id };
   const elegidos = ids.length ? await asignarProcesos(env, e, ids, 'encuestado') : [];
   // Procesos donde figura con su nombre en el inventario anterior: quedan en su lista para que confirme su relación.
-  const conNombre = await env.DB.prepare(`SELECT id, personas FROM procesos WHERE campana_id=? AND personas<>''`).bind(camp.id).all();
+  const conNombre = await env.DB.prepare(`SELECT id, personas FROM procesos WHERE campana_id=? AND personas<>'' AND fuera_alcance=0`).bind(camp.id).all();
   const yaElegidos = new Set(elegidos.map(p => p.id));
   const suyos = conNombre.results.filter(p => !yaElegidos.has(p.id) && p.personas.split('\n').some(l => mismoNombre(l, nombre))).map(p => p.id).slice(0, 60);
   if (suyos.length) await asignarProcesos(env, e, suyos, 'inventario');
@@ -877,6 +882,20 @@ async function rutaProcesoRenombrar(env, b) {
   return { ok: true, procesos };
 }
 
+// Marca o quita «fuera de alcance» a procesos (p. ej. la compra de bienes y servicios, que se levanta aparte): dejan de verse
+// en la encuesta y de estructurarse con IA. No se borra nada: se pueden reincorporar.
+async function rutaFueraAlcance(env, b) {
+  const camp = await env.DB.prepare('SELECT id FROM campanas WHERE id=?').bind(b.campana_id).first();
+  if (!camp) throw new HttpError(404, 'Campaña no encontrada');
+  const ids = [...new Set((Array.isArray(b.proceso_ids) ? b.proceso_ids : []).map(x => txt(x, 60)).filter(Boolean))];
+  if (!ids.length) throw new HttpError(400, 'No hay procesos');
+  if (ids.length > 400) throw new HttpError(400, 'Máximo 400 procesos por cambio');
+  const valor = b.valor ? 1 : 0, st = ids.map(id => env.DB.prepare('UPDATE procesos SET fuera_alcance=? WHERE id=? AND campana_id=?').bind(valor, id, camp.id));
+  await env.DB.batch(st);
+  log('fuera_alcance', { campana: camp.id, valor, procesos: ids.length });
+  return { ok: true, procesos: ids.map(id => ({ id, fuera_alcance: valor })) };
+}
+
 // Seguimiento de entrevistas: marca procesos como pendiente / agendada / realizada, con fecha y entrevistado.
 // Sin fecha, agendar o realizar usa hoy (hora de Lima). Pendiente borra fecha y entrevistado. No toca la validación.
 async function rutaEntrevista(env, b) {
@@ -1064,22 +1083,25 @@ async function rutaBorrarCampana(env, b) {
 // Son los que definió TDP (2026-10-06), con las mismas claves que la matriz de la consola, más las aprobaciones externas.
 const CAMPOS = [
   ['objetivo', 'Objetivo del subproceso'],
-  ['alcance', 'Actividades principales (alcance): qué lo inicia, los pasos principales en secuencia (3 a 8, numerados) y dónde termina'],
+  ['riesgos', 'Riesgo que el proceso o sus actividades ayudan a mitigar (por ejemplo, de cumplimiento normativo); "No aplica" si la persona dijo que no'],
+  ['origen_proceso', 'De qué otro proceso viene (si es resultado de otro) y qué actividades o procesos genera después'],
+  ['alcance', 'Actividades principales (alcance): qué lo inicia, los pasos principales en secuencia (3 a 8, numerados) con, en cada uno, qué se hace, cuándo y cómo, dónde se registra y si es manual o por sistema (cuál), y dónde termina'],
   ['frecuencia', 'Frecuencia de ejecución (y volumen aproximado si lo dijeron)'],
-  ['documentacion', 'Documentación del subproceso: procedimientos, instructivos, flujos o formatos que lo describen'],
-  ['tecnologia', 'ERP, aplicativos y plataformas digitales, con su nombre exacto (incluye portales y Excel)'],
-  ['interaccion', 'Interacción: "Digital", "Presencial" o "Digital y presencial"'],
-  ['uso_tecnologia', 'Finalidad de interacción: para qué se usa cada sistema o se interactúa con cada tercero (formato "Sistema o tercero: finalidad")'],
+  ['documentacion', 'Documentación o registros del subproceso: procedimientos, instructivos, flujos, formatos, reportes, informes finales, comprobantes de pago'],
+  ['tecnologia', 'ERP, aplicativos y plataformas digitales, con su nombre exacto (incluye portales, Excel y plataformas de terceros como Toyota Brasil, Quinto o el portal de SUNAT)'],
   ['terceros', 'Terceros involucrados (proveedores, concesionarios, clientes, funcionarios públicos, otros)'],
-  ['finalidad_terceros', 'Finalidad del tratamiento con tercero: para qué se relaciona el proceso con cada tercero o qué información le comparte'],
+  ['finalidad_terceros', 'En qué actividades participa cada tercero y de qué forma'],
   ['datos_personales', 'Si trata datos personales: "Sí" o "No"'],
-  ['detalle_dp', 'Tipo/detalle de datos personales: de quiénes (clientes, trabajadores, proveedores u otros) y qué datos (identificación, contacto, financieros, sensibles u otros)'],
-  ['finalidad_dp', 'Finalidad del tratamiento de datos personales: para qué se usan'],
+  ['detalle_dp', 'Tipo/detalle de datos personales: de quiénes (clientes, proveedores, trabajadores, dealers, funcionarios públicos u otros) y qué datos (identificación, contacto, financieros, sensibles u otros)'],
+  ['finalidad_dp', 'Para qué se usan esos datos personales (con las palabras de la persona)'],
   ['normativa', 'Normativa legal peruana que regula el proceso, solo si el área la mencionó'],
-  ['estandar_tdp', 'Estándar corporativo TDP: política, procedimiento o estándar interno de la empresa que aplica (cuál)'],
-  ['estandar_tmc', 'Estándar global TMC: estándar o lineamiento global de Toyota Motor Corporation que aplica (cuál)'],
+  ['estandar_tdp', 'Estándar corporativo oficial de TDP: política, procedimiento o estándar interno formalizado que aplica (cuál). No cuenta un diagrama hecho por un proveedor sin estandarización'],
+  ['estandar_tmc', 'Estándar global de Toyota Motor Corporation (TMC) o de Mitsui & Company (casa matriz) que aplica (cuál). No confundir con Mitsui Automotriz (MASA), que es un concesionario'],
   ['otros_estandares', 'Otros estándares nacionales o internacionales (NTP, ISO u otros)'],
   ['kpis', 'Indicadores o KPIs existentes'],
+  ['carga', 'Si es uno de los 3 procesos que más carga o esfuerzo generan al área: "Sí" o "No"'],
+  ['aprob_niveles', 'Niveles de aprobación del proceso, en orden (por ejemplo: jefe, gerente, comité ejecutivo)'],
+  ['aprob_formalizacion', 'Cómo se formaliza cada aprobación (reunión, correo, sistema)'],
   ['aprob_externa', 'Si para completar el proceso dependen de aprobaciones externas a la sección dueña: "Sí" o "No"'],
   ['aprob_area', 'De dónde: gerencia, sección o entidad que aprueba (una línea por aprobación)'],
   ['aprob_responsable', 'De quién: cargo de quien aprueba (una línea por aprobación, en el mismo orden)'],
@@ -1120,8 +1142,8 @@ const ESTANDARES_BASE = 'TPS (Toyota Production System); Toyota Way; Jidoka; JIT
 const estandaresDe = camp => String((camp && camp.estandares) || '').trim() || ESTANDARES_BASE;
 // Reglas para clasificar los estándares que menciona la persona: las usan la revisión del bloque 3, la estructuración y la prueba.
 const REGLAS_ESTANDARES = `Clasificación de estándares:
-- TDP (corporativo): políticas, procedimientos, instructivos, manuales o códigos internos de la empresa del cliente, incluidos los códigos con prefijo MO-, SO-, GO- o GE- (por ejemplo «el procedimiento SO-GCM-P-010»), el código de ética y el reglamento interno.
-- TMC (global): lo que viene de Toyota Motor Corporation: Toyota Way, TPS (Toyota Production System), Jidoka, JIT (Just in Time), Kaizen, TMC Global Standards y las políticas o lineamientos globales de la casa matriz.
+- TDP (corporativo): solo estándares OFICIALES internos de la empresa del cliente: políticas, procedimientos, instructivos o manuales formalizados, incluidos los códigos con prefijo MO-, SO-, GO- o GE- (por ejemplo «el procedimiento SO-GCM-P-010»), el código de ética y el reglamento interno. No cuenta un diagrama de flujo hecho por un proveedor o por el área que nunca pasó por un proceso de estandarización.
+- TMC (global): lo que viene de las casas matrices: de Toyota Motor Corporation (Toyota Way, TPS, Jidoka, JIT, Kaizen, TMC Global Standards, políticas o lineamientos globales) y de Mitsui & Company. OJO: «Mitsui Automotriz» o «MASA» es un concesionario peruano, no una casa matriz: no es un estándar. Si dicen solo «Mitsui» sin aclarar, no lo clasifiques.
 - Otros: normas técnicas y de certificación externas: NTP, ISO (9001, 14001, 27001, 45001…), OHSAS, COSO, PCI y similares. Las leyes y reglamentos peruanos no van aquí: van en normativa.
 - Si el nombre dicho coincide con un término del GLOSARIO DE ESTÁNDARES de la campaña, escríbelo como figura en el glosario; corrige los errores de transcripción («toyota uay» es Toyota Way, «iso nueve mil uno» es ISO 9001, «te pe es» es TPS). Si no está en el glosario, escríbelo como lo dijo, con su código o número si lo dio.
 - Solo cuenta lo que la persona nombra o cita con claridad: «seguimos estándares de calidad» sin decir cuáles no sirve. Exige la cita: en la evidencia pon sus palabras.
@@ -1139,7 +1161,10 @@ Reglas:
 - Escribe en español neutro, conciso y profesional, listo para un entregable al cliente.
 - Nunca incluyas nombres de personas ni datos personales concretos (DNI, teléfonos, nombres de clientes): usa cargos y categorías.
 - Para sistemas, usa el nombre exacto del catálogo cuando coincida; si mencionan una herramienta que no está en el catálogo, inclúyela igual y dilo en la evidencia.
-- "uso_tecnologia" (finalidad de interacción) responde a una observación de auditoría del cliente: el inventario anterior no decía para qué se usaba cada sistema. Sé específico por sistema o tercero; si no lo dijeron, déjalo vacío.
+- "alcance": cada actividad con su frecuencia, si es manual o por sistema (y en cuál) y, si lo contaron, qué se hace, cuándo, cómo y dónde se registra. "origen_proceso": de qué otro proceso viene y qué genera después, solo si lo dijeron.
+- "riesgos": solo si la persona dijo que el proceso o sus actividades ayudan a mitigar un riesgo (por ejemplo, de cumplimiento normativo); si dijo que no, "No aplica". "carga": "Sí" solo si dijo que es uno de los procesos que más carga o esfuerzo le generan; si dijo que no, "No".
+- "aprob_niveles" y "aprob_formalizacion": los niveles por los que pasa la aprobación del proceso (jefe, gerente, comité…) y cómo se formaliza cada una (reunión, correo…). No los mezcles con las aprobaciones externas de abajo.
+- Los campos que se deducen de las actividades (por ejemplo la frecuencia) se completan desde ellas; no los trates como una pregunta aparte.
 - Aprobaciones externas: si para completar el proceso esperan la aprobación de alguien fuera de la sección dueña (otra área de la empresa, la casa matriz o una entidad), "aprob_externa" es "Sí" y cada aprobación va en una línea, en el mismo orden, en "aprob_area" (de dónde), "aprob_responsable" (de quién, por cargo) y "aprob_momento" (en qué paso). Si dijeron que no dependen de nadie, "aprob_externa" es "No" y los otros tres quedan vacíos.
 - Si la persona dijo que algo no existe en su proceso (no hay terceros, no manejan datos personales, no hay indicadores), escribe "No aplica" con estado "dicho".
 - Si hay una ficha del inventario anterior, compárala con lo que contaron: lo que cambió va en "contradicciones".
@@ -1158,8 +1183,8 @@ const ORIGEN_TEXTO = { nuevo: 'agregado por un colaborador en la encuesta', cons
 function textoParaClaude(camp, p, encuestados, revisiones, respuestas, sistemas) {
   const PREG = { q1: 'Objetivo, inicio y fin', q2: 'Actividades y participantes', q3: 'Sistemas y manualidad',
     q4: 'Terceros', q5: 'Datos personales', q6: 'Indicadores, normas y frecuencia',
-    b1: 'Bloque 1 · Objetivo, alcance, frecuencia y aprobaciones externas', b2: 'Bloque 2 · Sistemas, interacción y terceros',
-    b3: 'Bloque 3 · Datos personales, normas, estándares, documentación e indicadores' };
+    b1: 'Bloque 1 · Objetivo, actividades, riesgos y aprobaciones', b2: 'Bloque 2 · Sistemas y terceros',
+    b3: 'Bloque 3 · Datos personales, documentación, estándares e indicadores' };
   const lineas = [];
   lineas.push(`CLIENTE: ${camp.cliente}`);
   lineas.push(`PROCESO (ficha de partida):`);
@@ -1254,6 +1279,7 @@ async function rutaEstructurar(env, b, ctx) { return estructurarProceso(env, b.p
 async function estructurarProceso(env, procesoId, ctx, origen) {
   const p = await env.DB.prepare('SELECT * FROM procesos WHERE id=?').bind(procesoId).first();
   if (!p) throw new HttpError(404, 'Proceso no encontrado');
+  if (p.fuera_alcance) throw new HttpError(409, 'Este proceso está fuera de alcance: no se estructura');
   const camp = await env.DB.prepare('SELECT * FROM campanas WHERE id=?').bind(p.campana_id).first();
   const [enc, revs, resps, sis] = await Promise.all([
     // Todas las personas que revisaron o respondieron este proceso, sean o no de la sección dueña.
@@ -1345,7 +1371,7 @@ async function completarPendientes(env, ctx) {
       JOIN campanas c ON c.id = p.campana_id AND c.ia_auto = 1
       JOIN respuestas r ON r.proceso_id = p.id AND trim(r.texto) <> ''
       LEFT JOIN estructurado e ON e.proceso_id = p.id
-      WHERE p.validacion <> 'validado'
+      WHERE p.validacion <> 'validado' AND p.fuera_alcance = 0
       GROUP BY p.id
       HAVING ultima <= ? AND (generado IS NULL OR ultima > generado) AND (fallo IS NULL OR ultima > fallo)
       ORDER BY ultima LIMIT ?`).bind(hasta, AUTO_MAX).all()).results;
@@ -1437,7 +1463,7 @@ Para cada punto del checklist decide:
 - "falta": no lo mencionó, o lo dijo tan vago que no sirve para un inventario de procesos ("usamos varios sistemas" sin nombrarlos). "evidencia" queda vacía.
 Los sistemas marcados en la lista cuentan para el punto de qué sistemas usan, pero no para qué se usa cada uno.
 "sugerencia": una sola frase amable, en segunda persona (tú), que pida solo lo que falta, con un ejemplo corto si ayuda. Si no falta nada, cadena vacía.
-"sistemas": los sistemas, aplicaciones o herramientas informáticas que la respuesta dice que se usan en el proceso (un ERP, un Excel, un aplicativo del área, el correo, un portal). Solo los que se nombran o se identifican con claridad en la respuesta: no incluyas equipos físicos, no deduzcas por el tipo de proceso y no repitas. Si el nombre dicho coincide con uno del CATÁLOGO de la campaña, escribe el nombre EXACTO del catálogo (corrige los errores de transcripción: «es a pe» es SAP); si no está en el catálogo, escríbelo corto, tal como lo dijo. Si no menciona ninguno, lista vacía.
+"sistemas": los sistemas, aplicaciones o herramientas informáticas que la respuesta dice que se usan en el proceso (un ERP, un Excel, un aplicativo del área, el correo, un portal, y también plataformas de otras empresas de las que dependen: Toyota Brasil, Quinto, el portal de SUNAT). Solo los que se nombran o se identifican con claridad en la respuesta: no incluyas equipos físicos, no deduzcas por el tipo de proceso y no repitas. Si el nombre dicho coincide con uno del CATÁLOGO de la campaña, escribe el nombre EXACTO del catálogo (corrige los errores de transcripción: «es a pe» es SAP); si no está en el catálogo, escríbelo corto, tal como lo dijo. Si no menciona ninguno, lista vacía.
 Estándares: el punto de estándares es "cubierto" cuando la persona nombra al menos un estándar, política, procedimiento o norma concreta (de TDP, de TMC u otros), o dice claramente que no aplica ninguno; es "falta" si solo habla de estándares o normas en general sin nombrar ninguno.
 ${REGLAS_ESTANDARES}
 No inventes información ni opines sobre el proceso.`;
@@ -1661,7 +1687,7 @@ async function rutaAsignarInventario(env, b) {
   const camp = await env.DB.prepare('SELECT id FROM campanas WHERE id=?').bind(b.campana_id).first();
   if (!camp) throw new HttpError(404, 'Campaña no encontrada');
   const [procs, enc] = await Promise.all([
-    env.DB.prepare(`SELECT id, personas FROM procesos WHERE campana_id=? AND personas<>''`).bind(camp.id).all(),
+    env.DB.prepare(`SELECT id, personas FROM procesos WHERE campana_id=? AND personas<>'' AND fuera_alcance=0`).bind(camp.id).all(),
     env.DB.prepare('SELECT id, nombre FROM encuestados WHERE campana_id=?').bind(camp.id).all()
   ]);
   const t = ahora(), st = [];
@@ -1740,6 +1766,7 @@ export default {
           if (url.pathname === '/a/proceso/mover') return json(await rutaProcesoMover(env, b), 200, h);
           if (url.pathname === '/a/proceso/renombrar') return json(await rutaProcesoRenombrar(env, b), 200, h);
           if (url.pathname === '/a/entrevista') return json(await rutaEntrevista(env, b), 200, h);
+          if (url.pathname === '/a/fuera-alcance') return json(await rutaFueraAlcance(env, b), 200, h);
           if (url.pathname === '/a/matriz') return json(await rutaMatriz(env, b), 200, h);
           if (url.pathname === '/a/validacion') return json(await rutaValidacion(env, b), 200, h);
           if (url.pathname === '/a/encuestado/borrar') return json(await rutaEncuestadoBorrar(env, b), 200, h);
