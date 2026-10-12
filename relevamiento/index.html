@@ -917,8 +917,8 @@
         '<ul class="ck" id="ck-' + esc(key) + '" aria-labelledby="ckt-' + esc(key) + '"></ul>' +
         '<div class="rec-row">' +
           '<button class="btn btn-rec btn-sm btn-ico" type="button" data-rec="' + esc(key) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3" fill="currentColor" stroke="none"></rect><path d="M5 10.5a7 7 0 0 0 14 0M12 17.5V21"></path></svg><span>Grabar</span></button>' +
-          '<button class="btn btn-ghost btn-sm btn-ico" type="button" data-img="' + esc(key) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 16l-5-5-9 9"></path></svg><span>Subir imagen o PDF</span></button>' +
-          '<input type="file" accept="image/*,application/pdf,.pdf" class="hidden" id="im-' + esc(key) + '" aria-label="Subir una imagen o un PDF para el bloque ' + (i+1) + '">' +
+          '<button class="btn btn-ghost btn-sm btn-ico" type="button" data-img="' + esc(key) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 16l-5-5-9 9"></path></svg><span>Subir imagen, PDF o Word</span></button>' +
+          '<input type="file" accept="image/*,application/pdf,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" id="im-' + esc(key) + '" aria-label="Subir una imagen, un PDF o un documento Word para el bloque ' + (i+1) + '">' +
           '<span class="rec-dot hidden" id="dot-' + esc(key) + '" aria-hidden="true"></span>' +
           '<span class="rec-timer hidden" id="tm-' + esc(key) + '">0:00</span>' +
           '<span class="estado" id="st-' + esc(key) + '" aria-live="polite"></span>' +
@@ -1290,32 +1290,37 @@
   function leerImagen(pid, qid, file){
     var key = pid + '-' + qid;
     if (!file || grab[key]) return;
-    var esPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
-    if (!esPdf && !/^image\//.test(file.type)){ estado(key, 'Ese archivo no es una imagen ni un PDF: sube una foto o captura (JPG o PNG) o un PDF.', 'warn'); return; }
-    if (esPdf && file.size > MAX_PDF_MB * 1048576){ estado(key, 'El PDF pesa ' + (file.size / 1048576).toFixed(1) + ' MB (máximo ' + MAX_PDF_MB + ' MB): sube solo las páginas del proceso.', 'warn'); return; }
+    var nombre = file.name || '';
+    var esPdf = file.type === 'application/pdf' || /\.pdf$/i.test(nombre);
+    var esDocx = file.type === MIME_DOCX || /\.docx$/i.test(nombre);
+    if (/\.doc$/i.test(nombre) || file.type === 'application/msword'){ estado(key, 'Ese Word es del formato antiguo (.doc): ábrelo y guárdalo como .docx o como PDF, y súbelo de nuevo.', 'warn'); return; }
+    if (!esPdf && !esDocx && !/^image\//.test(file.type)){ estado(key, 'Ese archivo no se puede leer: sube una foto o captura (JPG o PNG), un PDF o un documento Word (.docx).', 'warn'); return; }
+    var que = esDocx ? 'documento' : esPdf ? 'PDF' : 'imagen';
+    if ((esPdf || esDocx) && file.size > MAX_PDF_MB * 1048576){ estado(key, 'El ' + que + ' pesa ' + (file.size / 1048576).toFixed(1) + ' MB (máximo ' + MAX_PDF_MB + ' MB): sube solo lo que describe el proceso.', 'warn'); return; }
     grab[key] = {pid: pid, qid: qid, fase: 'imagen'};
     var b = botonImg(key), rec = botonRec(key);
     if (b) b.disabled = true; if (rec) rec.disabled = true;
     var fin = function(){ delete grab[key]; if (b) b.disabled = false; if (rec) rec.disabled = false; };
-    estado(key, esPdf ? 'La IA está leyendo el PDF… puede tardar un poco más que una imagen.' : 'La IA está leyendo la imagen…');
-    (esPdf ? revisarPdf(file) : reducirImagen(file)).then(function(cuerpo){
+    estado(key, esPdf ? 'La IA está leyendo el PDF… puede tardar un poco más que una imagen.' : esDocx ? 'La IA está leyendo el documento…' : 'La IA está leyendo la imagen…');
+    (esPdf ? revisarPdf(file) : esDocx ? file.arrayBuffer() : reducirImagen(file)).then(function(cuerpo){
       return fetch(API + '/r/imagen?k=' + encodeURIComponent(K) + '&proceso_id=' + encodeURIComponent(pid) + '&pregunta=' + encodeURIComponent(qid),
-        {method: 'POST', headers: {'content-type': esPdf ? 'application/pdf' : 'image/jpeg'}, body: cuerpo})
+        {method: 'POST', headers: {'content-type': esPdf ? 'application/pdf' : esDocx ? MIME_DOCX : 'image/jpeg'}, body: cuerpo})
         .then(function(r){ return r.json().then(function(j){ if (!r.ok || !j.ok) throw new Error(j.error || 'Error ' + r.status); return j; }); });
     }).then(function(j){
       fin();
-      if (!j.texto){ estado(key, (j.motivo ? j.motivo + ' ' : '') + 'No encontramos información del proceso en ese ' + (esPdf ? 'PDF' : 'imagen') + '.', 'warn'); return; }
+      if (!j.texto){ estado(key, (j.motivo ? j.motivo + ' ' : '') + 'No encontramos información del proceso en ese ' + que + '.', 'warn'); return; }
       var ta = document.getElementById('tx-' + key);
-      ta.value = (ta.value.trim() ? ta.value.trim() + '\n\n' : '') + (esPdf ? 'Según el PDF: ' : 'Según la imagen: ') + j.texto;
+      ta.value = (ta.value.trim() ? ta.value.trim() + '\n\n' : '') + (esPdf ? 'Según el PDF: ' : esDocx ? 'Según el documento: ' : 'Según la imagen: ') + j.texto;
       return guardar(pid, qid).then(function(){
-        estado(key, 'Listo. Revisa lo que la IA leyó ' + (esPdf ? 'del PDF' : 'de la imagen') + ' y corrige lo que haga falta (' + (esPdf ? 'el PDF no se guardó' : 'la imagen no se guardó') + ').', 'ok');
+        estado(key, 'Listo. Revisa lo que la IA leyó del ' + que + ' y corrige lo que haga falta (el archivo no se guardó).' + (esDocx ? ' Las imágenes dentro del Word no se leen: si el flujo es un dibujo, súbelo aparte.' : ''), 'ok');
         verificar(pid, qid);
       });
     }).catch(function(err){
       fin();
-      estado(key, /^No pudimos/.test(err.message) ? err.message : 'No pudimos leer el ' + (esPdf ? 'PDF' : 'la imagen') + ': ' + err.message, 'warn');
+      estado(key, /^No pudimos/.test(err.message) ? err.message : 'No pudimos leer el ' + que + ': ' + err.message, 'warn');
     });
   }
+  var MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   // PDF: se envía tal cual (la IA lo lee completo). Antes se cuentan sus páginas para no gastar de más.
   var MAX_PDF_MB = 10, MAX_PDF_PAGINAS = 10;
   function revisarPdf(file){

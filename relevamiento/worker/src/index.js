@@ -1578,13 +1578,15 @@ async function rutaVerificar(env, b, ctx) {
 
 // Imagen subida en un bloque (un flujo, un procedimiento, un formato, una pantalla, una pizarra): la IA la lee y
 // devuelve en texto lo útil para el bloque. La imagen no se guarda; el texto se agrega a la respuesta y la persona lo revisa.
+import { textoDeDocx } from './docx.js';
+const MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const IMAGEN_SCHEMA = {
   type: 'object',
   properties: { relevante: { type: 'boolean' }, texto: { type: 'string' }, motivo: { type: 'string' } },
   required: ['relevante', 'texto', 'motivo'],
   additionalProperties: false
 };
-const IMAGEN_PROMPT = `Recibes una imagen o un PDF (de varias páginas: léelas todas) que un colaborador subió al responder un bloque de una encuesta de relevamiento de procesos: puede ser un diagrama de flujo, un procedimiento, un formato, una pantalla de un sistema, un correo o una pizarra.
+const IMAGEN_PROMPT = `Recibes una imagen, un PDF (de varias páginas: léelas todas) o el texto de un documento de Word (solo texto: las imágenes del documento no se leen) que un colaborador subió al responder un bloque de una encuesta de relevamiento de procesos: puede ser un diagrama de flujo, un procedimiento, un formato, una pantalla de un sistema, un correo o una pizarra.
 Extrae solo la información útil para ese bloque y su checklist: pasos, áreas y cargos que participan, aprobaciones (de quién, de qué área y en qué paso), sistemas y para qué se usan, terceros, datos personales que se manejan, normas, estándares, documentos, frecuencias e indicadores que se vean.
 Escribe en español, en texto corrido y breve (máximo 200 palabras), como si el colaborador lo contara. No inventes lo que no se ve.
 Nunca copies datos personales concretos (nombres de personas, DNI, teléfonos, correos, direcciones, montos de clientes): usa cargos y categorías.
@@ -1596,11 +1598,21 @@ async function rutaImagen(env, req, url, ctx) {
   const bloque = BLOQUES.find(x => x.id === url.searchParams.get('pregunta'));
   if (!bloque) throw new HttpError(400, 'Bloque inválido');
   const tipo = (req.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-  const esPdf = tipo === 'application/pdf';
-  if (!esPdf && !['image/jpeg', 'image/png', 'image/webp'].includes(tipo)) throw new HttpError(415, 'Sube una imagen JPG, PNG o WEBP, o un PDF');
+  const esPdf = tipo === 'application/pdf', esDocx = tipo === MIME_DOCX;
+  if (!esPdf && !esDocx && !['image/jpeg', 'image/png', 'image/webp'].includes(tipo)) throw new HttpError(415, 'Sube una imagen JPG, PNG o WEBP, un PDF o un documento Word (.docx)');
+  const que = esDocx ? 'el documento' : esPdf ? 'el PDF' : 'la imagen';
   const buf = await req.arrayBuffer();
-  if (!buf.byteLength) throw new HttpError(400, esPdf ? 'PDF vacío' : 'Imagen vacía');
-  if (esPdf) {
+  if (!buf.byteLength) throw new HttpError(400, 'Archivo vacío');
+  // Word: la IA no lee .docx directamente; se extrae su texto aquí (el archivo no se guarda).
+  let doc = null;
+  if (esDocx) {
+    if (buf.byteLength > MAX_PDF) throw new HttpError(413, 'El documento pesa demasiado (máximo 10 MB)');
+    try { doc = await textoDeDocx(buf); }
+    catch (x) { throw new HttpError(415, 'No pudimos abrir ese Word. Guárdalo como .docx o como PDF y súbelo de nuevo.'); }
+    if (!doc.texto) throw new HttpError(422, 'No encontramos texto en ese documento Word. Si es un dibujo o una imagen, súbelo aparte como imagen o PDF.');
+  }
+  if (esDocx) { /* ya validado arriba */ }
+  else if (esPdf) {
     if (buf.byteLength > MAX_PDF) throw new HttpError(413, 'El PDF pesa demasiado (máximo 10 MB)');
     if (new TextDecoder('latin1').decode(new Uint8Array(buf, 0, 5)) !== '%PDF-') throw new HttpError(415, 'Ese archivo no es un PDF válido');
     const paginas = (new TextDecoder('latin1').decode(new Uint8Array(buf)).match(/\/Type\s*\/Page(?![A-Za-z])/g) || []).length;
@@ -1617,18 +1629,19 @@ async function rutaImagen(env, req, url, ctx) {
       output_config: { effort: cfg.esfuerzo, format: { type: 'json_schema', schema: IMAGEN_SCHEMA } },
       system: IMAGEN_PROMPT,
       messages: [{ role: 'user', content: [
-        { type: esPdf ? 'document' : 'image', source: { type: 'base64', media_type: tipo, data: aBase64(buf) } },
+        esDocx ? { type: 'text', text: 'DOCUMENTO DE WORD (texto extraído; las imágenes del documento no se leen):\n' + doc.texto + (doc.recortado ? '\n[…el documento sigue; se recortó]' : '') }
+          : { type: esPdf ? 'document' : 'image', source: { type: 'base64', media_type: tipo, data: aBase64(buf) } },
         { type: 'text', text: [`PROCESO: ${p.subproceso || p.proceso || p.macroproceso}`, `BLOQUE: ${bloque.t}`,
           'CHECKLIST:', ...bloque.puntos.map(([, t]) => '- ' + t)].join('\n') }
       ] }]
     }).finalMessage();
   } catch (err) {
     log('imagen_error', { campana: e.campana_id, bloque: bloque.id, tipo, error: String((err && err.message) || err).slice(0, 200) });
-    throw new HttpError(502, `No pudimos leer ${esPdf ? 'el PDF' : 'la imagen'} en este momento. Intenta de nuevo en un minuto o cuéntalo con tu voz.`);
+    throw new HttpError(502, `No pudimos leer ${que} en este momento. Intenta de nuevo en un minuto o cuéntalo con tu voz.`);
   }
   registrarIA(ctx, 'imagen', msg, cfg, t0);
-  if (msg.stop_reason === 'refusal') throw new HttpError(422, 'No pudimos procesar esa imagen. Cuéntalo con tu voz o por escrito.');
-  if (msg.stop_reason === 'max_tokens') throw new HttpError(502, 'La lectura de la imagen quedó incompleta. Reintenta.');
+  if (msg.stop_reason === 'refusal') throw new HttpError(422, 'No pudimos procesar ese archivo. Cuéntalo con tu voz o por escrito.');
+  if (msg.stop_reason === 'max_tokens') throw new HttpError(502, 'La lectura del archivo quedó incompleta. Reintenta.');
   let s = {};
   try { s = JSON.parse((msg.content.find(c => c.type === 'text') || {}).text || '{}'); }
   catch (x) { throw new HttpError(502, 'La lectura de la imagen devolvió un formato inesperado. Reintenta.'); }
