@@ -48,7 +48,8 @@
  *   POST /a/proceso/mover        {campana_id, proceso_ids[], gerencia, seccion, macroproceso?} | {campana_id, movimientos[]} (constructor del mapa; movimientos restaura)
  *   POST /a/campana/logo         {campana_id, logo}   (data URI; vacío lo quita)
  *   POST /a/campana/ia           {campana_id, ia_auto}   (la tarea programada completa la matriz con la IA)
- *   POST /a/asignar              {encuestado_id, agregar[], quitar[]}   (lista de procesos de una persona)
+ *   POST /a/asignar              {encuestado_id, agregar[], quitar[], restaurar[]}   (lista de procesos de una persona;
+ *                                quitar un proceso de su sección lo marca «excluido» y restaurar lo devuelve)
  *   POST /a/asignar-por-inventario {campana_id}   (asigna por el nombre en el inventario anterior)
  *   POST /a/matriz               {proceso_id, matriz?, validacion?, validado_por?}   (fila de la matriz y check de validación)
  *   POST /a/validacion           {campana_id, proceso_ids[], validacion, validado_por}   (validación en bloque)
@@ -303,8 +304,9 @@ async function procesoPermitido(env, e, procesoId) {
   const p = await env.DB.prepare('SELECT * FROM procesos WHERE id=? AND campana_id=?').bind(procesoId, e.campana_id).first();
   if (!p) throw new HttpError(404, 'Proceso no encontrado');
   if (p.fuera_alcance) throw new HttpError(409, 'Este proceso no se levanta en esta encuesta');
+  const a = await env.DB.prepare('SELECT origen FROM asignaciones WHERE encuestado_id=? AND proceso_id=?').bind(e.id, p.id).first();
+  if (a && a.origen === 'excluido') throw new HttpError(403, 'Este proceso ya no está en tu lista. Si te corresponde, búscalo en el paso 2.');
   if ((mismaArea(p.gerencia, e.gerencia) && mismaArea(p.seccion, e.seccion)) || p.creado_por === e.id) return p;
-  const a = await env.DB.prepare('SELECT 1 AS x FROM asignaciones WHERE encuestado_id=? AND proceso_id=?').bind(e.id, p.id).first();
   if (!a) throw new HttpError(403, 'Primero elige este proceso en el paso 1');
   return p;
 }
@@ -320,16 +322,18 @@ async function rutaSesion(env, url) {
     env.DB.prepare('SELECT proceso_id, pregunta, texto, sistemas, checklist FROM respuestas WHERE encuestado_id=?').bind(e.id).all(),
     env.DB.prepare('SELECT nombre, tipo FROM sistemas WHERE campana_id=? ORDER BY nombre').bind(e.campana_id).all()
   ]);
-  const elegidos = new Set(asig.results.map(a => a.proceso_id));
+  // «excluido»: el equipo quitó de su lista un proceso de su sección (no le corresponde).
+  const excluidos = new Set(asig.results.filter(a => a.origen === 'excluido').map(a => a.proceso_id));
+  const elegidos = new Set(asig.results.filter(a => a.origen !== 'excluido').map(a => a.proceso_id));
   // Procesos que el equipo le asignó o que le corresponden por su nombre en el inventario anterior.
   const asignadoPor = {};
-  asig.results.forEach(a => { if (a.origen && a.origen !== 'encuestado') asignadoPor[a.proceso_id] = a.origen; });
+  asig.results.forEach(a => { if (a.origen && a.origen !== 'encuestado' && a.origen !== 'excluido') asignadoPor[a.proceso_id] = a.origen; });
   // Su sección (sin los nuevos que agregó otra persona), lo que eligió con el buscador y lo que agregó.
   // La sección se compara normalizada: una diferencia de mayúsculas o tildes en la carga no deja a nadie sin procesos.
   const enSeccion = p => p.fuente !== 'nuevo' && mismaArea(p.gerencia, e.gerencia) && mismaArea(p.seccion, e.seccion);
   const orden = (a, b) => (a.orden - b.orden) || normal(a.macroproceso).localeCompare(normal(b.macroproceso))
     || normal(a.proceso).localeCompare(normal(b.proceso)) || normal(a.subproceso).localeCompare(normal(b.subproceso));
-  const procesos = procs.results.filter(p => enSeccion(p) || p.creado_por === e.id || elegidos.has(p.id)).sort(orden)
+  const procesos = procs.results.filter(p => (enSeccion(p) && !excluidos.has(p.id)) || p.creado_por === e.id || elegidos.has(p.id)).sort(orden)
     .map(p => Object.assign(publico(p), {
       enSeccion: enSeccion(p),
       propio: p.fuente === 'nuevo' && p.creado_por === e.id,
@@ -368,6 +372,16 @@ async function rutaRevision(env, b) {
   return { ok: true };
 }
 
+// Nombre de un proceso para compararlo: sin tildes, códigos, paréntesis ni signos.
+const claveProceso = s => normal(s).replace(/\([^)]*\)/g, ' ').replace(/^[a-z]{0,4}\.?\d+(\.\d+)*\s+/, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const tokensProceso = c => new Set(c.split(' ').filter(t => t && !VACIAS.has(t)));
+// «Parecido»: todas las palabras del nombre más corto (mínimo 2) están en el otro.
+function nombreParecido(a, b) {
+  const ta = tokensProceso(a), tb = tokensProceso(b);
+  const [c, l] = ta.size <= tb.size ? [ta, tb] : [tb, ta];
+  return c.size >= 2 && [...c].every(t => l.has(t));
+}
+
 async function rutaProcesoNuevo(env, b) {
   const e = await encuestadoPorToken(env, b.k);
   const nombre = txt(b.proceso, 200);
@@ -380,6 +394,33 @@ async function rutaProcesoNuevo(env, b) {
       .find(x => mismaArea(x.seccion, b.seccion) && (!b.gerencia || mismaArea(x.gerencia, b.gerencia)));
     if (!hallada) throw new HttpError(400, 'Elige una sección de la lista');
     gerencia = hallada.gerencia; seccion = hallada.seccion;
+  }
+  // Antes de crearlo se busca si ya existe (en el inventario o agregado por otra persona): un duplicado confunde
+  // la matriz y parte las respuestas. Mismo nombre y misma sección: no se crea. Mismo nombre en otra sección o nombre
+  // parecido: se ofrece usar el existente y, si es otro distinto, se crea con confirmar_distinto.
+  const clave = claveProceso(nombre);
+  if (clave) {
+    const todos = (await env.DB.prepare(`SELECT id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente, fuera_alcance
+      FROM procesos WHERE campana_id=?`).bind(e.campana_id).all()).results;
+    const exactos = [], parecidos = [];
+    todos.forEach(p => {
+      const claves = [p.subproceso || p.proceso || p.macroproceso, p.proceso].map(claveProceso).filter(Boolean);
+      if (claves.includes(clave)) exactos.push(p);
+      else if (claves.some(c => nombreParecido(c, clave))) parecidos.push(p);
+    });
+    const mismaSec = p => mismaArea(p.gerencia, gerencia) && mismaArea(p.seccion, seccion);
+    const exacto = exactos.find(mismaSec) || exactos[0];
+    if (exacto && exacto.fuera_alcance) throw new HttpError(409, `«${nombre}» ya existe, pero no se levanta en esta encuesta. Si te corresponde, avisa al equipo consultor.`);
+    const bloqueado = !!exacto && mismaSec(exacto);
+    if (exacto && (bloqueado || !b.confirmar_distinto)) {
+      log('proceso_duplicado', { campana: e.campana_id, bloqueado });
+      return { ok: true, duplicado: publico(exacto), bloqueado };
+    }
+    const cercanos = parecidos.filter(p => !p.fuera_alcance).slice(0, 5);
+    if (!exacto && cercanos.length && !b.confirmar_distinto) {
+      log('proceso_parecido', { campana: e.campana_id, n: cercanos.length });
+      return { ok: true, parecidos: cercanos.map(publico) };
+    }
   }
   const id = uid();
   await env.DB.prepare(`INSERT INTO procesos (id, campana_id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente, creado_por, orden)
@@ -405,6 +446,8 @@ async function asignarProcesos(env, e, ids, origen) {
   }
   const st = [];
   procesos.forEach(p => {
+    // Si el equipo lo había quitado de su lista, elegirlo o asignarlo de nuevo lo devuelve.
+    if (origen !== 'inventario') st.push(env.DB.prepare("DELETE FROM asignaciones WHERE encuestado_id=? AND proceso_id=? AND origen='excluido'").bind(e.id, p.id));
     st.push(env.DB.prepare('INSERT OR IGNORE INTO asignaciones (encuestado_id, proceso_id, creado, origen) VALUES (?,?,?,?)')
       .bind(e.id, p.id, t, origen));
     if (origen !== 'encuestado') return;
@@ -1708,24 +1751,42 @@ async function rutaAsignar(env, b) {
   const e = await env.DB.prepare('SELECT * FROM encuestados WHERE id=?').bind(b.encuestado_id).first();
   if (!e) throw new HttpError(404, 'Persona no encontrada');
   const lista = a => [...new Set((Array.isArray(a) ? a : []).map(x => txt(x, 60)).filter(Boolean))].slice(0, 300);
-  const agregar = lista(b.agregar), quitar = lista(b.quitar);
+  const agregar = lista(b.agregar), quitar = lista(b.quitar), restaurar = lista(b.restaurar);
   const agregados = agregar.length ? (await asignarProcesos(env, e, agregar, 'consultor')).length : 0;
   let quitados = 0, conRespuesta = 0;
+  if (restaurar.length) {
+    const st = restaurar.map(pid => env.DB.prepare("DELETE FROM asignaciones WHERE encuestado_id=? AND proceso_id=? AND origen='excluido'").bind(e.id, pid));
+    for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
+  }
   if (quitar.length) {
     const resp = await env.DB.prepare(`SELECT DISTINCT proceso_id FROM respuestas WHERE encuestado_id=? AND (trim(texto)<>'' OR sistemas<>'[]')`).bind(e.id).all();
     const respondidos = new Set(resp.results.map(x => x.proceso_id));
+    const filas = new Map();
+    for (let i = 0; i < quitar.length; i += 30) {
+      const tanda = quitar.slice(i, i + 30);
+      (await env.DB.prepare(`SELECT id, gerencia, seccion, fuente FROM procesos WHERE campana_id=? AND id IN (${tanda.map(() => '?').join(',')})`)
+        .bind(e.campana_id, ...tanda).all()).results.forEach(p => filas.set(p.id, p));
+    }
     const st = [];
     quitar.forEach(pid => {
       if (respondidos.has(pid)) { conRespuesta++; return; }
-      st.push(env.DB.prepare('DELETE FROM asignaciones WHERE encuestado_id=? AND proceso_id=?').bind(e.id, pid));
+      const p = filas.get(pid);
+      if (!p) return;
+      // Uno de su sección aparece solo: para quitarlo se deja anotado como excluido (se puede restaurar).
+      if (p.fuente !== 'nuevo' && mismaArea(p.gerencia, e.gerencia) && mismaArea(p.seccion, e.seccion)) {
+        st.push(env.DB.prepare(`INSERT INTO asignaciones (encuestado_id, proceso_id, creado, origen) VALUES (?,?,?,'excluido')
+          ON CONFLICT(encuestado_id, proceso_id) DO UPDATE SET origen='excluido'`).bind(e.id, pid, ahora()));
+      } else {
+        st.push(env.DB.prepare('DELETE FROM asignaciones WHERE encuestado_id=? AND proceso_id=?').bind(e.id, pid));
+      }
       st.push(env.DB.prepare('DELETE FROM revisiones WHERE encuestado_id=? AND proceso_id=?').bind(e.id, pid));
       st.push(env.DB.prepare('DELETE FROM respuestas WHERE encuestado_id=? AND proceso_id=?').bind(e.id, pid));
       quitados++;
     });
     for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
   }
-  log('asignar', { campana: e.campana_id, agregados, quitados, con_respuesta: conRespuesta });
-  return { ok: true, agregados, quitados, con_respuesta: conRespuesta };
+  log('asignar', { campana: e.campana_id, agregados, quitados, restaurados: restaurar.length, con_respuesta: conRespuesta });
+  return { ok: true, agregados, quitados, restaurados: restaurar.length, con_respuesta: conRespuesta };
 }
 
 // Asigna a cada persona cargada los procesos donde figura con su nombre en el inventario anterior.

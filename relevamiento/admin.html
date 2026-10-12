@@ -967,7 +967,8 @@
   // Personas que dejarán de ver los procesos (los veían por su sección) y personas que los verán por su sección nueva.
   function veProceso(e, p, g, sc){
     if (p.creado_por === e.id) return true;
-    if (C.asignaciones.some(function(a){ return a.encuestado_id === e.id && a.proceso_id === p.id; })) return true;
+    var propia = C.asignaciones.filter(function(a){ return a.encuestado_id === e.id && a.proceso_id === p.id; })[0];
+    if (propia) return propia.origen !== 'excluido';
     return p.fuente !== 'nuevo' && igualArea(e.gerencia, g) && igualArea(e.seccion, sc);
   }
   function impactoPersonas(ps, g, sc){
@@ -2145,6 +2146,7 @@
     C.procesos.forEach(function(p){
       var sec = p.fuente !== 'nuevo' && mismaArea(p.gerencia, en.gerencia) && mismaArea(p.seccion, en.seccion);
       var propio = p.creado_por === en.id;
+      if (asig[p.id] === 'excluido') return;   // lo quitó el equipo: se ve aparte, en «Quitados de su lista»
       if (!sec && !propio && !asig[p.id]) return;
       var rv = revs[p.id];
       out.push({p: p, origen: sec ? 'seccion' : propio ? 'propio' : asig[p.id], porque: sec ? 'Su sección' : propio ? 'Lo agregó' : ORIGEN_TXT[asig[p.id]] || 'Asignado',
@@ -2152,6 +2154,12 @@
         respondido: !!(IX.resp[p.id] || {})[en.id]});
     });
     return out;
+  }
+  // Procesos de su sección que el equipo quitó de su lista (se pueden restaurar).
+  function excluidosPersona(en){
+    var ex = {};
+    C.asignaciones.forEach(function(a){ if (a.encuestado_id === en.id && a.origen === 'excluido') ex[a.proceso_id] = 1; });
+    return C.procesos.filter(function(p){ return ex[p.id]; }).sort(porCodigo);
   }
   function pintarEncuestados(){
     var porCorreo = {}, areasProc = {};
@@ -2289,15 +2297,18 @@
     var act = L.filter(function(x){ return x.activo; });
     $('#dlgT').textContent = 'Procesos de ' + en.nombre;
     $('#dlgS').textContent = en.gerencia + ' · ' + en.seccion + ' · ' + act.filter(function(x){ return x.avance.completo; }).length + ' de ' + act.length + ' completos';
-    var h = '<p class="muted" style="margin-top:0">Es la lista que la persona ve en su encuesta. Los de su sección aparecen solos; los demás se asignan aquí o ella los elige con el buscador. ' +
+    var h = '<p class="muted" style="margin-top:0">Es la lista que la persona ve en su encuesta. Los de su sección aparecen solos: quita con «Quitar» los que no le corresponden (quedan guardados abajo y se pueden restaurar). Los demás se asignan aquí o ella los elige con el buscador. ' +
       'Un proceso asignado queda «por marcar» hasta que ella confirma su relación. Para quitar uno que ya respondió, primero borra sus respuestas en ese proceso: ' +
       'marca la casilla y pulsa «Borrar respuestas». La persona y el resto de lo que respondió se conservan.</p>';
     var borrables = L.filter(function(x){ return conAlgoQueBorrar(x.p.id, eid); }).length;
     if (borrables) h += '<div class="row" style="margin-bottom:8px"><button class="btn btn-xs" id="ppBorrar" disabled>Borrar respuestas</button>' +
       '<span class="muted">' + borrables + (borrables === 1 ? ' proceso tiene' : ' procesos tienen') + ' respuestas o marcas de esta persona</span></div>';
+    var deSeccion = L.filter(function(x){ return x.origen === 'seccion' && !x.respondido; });
+    if (deSeccion.length) h += '<div class="row" style="margin-bottom:8px"><button class="btn btn-ghost btn-xs" id="ppQuitarSec">Quitar los ' + deSeccion.length + ' de su sección sin respuestas</button>' +
+      '<span class="muted">Para dejarle solo los que elijas abajo con «Asignar procesos».</span></div>';
     h += '<div class="tblwrap"><table><thead><tr><th></th><th>Proceso</th><th>Por qué está en su lista</th><th>Relación</th><th>Avance</th><th></th></tr></thead><tbody>';
     L.forEach(function(x){
-      var p = x.p, quitable = x.origen !== 'seccion' && x.origen !== 'propio' && !x.respondido;
+      var p = x.p, quitable = x.origen !== 'propio' && !x.respondido;
       var borrable = conAlgoQueBorrar(p.id, eid);
       h += '<tr><td>' + (borrable ? '<input type="checkbox" data-resp-sel="' + esc(p.id) + '" aria-label="Seleccionar las respuestas de ' + esc(nombreProc(p)) + '">' : '') + '</td>' +
         '<td>' + (p.codigo ? '<span class="muted">' + esc(p.codigo) + '</span> ' : '') + '<b>' + esc(nombreProc(p)) + '</b><div class="muted">' + esc(p.gerencia + ' · ' + p.seccion) + '</div></td>' +
@@ -2307,6 +2318,13 @@
     });
     if (!L.length) h += '<tr><td colspan="6" class="muted">No tiene procesos en su lista: asígnale los suyos abajo o pídele que los busque en la encuesta.</td></tr>';
     h += '</tbody></table></div>';
+    var EX = excluidosPersona(en);
+    if (EX.length){
+      h += '<h3 style="font-size:14px;margin-top:18px">Quitados de su lista (' + EX.length + ')</h3><div class="tblwrap"><table><tbody>' + EX.map(function(p){
+        return '<tr><td>' + (p.codigo ? '<span class="muted">' + esc(p.codigo) + '</span> ' : '') + '<b>' + esc(nombreProc(p)) + '</b></td>' +
+          '<td style="text-align:right"><button class="btn-link" data-restaurar="' + esc(p.id) + '">Restaurar</button></td></tr>';
+      }).join('') + '</tbody></table></div>';
+    }
     h += '<h3 style="font-size:14px;margin-top:18px">Asignar procesos</h3>' +
       '<input type="search" id="apBuscar" placeholder="Nombre, código, área o persona del inventario anterior…" aria-label="Buscar procesos para asignar">' +
       '<div id="apRes" style="margin-top:8px"></div><span class="muted" id="apMsg"></span>';
@@ -2339,20 +2357,25 @@
         (res.length > 20 ? '<p class="muted">Se muestran 20 de ' + res.length + ': escribe más para afinar.</p>' : '');
     });
     $('#ppCont').addEventListener('click', function(ev){
-      var b = ev.target.closest('[data-asignar]'), q = ev.target.closest('[data-quitar-proc]');
-      if (!b && !q) return;
+      var b = ev.target.closest('[data-asignar]'), q = ev.target.closest('[data-quitar-proc]'), r = ev.target.closest('[data-restaurar]'), qs = ev.target.closest('#ppQuitarSec');
+      if (!b && !q && !r && !qs) return;
       var cuerpo = {encuestado_id: eid};
       if (b) cuerpo.agregar = [b.dataset.asignar];
-      else {
+      else if (r) cuerpo.restaurar = [r.dataset.restaurar];
+      else if (qs){
+        if (!confirm('¿Quitar de la lista de ' + en.nombre + ' los ' + deSeccion.length + ' procesos de su sección que aún no respondió? Quedan guardados abajo y puedes restaurarlos uno a uno.')) return;
+        cuerpo.quitar = deSeccion.map(function(x){ return x.p.id; });
+        q = qs;
+      } else {
         if (!confirm('¿Quitar este proceso de la lista de ' + en.nombre + '?')) return;
         cuerpo.quitar = [q.dataset.quitarProc];
       }
-      (b || q).disabled = true;
+      (b || q || r).disabled = true;
       $('#apMsg').textContent = 'Guardando…';
       api('/a/asignar', cuerpo).then(function(j){
         if (j.con_respuesta) alert('Ese proceso ya tiene respuestas de esta persona: no se quitó.');
         return refrescar();
-      }).catch(function(err){ (b || q).disabled = false; $('#apMsg').textContent = err.message; });
+      }).catch(function(err){ (b || q || r).disabled = false; $('#apMsg').textContent = err.message; });
     });
   }
 

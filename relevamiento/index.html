@@ -837,14 +837,18 @@
     }).catch(function(err){ est.className = 'estado warn'; est.textContent = err.message; });
   }
 
-  function agregarProceso(){
+  function agregarProceso(distinto){
     var nombre = $('#nvProceso').value.trim();
     var est = $('#estNuevo');
     if (!nombre){ est.className = 'estado warn'; est.textContent = 'Escribe el nombre del proceso.'; return; }
     est.className = 'estado'; est.textContent = 'Guardando…';
     var area = ($('#nvArea').value || '').split('|'), otra = $('#nvArea').value === '__otra__';
     if (otra && !$('#nvAreaOtra').value.trim()){ est.className = 'estado warn'; est.textContent = 'Escribe la sección o área.'; return; }
-    api('/r/proceso', otra ? {proceso: nombre, seccion_nueva: $('#nvAreaOtra').value.trim(), descripcion: $('#nvDesc').value} : {proceso: nombre, gerencia: area[0] || undefined, seccion: area.slice(1).join('|') || undefined, descripcion: $('#nvDesc').value}).then(function(j){
+    var cuerpo = otra ? {proceso: nombre, seccion_nueva: $('#nvAreaOtra').value.trim(), descripcion: $('#nvDesc').value} : {proceso: nombre, gerencia: area[0] || undefined, seccion: area.slice(1).join('|') || undefined, descripcion: $('#nvDesc').value};
+    if (distinto === true) cuerpo.confirmar_distinto = true;
+    var aviso = $('#nvAviso'); if (aviso) aviso.classList.add('hidden');
+    api('/r/proceso', cuerpo).then(function(j){
+      if (!j.proceso){ est.textContent = ''; avisoDuplicado(j); return; }   // ya existe o hay uno parecido: no se creó
       S.procesos.push(j.proceso);
       S.revisiones[j.proceso.id] = {estado:'vigente', comentario:''};
       $('#nvProceso').value = ''; $('#nvDesc').value = ''; $('#nvAreaOtra').value = '';
@@ -853,6 +857,36 @@
       pintarPaso1();
       pintarProcesos();
     }).catch(function(err){ est.className = 'estado warn'; est.textContent = err.message; });
+  }
+
+  // El proceso que quiso agregar ya existe (o hay uno parecido): se le ofrece usar el existente en vez de duplicarlo.
+  function avisoDuplicado(j){
+    var caja = $('#nvAviso');
+    if (!caja){
+      caja = document.createElement('div'); caja.id = 'nvAviso'; caja.className = 'msg warn'; caja.setAttribute('role', 'alert'); caja.style.marginTop = '12px';
+      var fila = $('#estNuevo').parentNode; fila.parentNode.insertBefore(caja, fila);
+    }
+    var lista = j.duplicado ? [j.duplicado] : (j.parecidos || []);
+    var activo = function(p){ var r = S.revisiones[p.id]; return !!r && (r.estado === 'vigente' || r.estado === 'cambio'); };
+    caja.classList.remove('hidden');
+    caja.innerHTML = '<b>' + (j.duplicado ? (j.bloqueado ? 'Este proceso ya existe en esa sección.' : 'Este proceso ya existe en otra sección.') : 'Encontramos procesos parecidos.') + '</b> ' +
+      (j.duplicado ? 'Para no duplicarlo, úsalo en tu lista:' : '¿Es alguno de estos?') +
+      '<ul style="margin:8px 0 0;padding:0;list-style:none">' + lista.map(function(p){
+        return '<li style="display:flex;gap:10px;align-items:center;justify-content:space-between;padding:6px 0"><span><b>' + esc(nombreProc(p)) + '</b><br><span style="font-size:13px;opacity:.85">' + esc(areaProc(p)) + '</span></span>' +
+          (activo(p) ? '<span class="tag">Ya está en tu lista</span>' : '<button type="button" class="btn btn-sm" data-usar="' + esc(p.id) + '">Es este: usarlo</button>') + '</li>';
+      }).join('') + '</ul>' +
+      (j.bloqueado ? '' : '<div style="margin-top:8px"><button type="button" class="btn-link" id="nvDistinto">Es otro proceso distinto: agregarlo igual</button></div>');
+    Array.prototype.forEach.call(caja.querySelectorAll('[data-usar]'), function(bt){
+      bt.addEventListener('click', function(){
+        var p = lista.filter(function(x){ return x.id === bt.dataset.usar; })[0];
+        bt.disabled = true;
+        elegirPersonal(p).then(function(){
+          $('#nvProceso').value = ''; $('#nvDesc').value = ''; $('#nvAreaOtra').value = '';
+          caja.classList.add('hidden'); $('#formNuevo').classList.add('hidden');
+        }).catch(function(err){ bt.disabled = false; $('#estNuevo').className = 'estado warn'; $('#estNuevo').textContent = err.message; });
+      });
+    });
+    if ($('#nvDistinto')) $('#nvDistinto').addEventListener('click', function(){ agregarProceso(true); });
   }
 
   // Procesos que se responden: los que la persona marcó como propios (participa), sean de su sección, elegidos o nuevos.
