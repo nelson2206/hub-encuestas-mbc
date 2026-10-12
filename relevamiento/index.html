@@ -143,6 +143,12 @@
   @media (prefers-reduced-motion: reduce){ .rec-dot{animation:none} .chev,.btn{transition:none} }
   .estado{font-size:13px;color:var(--muted);min-height:1.4em}
   .estado.ok{color:var(--ok)} .estado.warn{color:var(--warn)}
+  .sis-bus{margin:0 0 8px}
+  .sis-sel{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px;align-items:center;font-size:13px;color:var(--muted)}
+  .sis-sel button{border:1.5px solid var(--navy);background:var(--navy);color:#fff;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:700;cursor:pointer}
+  .sis-sel button:hover{opacity:.85}
+  .pillbox.sis-lista{max-height:196px;overflow-y:auto;padding:2px}
+  .sis-vacio{font-size:14px;color:var(--muted);margin:6px 0 0}
   .sis-t{font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700;color:var(--muted);margin:12px 0 8px}
   .barra{position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 16px}
   .barra-in{max-width:820px;margin:0 auto;display:flex;align-items:center;gap:14px}
@@ -947,6 +953,7 @@
     if (previas.length) html += '<details class="previas"><summary>Lo que ya nos contaste antes (' + previas.length + (previas.length === 1 ? ' respuesta' : ' respuestas') + ')</summary>' +
       previas.map(function(q){ var r = respuesta(p.id, q); return '<p><b>' + esc(PREG_ANTES[q]) + ':</b> ' + esc(r.texto) + (r.sistemas.length ? ' · Sistemas: ' + esc(r.sistemas.join(', ')) : '') + '</p>'; }).join('') +
       '<p class="preg-g" style="margin:8px 0 0">Úsalo como base: cópialo en el bloque que corresponda o vuelve a grabarlo.</p></details>';
+    BLOQUES.forEach(function(q){ (respuesta(p.id, q.id).sistemas || []).forEach(function(n){ asegurarSistema(n); }); });
     BLOQUES.forEach(function(q, i){
       var r = respuesta(p.id, q.id);
       var key = p.id + '-' + q.id;
@@ -966,10 +973,13 @@
         '<textarea id="tx-' + esc(key) + '" maxlength="12000" aria-label="Respuesta al bloque ' + (i+1) + '" placeholder="Pulsa Grabar y habla, escribe aquí o sube una imagen…">' + esc(r.texto) + '</textarea>';
       if (q.sistemas){
         // El cuadro existe siempre (aunque la campaña no tenga catálogo): los sistemas que la IA detecta en lo que cuentas aparecen aquí marcados.
-        html += '<div id="sbox-' + esc(key) + '"' + (S.sistemas.length ? '' : ' class="hidden"') + '><div class="sis-t">Marca los sistemas y plataformas que usan en este proceso (también los de otras empresas)</div>' +
-          '<div class="pillbox" data-pills="' + esc(key) + '">' + S.sistemas.map(function(s){ return pastillaSistema(key, s, (r.sistemas || []).indexOf(s.nombre) >= 0); }).join('') + '</div>' +
+        html += '<div id="sbox-' + esc(key) + '"' + (S.sistemas.length ? '' : ' class="hidden"') + '><div class="sis-t">Busca y marca las aplicaciones, sistemas y plataformas que usan en este proceso (puedes marcar varias, también las de otras empresas)</div>' +
+          '<input type="search" class="sis-bus" data-sbus="' + esc(key) + '" placeholder="Busca una aplicación: SAP, DMS, Kinto…" aria-label="Buscar una aplicación de la lista" autocomplete="off">' +
+          '<div class="sis-sel" id="ssel-' + esc(key) + '" aria-live="polite"></div>' +
+          '<div class="pillbox sis-lista" data-pills="' + esc(key) + '">' + S.sistemas.map(function(s){ return pastillaSistema(key, s, (r.sistemas || []).indexOf(s.nombre) >= 0); }).join('') + '</div>' +
+          '<p class="sis-vacio hidden" id="svac-' + esc(key) + '"></p>' +
           '<p class="estado ok hidden" id="sd-' + esc(key) + '" aria-live="polite" style="margin:8px 0 0"></p>' +
-          '<p class="preg-g" style="margin:8px 0 0">Si mencionas un sistema al contarlo, lo marcamos solos; incluye las plataformas de otras empresas (Toyota Brasil, Kinto, portal SUNAT). Si marcamos uno que no es, desmárcalo.</p></div>';
+          '<p class="preg-g" style="margin:8px 0 0">Si mencionas un sistema al contarlo, lo marcamos solos; incluye las plataformas de otras empresas (Toyota Brasil, Kinto, portal SUNAT). Si marcamos uno que no es, quítalo con la ×. Si falta alguno, escríbelo en el buscador y agrégalo.</p></div>';
       }
       html += '<p class="sug hidden" id="sg-' + esc(key) + '"></p>' +
         '<div class="fila" style="margin-top:8px;gap:10px"><button type="button" class="btn-link" data-verif="' + esc(key) + '">Revisar mi respuesta</button>' +
@@ -997,8 +1007,21 @@
       if (cajaPill) cajaPill.addEventListener('change', function(ev){
         if (!ev.target.matches('[data-sis]')) return;
         recordarRechazo(p.id, q.id, ev.target);
+        pintarSelSis(key);
         programarGuardado(p.id, q.id, 0); programarRevision(p.id, q.id, 4000);
       });
+      var busSis = d.querySelector('[data-sbus="' + CSS.escape(key) + '"]');
+      if (busSis){
+        busSis.addEventListener('input', function(){ filtrarSis(key); });
+        busSis.addEventListener('keydown', function(ev){ if (ev.key === 'Enter'){ ev.preventDefault(); agregarSis(p.id, q.id); } });
+        d.querySelector('#ssel-' + CSS.escape(key)).addEventListener('click', function(ev){
+          var bt = ev.target.closest('[data-quitar-sis]'); if (!bt) return;
+          var c = Array.prototype.filter.call(d.querySelectorAll('[data-sis="' + CSS.escape(key) + '"]'), function(x){ return x.value === bt.dataset.quitarSis; })[0];
+          if (c) c.click();
+        });
+        d.querySelector('#svac-' + CSS.escape(key)).addEventListener('click', function(ev){ if (ev.target.closest('[data-sadd]')) agregarSis(p.id, q.id); });
+        pintarSelSis(key, d);
+      }
       d.querySelector('#ck-' + CSS.escape(key)).addEventListener('click', function(ev){
         var bt = ev.target.closest('[data-punto]');
         if (bt) marcarPunto(p.id, q.id, bt.dataset.punto, bt.dataset.estado, bt);
@@ -1014,7 +1037,51 @@
   // ------------------------------------------------------------ sistemas detectados por la IA
   function pastillaSistema(key, s, marcado){
     return '<label class="pill"><input type="checkbox" data-sis="' + esc(key) + '" value="' + esc(s.nombre) + '"' + (marcado ? ' checked' : '') + '><span>' + esc(s.nombre) +
-      (s.tipo === 'detectado' ? '<small class="det">detectado</small>' : '') + '</span></label>';
+      (s.tipo === 'detectado' ? '<small class="det">detectado</small>' : s.tipo === 'agregado' ? '<small class="det">agregado</small>' : '') + '</span></label>';
+  }
+  // Una aplicación nueva (marcada antes, detectada o escrita por la persona) se suma a la lista de todos los bloques.
+  function asegurarSistema(nombre, tipo){
+    var n = String(nombre || '').trim().slice(0, 120);
+    if (!n) return null;
+    var ya = S.sistemas.filter(function(x){ return sinTildes(x.nombre) === sinTildes(n); })[0];
+    if (ya) return ya;
+    var s = {nombre: n, tipo: tipo || 'agregado'};
+    S.sistemas.push(s);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-pills]'), function(caja){
+      caja.insertAdjacentHTML('beforeend', pastillaSistema(caja.getAttribute('data-pills'), s, false));
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-sbus]'), function(i){ filtrarSis(i.dataset.sbus); });
+    return s;
+  }
+  // Muestra solo las aplicaciones que coinciden con lo escrito; si ninguna coincide, ofrece agregarla.
+  function filtrarSis(key){
+    var inp = document.querySelector('[data-sbus="' + CSS.escape(key) + '"]'), caja = document.querySelector('[data-pills="' + CSS.escape(key) + '"]');
+    if (!inp || !caja) return;
+    var ts = sinTildes(inp.value.trim()).split(/\s+/).filter(Boolean), visibles = 0;
+    Array.prototype.forEach.call(caja.querySelectorAll('label.pill'), function(l){
+      var ok = !ts.length || ts.every(function(t){ return sinTildes(l.textContent).indexOf(t) >= 0; });
+      l.classList.toggle('hidden', !ok);
+      if (ok) visibles++;
+    });
+    var vac = document.getElementById('svac-' + key), q = inp.value.trim();
+    if (!vac) return;
+    vac.classList.toggle('hidden', !q || !!visibles);
+    if (q && !visibles) vac.innerHTML = 'Ninguna aplicación de la lista coincide. ¿Falta «' + esc(q) + '»? <button type="button" class="btn-link" data-sadd="1">Agregarla y marcarla</button>';
+  }
+  // Chips con lo marcado en este bloque (se quitan con la ×), visibles aunque el buscador oculte la pastilla.
+  function pintarSelSis(key, root){
+    var caja = (root || document).querySelector('#ssel-' + CSS.escape(key));
+    if (!caja) return;
+    var marc = Array.prototype.map.call((root || document).querySelectorAll('[data-sis="' + CSS.escape(key) + '"]:checked'), function(c){ return c.value; });
+    caja.innerHTML = marc.length ? '<span>Marcadas (' + marc.length + '):</span>' + marc.map(function(n){ return '<button type="button" data-quitar-sis="' + esc(n) + '" aria-label="Quitar ' + esc(n) + '">' + esc(n) + ' ×</button>'; }).join('') : '<span>Todavía no marcaste ninguna.</span>';
+  }
+  function agregarSis(pid, bid){
+    var key = pid + '-' + bid, inp = document.querySelector('[data-sbus="' + CSS.escape(key) + '"]');
+    var s = inp && asegurarSistema(inp.value);
+    if (!s) return;
+    var c = Array.prototype.filter.call(document.querySelectorAll('[data-sis="' + CSS.escape(key) + '"]'), function(x){ return x.value === s.nombre; })[0];
+    if (c && !c.checked) c.click();
+    inp.value = ''; filtrarSis(key); pintarSelSis(key);
   }
   // Si la persona desmarca un sistema que la IA había detectado, queda anotado para no volver a marcarlo; si lo vuelve a marcar, se quita de la lista.
   function recordarRechazo(pid, bid, input){
@@ -1029,19 +1096,13 @@
   // Refleja lo que devolvió la revisión: pastillas nuevas para los sistemas que no estaban en el catálogo y marcadas las detectadas.
   function aplicarSistemas(pid, bid, lista, nuevos){
     var key = pid + '-' + bid;
-    (nuevos || []).forEach(function(n){
-      if (S.sistemas.some(function(s){ return sinTildes(s.nombre) === sinTildes(n); })) return;
-      var s = {nombre: n, tipo: 'detectado'};
-      S.sistemas.push(s);
-      Array.prototype.forEach.call(document.querySelectorAll('[data-pills]'), function(caja){
-        caja.insertAdjacentHTML('beforeend', pastillaSistema(caja.getAttribute('data-pills'), s, false));
-      });
-    });
+    (nuevos || []).forEach(function(n){ asegurarSistema(n, 'detectado'); });
     var caja = document.getElementById('sbox-' + key);
     if (caja) caja.classList.toggle('hidden', !S.sistemas.length);
     Array.prototype.forEach.call(document.querySelectorAll('[data-sis="' + CSS.escape(key) + '"]'), function(c){
       c.checked = (lista || []).some(function(n){ return sinTildes(n) === sinTildes(c.value); });
     });
+    pintarSelSis(key);
   }
   function pintarNotaSistemas(pid, bid, root){
     var key = pid + '-' + bid, nota = (root || document).querySelector('#sd-' + CSS.escape(key));

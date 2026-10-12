@@ -46,6 +46,7 @@
  *   POST /a/fuera-alcance        {campana_id, proceso_ids[], valor}   (1 = fuera de alcance: no se ve en la encuesta ni se estructura)
  *   POST /a/entrevista           {campana_id, proceso_ids[], estado: ''|agendada|realizada, fecha?, entrevistado?}
  *   POST /a/proceso/mover        {campana_id, proceso_ids[], gerencia, seccion, macroproceso?} | {campana_id, movimientos[]} (constructor del mapa; movimientos restaura)
+ *   POST /a/campana/sistemas     {campana_id, sistemas: ["Nombre" | "Nombre | tipo"] o texto con una por línea}   (catálogo de aplicaciones: reemplaza lo cargado por el equipo)
  *   POST /a/campana/logo         {campana_id, logo}   (data URI; vacío lo quita)
  *   POST /a/campana/ia           {campana_id, ia_auto}   (la tarea programada completa la matriz con la IA)
  *   POST /a/asignar              {encuestado_id, agregar[], quitar[], restaurar[]}   (lista de procesos de una persona;
@@ -508,6 +509,12 @@ async function rutaRespuesta(env, b) {
   await env.DB.prepare(`INSERT INTO respuestas (encuestado_id, proceso_id, pregunta, texto, sistemas, actualizado) VALUES (?,?,?,?,?,?)
     ON CONFLICT(encuestado_id, proceso_id, pregunta) DO UPDATE SET texto=excluded.texto, sistemas=excluded.sistemas, actualizado=excluded.actualizado`)
     .bind(e.id, p.id, b.pregunta, txt(b.texto, MAX_TEXTO), JSON.stringify(sistemas), ahora()).run();
+  // Una aplicación que la persona agregó a mano (no estaba en la lista) queda en la lista de la campaña para los demás.
+  if (sistemas.length) {
+    const cat = new Set((await env.DB.prepare('SELECT nombre FROM sistemas WHERE campana_id=?').bind(e.campana_id).all()).results.map(x => normal(x.nombre)));
+    const nuevos = [...new Map(sistemas.filter(n => !cat.has(normal(n))).map(n => [normal(n), n])).values()].slice(0, 10);
+    if (nuevos.length) await env.DB.batch(nuevos.map(n => env.DB.prepare("INSERT INTO sistemas (id, campana_id, nombre, tipo) VALUES (?,?,?,'agregado')").bind(uid(), e.campana_id, n)));
+  }
   // Sistemas que la IA detectó y la persona desmarcó: no se vuelven a marcar solos (se guardan en el checklist).
   if (Array.isArray(b.sis_rechazados)) {
     const r = await env.DB.prepare('SELECT checklist FROM respuestas WHERE encuestado_id=? AND proceso_id=? AND pregunta=?').bind(e.id, p.id, b.pregunta).first();
@@ -680,6 +687,33 @@ async function rutaCampanaNueva(env, b) {
   await env.DB.prepare('INSERT INTO campanas (id, nombre, cliente, glosario, creada) VALUES (?,?,?,?,?)')
     .bind(id, nombre, cliente, txt(b.glosario, 800), ahora()).run();
   return { ok: true, id };
+}
+
+// Catálogo de aplicaciones de la campaña: reemplaza la lista que cargó el equipo. Se conservan las que la IA detectó o las
+// personas agregaron (salvo que ya estén en la lista nueva). Las respuestas ya guardadas no cambian: guardan el nombre.
+async function rutaSistemas(env, b) {
+  const camp = await env.DB.prepare('SELECT id FROM campanas WHERE id=?').bind(b.campana_id).first();
+  if (!camp) throw new HttpError(404, 'Campaña no encontrada');
+  const filas = (Array.isArray(b.sistemas) ? b.sistemas : String(b.sistemas || '').split('\n'))
+    .map(x => typeof x === 'string' ? { nombre: x.split('|')[0], tipo: x.split('|')[1] } : x)
+    .map(x => ({ nombre: txt(x && x.nombre, 120), tipo: txt(x && x.tipo, 80) })).filter(x => x.nombre).slice(0, 200);
+  if (!filas.length) throw new HttpError(400, 'Escribe al menos una aplicación');
+  const previos = (await env.DB.prepare('SELECT nombre, tipo FROM sistemas WHERE campana_id=?').bind(camp.id).all()).results;
+  const nuevos = new Set(filas.map(x => normal(x.nombre)));
+  const st = [env.DB.prepare("DELETE FROM sistemas WHERE campana_id=? AND tipo NOT IN ('detectado','agregado')").bind(camp.id)];
+  previos.filter(x => (x.tipo === 'detectado' || x.tipo === 'agregado') && nuevos.has(normal(x.nombre)))
+    .forEach(x => st.push(env.DB.prepare('DELETE FROM sistemas WHERE campana_id=? AND nombre=?').bind(camp.id, x.nombre)));
+  const vistos = new Set();
+  filas.forEach(x => {
+    const k = normal(x.nombre);
+    if (vistos.has(k)) return;
+    vistos.add(k);
+    st.push(env.DB.prepare('INSERT INTO sistemas (id, campana_id, nombre, tipo) VALUES (?,?,?,?)').bind(uid(), camp.id, x.nombre, x.tipo));
+  });
+  for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
+  const lista = (await env.DB.prepare('SELECT nombre, tipo FROM sistemas WHERE campana_id=? ORDER BY nombre').bind(camp.id).all()).results;
+  log('sistemas', { campana: camp.id, total: lista.length, cargados: vistos.size });
+  return { ok: true, total: lista.length, sistemas: lista };
 }
 
 async function rutaGlosario(env, b) {
@@ -1860,6 +1894,7 @@ export default {
           const b = await cuerpo(req);
           if (url.pathname === '/a/campana') return json(await rutaCampanaNueva(env, b), 200, h);
           if (url.pathname === '/a/campana/glosario') return json(await rutaGlosario(env, b), 200, h);
+          if (url.pathname === '/a/campana/sistemas') return json(await rutaSistemas(env, b), 200, h);
           if (url.pathname === '/a/campana/logo') return json(await rutaLogo(env, b), 200, h);
           if (url.pathname === '/a/campana/ia') return json(await rutaCampanaIA(env, b), 200, h);
           if (url.pathname === '/a/campana/estandares') return json(await rutaEstandares(env, b), 200, h);
