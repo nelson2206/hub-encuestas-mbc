@@ -81,6 +81,7 @@ function iaDe(env, tarea) {
 }
 const WHISPER = '@cf/openai/whisper-large-v3-turbo';
 const MAX_AUDIO = 8 * 1024 * 1024;       // por tramo; el navegador corta en tramos de 2 min
+const MAX_PDF = 10 * 1024 * 1024, MAX_PDF_PAGINAS = 10;   // el PDF se manda completo a la IA
 const MAX_IMAGEN = 6 * 1024 * 1024;      // el navegador la reduce antes (máx. 1600 px, JPEG)
 const MAX_TEXTO = 12000;
 // Encuesta por bloques: cada bloque se responde con una grabación y trae el checklist de lo que la matriz necesita.
@@ -1583,7 +1584,7 @@ const IMAGEN_SCHEMA = {
   required: ['relevante', 'texto', 'motivo'],
   additionalProperties: false
 };
-const IMAGEN_PROMPT = `Recibes una imagen que un colaborador subió al responder un bloque de una encuesta de relevamiento de procesos: puede ser un diagrama de flujo, un procedimiento, un formato, una pantalla de un sistema, un correo o una pizarra.
+const IMAGEN_PROMPT = `Recibes una imagen o un PDF (de varias páginas: léelas todas) que un colaborador subió al responder un bloque de una encuesta de relevamiento de procesos: puede ser un diagrama de flujo, un procedimiento, un formato, una pantalla de un sistema, un correo o una pizarra.
 Extrae solo la información útil para ese bloque y su checklist: pasos, áreas y cargos que participan, aprobaciones (de quién, de qué área y en qué paso), sistemas y para qué se usan, terceros, datos personales que se manejan, normas, estándares, documentos, frecuencias e indicadores que se vean.
 Escribe en español, en texto corrido y breve (máximo 200 palabras), como si el colaborador lo contara. No inventes lo que no se ve.
 Nunca copies datos personales concretos (nombres de personas, DNI, teléfonos, correos, direcciones, montos de clientes): usa cargos y categorías.
@@ -1595,10 +1596,16 @@ async function rutaImagen(env, req, url, ctx) {
   const bloque = BLOQUES.find(x => x.id === url.searchParams.get('pregunta'));
   if (!bloque) throw new HttpError(400, 'Bloque inválido');
   const tipo = (req.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(tipo)) throw new HttpError(415, 'Sube una imagen JPG, PNG o WEBP');
+  const esPdf = tipo === 'application/pdf';
+  if (!esPdf && !['image/jpeg', 'image/png', 'image/webp'].includes(tipo)) throw new HttpError(415, 'Sube una imagen JPG, PNG o WEBP, o un PDF');
   const buf = await req.arrayBuffer();
-  if (!buf.byteLength) throw new HttpError(400, 'Imagen vacía');
-  if (buf.byteLength > MAX_IMAGEN) throw new HttpError(413, 'La imagen pesa demasiado (máximo 6 MB)');
+  if (!buf.byteLength) throw new HttpError(400, esPdf ? 'PDF vacío' : 'Imagen vacía');
+  if (esPdf) {
+    if (buf.byteLength > MAX_PDF) throw new HttpError(413, 'El PDF pesa demasiado (máximo 10 MB)');
+    if (new TextDecoder('latin1').decode(new Uint8Array(buf, 0, 5)) !== '%PDF-') throw new HttpError(415, 'Ese archivo no es un PDF válido');
+    const paginas = (new TextDecoder('latin1').decode(new Uint8Array(buf)).match(/\/Type\s*\/Page(?![A-Za-z])/g) || []).length;
+    if (paginas > MAX_PDF_PAGINAS) throw new HttpError(413, `El PDF tiene ${paginas} páginas (máximo ${MAX_PDF_PAGINAS}): sube solo las páginas del proceso`);
+  } else if (buf.byteLength > MAX_IMAGEN) throw new HttpError(413, 'La imagen pesa demasiado (máximo 6 MB)');
   let msg;
   const cfg = iaDe(env, 'imagen'), t0 = Date.now();
   try {
@@ -1610,14 +1617,14 @@ async function rutaImagen(env, req, url, ctx) {
       output_config: { effort: cfg.esfuerzo, format: { type: 'json_schema', schema: IMAGEN_SCHEMA } },
       system: IMAGEN_PROMPT,
       messages: [{ role: 'user', content: [
-        { type: 'image', source: { type: 'base64', media_type: tipo, data: aBase64(buf) } },
+        { type: esPdf ? 'document' : 'image', source: { type: 'base64', media_type: tipo, data: aBase64(buf) } },
         { type: 'text', text: [`PROCESO: ${p.subproceso || p.proceso || p.macroproceso}`, `BLOQUE: ${bloque.t}`,
           'CHECKLIST:', ...bloque.puntos.map(([, t]) => '- ' + t)].join('\n') }
       ] }]
     }).finalMessage();
   } catch (err) {
-    log('imagen_error', { campana: e.campana_id, bloque: bloque.id, error: String((err && err.message) || err).slice(0, 200) });
-    throw new HttpError(502, 'No pudimos leer la imagen en este momento. Intenta de nuevo en un minuto o cuéntalo con tu voz.');
+    log('imagen_error', { campana: e.campana_id, bloque: bloque.id, tipo, error: String((err && err.message) || err).slice(0, 200) });
+    throw new HttpError(502, `No pudimos leer ${esPdf ? 'el PDF' : 'la imagen'} en este momento. Intenta de nuevo en un minuto o cuéntalo con tu voz.`);
   }
   registrarIA(ctx, 'imagen', msg, cfg, t0);
   if (msg.stop_reason === 'refusal') throw new HttpError(422, 'No pudimos procesar esa imagen. Cuéntalo con tu voz o por escrito.');
