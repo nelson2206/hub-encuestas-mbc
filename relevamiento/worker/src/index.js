@@ -103,18 +103,19 @@ const BLOQUES = [
       ['carga', 'Si es uno de los 3 procesos que más carga o esfuerzo te generan (sí o no) y qué actividad toma más tiempo o esfuerzo', 1]
     ] },
   { id: 'b2', t: 'Sistemas y terceros', sistemas: true,
-    g: 'Cuéntanos qué ERP, aplicativos o plataformas digitales usan, también los de otras empresas de las que dependen (Toyota Brasil, Quinto, el portal de SUNAT), y con qué terceros se relacionan (proveedores, concesionarios, clientes, funcionarios públicos u otros), en qué actividades participa cada uno y de qué forma.',
+    g: 'Cuéntanos qué ERP, aplicativos o plataformas digitales usan, también los de otras empresas de las que dependen (Toyota Brasil, Kinto, el portal de SUNAT), y con qué terceros se relacionan (proveedores, concesionarios, clientes, funcionarios públicos u otros), en qué actividades participa cada uno y de qué forma.',
     puntos: [
-      ['sistemas', 'Qué ERP, aplicativos o plataformas digitales usan, incluidas las de terceros (Toyota Brasil, Quinto, portal SUNAT) (su nombre)', 1],
+      ['sistemas', 'Qué ERP, aplicativos o plataformas digitales usan, incluidas las de terceros (Toyota Brasil, Kinto, portal SUNAT) (su nombre)', 1],
       ['terceros', 'Con qué terceros se relacionan (proveedores, concesionarios, clientes, funcionarios públicos u otros), en qué actividades participa cada uno y de qué forma', 1]
     ] },
   { id: 'b3', t: 'Datos personales, documentación, estándares e indicadores',
-    g: 'Cuéntanos si manejan datos de personas (de clientes, proveedores, trabajadores, dealers, funcionarios públicos u otros), qué datos y con qué objetivo los usan; qué documentos respaldan el proceso (procedimientos, formatos, reportes, informes finales, comprobantes de pago…); qué estándares aplican (un estándar oficial de TDP, de TMC o de Mitsui & Company, u otros como NTP o ISO) y, si existen, con qué indicadores lo miden. La normativa legal solo si la mencionan.',
+    g: 'Cuéntanos si manejan datos de personas (de clientes, proveedores, trabajadores, dealers, funcionarios públicos u otros), qué datos y con qué objetivo los usan; qué documentos respaldan el proceso (procedimientos, formatos, reportes, informes finales, comprobantes de pago…); qué estándares aplican (primero uno oficial de TDP; luego uno global de TMC o de Mitsui & CO; y, si los hay, otros como NTP o ISO) y, si existen, con qué indicadores lo miden. La normativa legal solo si la mencionan.',
     puntos: [
       ['datos_personales', 'Si manejan datos de personas (de clientes, proveedores, trabajadores, dealers, funcionarios públicos u otros): de quiénes y qué datos', 1],
       ['finalidad_dp', 'Objetivo o para qué usan esos datos personales', 1],
       ['documentacion', 'Qué documentos o registros respaldan el proceso: procedimientos, instructivos, flujos, formatos, reportes, informes finales, comprobantes de pago…', 1],
-      ['estandares', 'Estándares: corporativo oficial de TDP, global de TMC o de Mitsui & Company, u otros (NTP, ISO)', 1],
+      ['estandar_tdp', 'Estándar corporativo oficial de TDP (política, procedimiento o instructivo interno formalizado), si lo hay', 1],
+      ['estandar_global', 'Estándar global de TMC (Toyota Motor Corporation) o de Mitsui & CO (casa matriz), si lo hay', 1],
       ['normativa', 'Qué normas legales peruanas lo regulan (opcional: solo si la mencionan)', 1],
       ['kpis', 'Con qué indicadores lo miden (opcional)', 1]
     ] }
@@ -1099,7 +1100,7 @@ const CAMPOS = [
   ['datos_personales', 'Si trata datos personales: "Sí" o "No"'],
   ['detalle_dp', 'Tipo/detalle de datos personales: de quiénes (clientes, proveedores, trabajadores, dealers, funcionarios públicos u otros) y qué datos (identificación, contacto, financieros, sensibles u otros)'],
   ['finalidad_dp', 'Objetivo o para qué usan esos datos personales (con las palabras de la persona)'],
-  ['tecnologia', 'ERP, aplicativos y plataformas digitales de TDP o de terceros, con su nombre exacto (incluye portales, Excel y plataformas de otras empresas como Toyota Brasil, Quinto o el portal de SUNAT)'],
+  ['tecnologia', 'ERP, aplicativos y plataformas digitales de TDP o de terceros, con su nombre exacto (incluye portales, Excel y plataformas de otras empresas como Toyota Brasil, Kinto o el portal de SUNAT)'],
   ['frecuencia', 'Frecuencia de ejecución: se obtiene de las actividades (y volumen aproximado si lo dijeron)'],
   ['estandar_tdp', 'Estándar corporativo oficial de TDP: política, procedimiento o estándar interno formalizado que aplica (cuál). No cuenta un diagrama hecho por un proveedor sin estandarización'],
   ['estandar_tmc', 'Estándar global de Toyota Motor Corporation (TMC) o de Mitsui & Company (casa matriz) que aplica (cuál). No confundir con Mitsui Automotriz (MASA), que es un concesionario'],
@@ -1463,9 +1464,9 @@ Para cada punto del checklist decide:
 - "falta": no lo mencionó, o lo dijo tan vago que no sirve para un inventario de procesos ("usamos varios sistemas" sin nombrarlos). "evidencia" queda vacía.
 Los sistemas marcados en la lista cuentan para el punto de qué sistemas usan, pero no para qué se usa cada uno.
 "sugerencia": una sola frase amable, en segunda persona (tú), que pida solo lo que falta, con un ejemplo corto si ayuda. Si no falta nada, cadena vacía.
-"sistemas": los sistemas, aplicaciones o herramientas informáticas que la respuesta dice que se usan en el proceso (un ERP, un Excel, un aplicativo del área, el correo, un portal, y también plataformas de otras empresas de las que dependen: Toyota Brasil, Quinto, el portal de SUNAT). Solo los que se nombran o se identifican con claridad en la respuesta: no incluyas equipos físicos, no deduzcas por el tipo de proceso y no repitas. Si el nombre dicho coincide con uno del CATÁLOGO de la campaña, escribe el nombre EXACTO del catálogo (corrige los errores de transcripción: «es a pe» es SAP); si no está en el catálogo, escríbelo corto, tal como lo dijo. Si no menciona ninguno, lista vacía.
+"sistemas": los sistemas, aplicaciones o herramientas informáticas que la respuesta dice que se usan en el proceso (un ERP, un Excel, un aplicativo del área, el correo, un portal, y también plataformas de otras empresas de las que dependen: Toyota Brasil, Kinto, el portal de SUNAT). Solo los que se nombran o se identifican con claridad en la respuesta: no incluyas equipos físicos, no deduzcas por el tipo de proceso y no repitas. Si el nombre dicho coincide con uno del CATÁLOGO de la campaña, escribe el nombre EXACTO del catálogo (corrige los errores de transcripción: «es a pe» es SAP, «quinto» o «kinto» es Kinto); si no está en el catálogo, escríbelo corto, tal como lo dijo. Si no menciona ninguno, lista vacía.
 Actividades: el punto de actividades es "cubierto" solo si la persona cuenta pasos concretos y dice cada cuánto se hacen (frecuencia); si falta la frecuencia, es "falta" y la sugerencia la pide. Manual o por sistema se valida en su propio punto.
-Estándares: el punto de estándares es "cubierto" cuando la persona nombra al menos un estándar, política, procedimiento o norma concreta (de TDP, de TMC u otros), o dice claramente que no aplica ninguno; es "falta" si solo habla de estándares o normas en general sin nombrar ninguno.
+Estándares: hay dos puntos. "estandar_tdp" es "cubierto" cuando la persona nombra un estándar, política, procedimiento o instructivo OFICIAL de TDP, o dice claramente que no hay; no cuenta un diagrama de un proveedor sin estandarización. "estandar_global" es "cubierto" cuando nombra un estándar o lineamiento global de TMC (Toyota Motor Corporation) o de Mitsui & Company, o dice claramente que no hay; Mitsui Automotriz (MASA) es un concesionario y no cuenta. Cada uno es "falta" si solo habla de estándares en general sin nombrar ninguno.
 ${REGLAS_ESTANDARES}
 No inventes información ni opines sobre el proceso.`;
 
@@ -1527,7 +1528,7 @@ async function rutaVerificar(env, b, ctx) {
     const cfg = iaDe(env, 'revision'), t0 = Date.now();
     // Solo el bloque con la lista de sistemas lleva el catálogo: ahí se detectan los sistemas que menciona la persona.
     const catalogo = bloque.sistemas ? (await env.DB.prepare('SELECT nombre FROM sistemas WHERE campana_id=? ORDER BY nombre LIMIT 300').bind(e.campana_id).all()).results.map(x => x.nombre) : [];
-    const glosarioEst = bloque.puntos.some(x => x[0] === 'estandares') ? estandaresDe(await env.DB.prepare('SELECT estandares FROM campanas WHERE id=?').bind(e.campana_id).first()) : '';
+    const glosarioEst = bloque.puntos.some(x => x[0] === 'estandar_tdp' || x[0] === 'estandar_global') ? estandaresDe(await env.DB.prepare('SELECT estandares FROM campanas WHERE id=?').bind(e.campana_id).first()) : '';
     try {
       msg = await clienteClaude(env).beta.messages.stream({
         model: cfg.modelo,
@@ -1592,11 +1593,28 @@ Escribe en español, en texto corrido y breve (máximo 200 palabras), como si el
 Nunca copies datos personales concretos (nombres de personas, DNI, teléfonos, correos, direcciones, montos de clientes): usa cargos y categorías.
 Si la imagen no tiene información de un proceso de trabajo, "relevante" es false, "texto" queda vacío y en "motivo" dices en una frase qué se ve.`;
 
+const TRANSCRIBIR_PROMPT = `Recibes un archivo (imagen, PDF o texto de un Word) que un colaborador subió para que se transcriba. Transcribe fielmente el texto que contiene, en orden y sin resumir ni interpretar. Máximo 800 palabras: si es más largo, transcribe lo que describe el proceso de trabajo y dilo en "motivo".
+Nunca copies datos personales concretos (nombres de personas, DNI, teléfonos, correos, direcciones): escribe [dato personal] en su lugar.
+Si el archivo no tiene texto, "relevante" es false, "texto" queda vacío y en "motivo" dices en una frase qué se ve.`;
+const DOCUMENTACION_PROMPT = `Recibes un archivo (imagen, PDF o texto de un Word) que un colaborador subió como documentación de su proceso. Describe en una o dos frases (máximo 60 palabras) qué documento es: su tipo (procedimiento, instructivo, formato, flujo, reporte, informe, comprobante…), su título o nombre si se ve y para qué sirve. No resumas su contenido ni copies datos personales.
+Si el archivo no parece un documento de trabajo, "relevante" es false, "texto" queda vacío y en "motivo" dices en una frase qué se ve.`;
+const TODO_PROMPT = `Recibes un archivo (imagen, PDF o texto de un Word) que un colaborador subió para completar TODO el formulario de un proceso. El formulario tiene 3 bloques, cada uno con su checklist. Para cada bloque escribe, en español y en texto corrido (máximo 250 palabras por bloque), solo lo que el archivo dice sobre los puntos de ESE bloque, como lo contaría el colaborador: pasos, áreas y cargos, aprobaciones, sistemas, terceros, datos personales, estándares, documentos, frecuencias e indicadores. No inventes: si el archivo no dice nada de un bloque, déjalo como cadena vacía.
+Nunca copies datos personales concretos (nombres de personas, DNI, teléfonos, correos, direcciones, montos de clientes): usa cargos y categorías.
+Si el archivo no tiene información de un proceso de trabajo, "relevante" es false, los bloques quedan vacíos y en "motivo" dices en una frase qué se ve.`;
+const TODO_SCHEMA = {
+  type: 'object',
+  properties: { relevante: { type: 'boolean' }, motivo: { type: 'string' }, b1: { type: 'string' }, b2: { type: 'string' }, b3: { type: 'string' } },
+  required: ['relevante', 'motivo', 'b1', 'b2', 'b3'],
+  additionalProperties: false
+};
+const FINALIDADES = ['bloque', 'todo', 'transcribir', 'documentacion'];
+
 async function rutaImagen(env, req, url, ctx) {
   const e = await encuestadoPorToken(env, url.searchParams.get('k'));
   const p = await procesoPermitido(env, e, url.searchParams.get('proceso_id'));
   const bloque = BLOQUES.find(x => x.id === url.searchParams.get('pregunta'));
   if (!bloque) throw new HttpError(400, 'Bloque inválido');
+  const finalidad = FINALIDADES.includes(url.searchParams.get('finalidad')) ? url.searchParams.get('finalidad') : 'bloque';
   const tipo = (req.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
   const esPdf = tipo === 'application/pdf', esDocx = tipo === MIME_DOCX;
   if (!esPdf && !esDocx && !['image/jpeg', 'image/png', 'image/webp'].includes(tipo)) throw new HttpError(415, 'Sube una imagen JPG, PNG o WEBP, un PDF o un documento Word (.docx)');
@@ -1623,20 +1641,23 @@ async function rutaImagen(env, req, url, ctx) {
   try {
     msg = await clienteClaude(env).beta.messages.stream({
       model: cfg.modelo,
-      max_tokens: 4000,
+      max_tokens: finalidad === 'todo' ? 8000 : 4000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: cfg.esfuerzo, format: { type: 'json_schema', schema: IMAGEN_SCHEMA } },
-      system: IMAGEN_PROMPT,
+      output_config: { effort: cfg.esfuerzo, format: { type: 'json_schema', schema: finalidad === 'todo' ? TODO_SCHEMA : IMAGEN_SCHEMA } },
+      system: { bloque: IMAGEN_PROMPT, todo: TODO_PROMPT, transcribir: TRANSCRIBIR_PROMPT, documentacion: DOCUMENTACION_PROMPT }[finalidad],
       messages: [{ role: 'user', content: [
         esDocx ? { type: 'text', text: 'DOCUMENTO DE WORD (texto extraído; las imágenes del documento no se leen):\n' + doc.texto + (doc.recortado ? '\n[…el documento sigue; se recortó]' : '') }
           : { type: esPdf ? 'document' : 'image', source: { type: 'base64', media_type: tipo, data: aBase64(buf) } },
-        { type: 'text', text: [`PROCESO: ${p.subproceso || p.proceso || p.macroproceso}`, `BLOQUE: ${bloque.t}`,
-          'CHECKLIST:', ...bloque.puntos.map(([, t]) => '- ' + t)].join('\n') }
+        { type: 'text', text: (finalidad === 'todo'
+          ? [`PROCESO: ${p.subproceso || p.proceso || p.macroproceso}`, ...BLOQUES.flatMap(b => ['', `BLOQUE ${b.id}: ${b.t}`, 'CHECKLIST:', ...b.puntos.map(([, t]) => '- ' + t)])]
+          : finalidad === 'bloque'
+            ? [`PROCESO: ${p.subproceso || p.proceso || p.macroproceso}`, `BLOQUE: ${bloque.t}`, 'CHECKLIST:', ...bloque.puntos.map(([, t]) => '- ' + t)]
+            : [`PROCESO: ${p.subproceso || p.proceso || p.macroproceso}`]).join('\n') }
       ] }]
     }).finalMessage();
   } catch (err) {
-    log('imagen_error', { campana: e.campana_id, bloque: bloque.id, tipo, error: String((err && err.message) || err).slice(0, 200) });
+    log('imagen_error', { campana: e.campana_id, bloque: bloque.id, tipo, finalidad, error: String((err && err.message) || err).slice(0, 200) });
     throw new HttpError(502, `No pudimos leer ${que} en este momento. Intenta de nuevo en un minuto o cuéntalo con tu voz.`);
   }
   registrarIA(ctx, 'imagen', msg, cfg, t0);
@@ -1645,8 +1666,13 @@ async function rutaImagen(env, req, url, ctx) {
   let s = {};
   try { s = JSON.parse((msg.content.find(c => c.type === 'text') || {}).text || '{}'); }
   catch (x) { throw new HttpError(502, 'La lectura de la imagen devolvió un formato inesperado. Reintenta.'); }
-  log('imagen', { campana: e.campana_id, bloque: bloque.id, relevante: !!s.relevante, bytes: buf.byteLength });
-  return { ok: true, texto: s.relevante ? txt(s.texto, 3000) : '', motivo: s.relevante ? '' : txt(s.motivo, 300) };
+  log('imagen', { campana: e.campana_id, bloque: bloque.id, finalidad, relevante: !!s.relevante, bytes: buf.byteLength });
+  if (finalidad === 'todo') {
+    const bloques = {};
+    BLOQUES.forEach(b => { bloques[b.id] = s.relevante ? txt(s[b.id], 3000) : ''; });
+    return { ok: true, bloques, texto: Object.values(bloques).filter(Boolean).join(' '), motivo: s.relevante ? '' : txt(s.motivo, 300) };
+  }
+  return { ok: true, texto: s.relevante ? txt(s.texto, finalidad === 'transcribir' ? 6000 : 3000) : '', motivo: s.relevante ? '' : txt(s.motivo, 300) };
 }
 
 // La persona marca un punto como "lo mencioné" (cubierto) o "no aplica"; estado vacío deshace su marca.

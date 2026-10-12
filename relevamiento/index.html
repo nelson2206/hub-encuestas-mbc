@@ -80,6 +80,12 @@
   .guia{margin:0;padding-left:20px;font-size:15px;color:var(--muted)}
   .guia li{margin:3px 0}
   .guia strong{color:var(--heading)}
+  dialog.dlg-fin{border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);padding:22px;width:min(520px,92vw)}
+  dialog.dlg-fin::backdrop{background:rgba(0,0,0,.55)}
+  .fin-op{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1.5px solid var(--field-line);border-radius:10px;margin:8px 0;cursor:pointer}
+  .fin-op input{margin-top:4px;flex:none}
+  .fin-op b{display:block;font-family:Montserrat,sans-serif;font-size:14px;color:var(--heading)}
+  .fin-op span{display:block;font-size:13px;color:var(--muted)}
   .sub-t{font-family:Montserrat,sans-serif;font-weight:700;font-size:14px;color:var(--heading);margin:22px 0 2px}
   .proc-rev{border-top:1px solid var(--line);padding:14px 0}
   .proc-rev:first-child{border-top:none}
@@ -917,7 +923,7 @@
         '<ul class="ck" id="ck-' + esc(key) + '" aria-labelledby="ckt-' + esc(key) + '"></ul>' +
         '<div class="rec-row">' +
           '<button class="btn btn-rec btn-sm btn-ico" type="button" data-rec="' + esc(key) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3" fill="currentColor" stroke="none"></rect><path d="M5 10.5a7 7 0 0 0 14 0M12 17.5V21"></path></svg><span>Grabar</span></button>' +
-          '<button class="btn btn-ghost btn-sm btn-ico" type="button" data-img="' + esc(key) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 16l-5-5-9 9"></path></svg><span>Subir imagen, PDF o Word</span></button>' +
+          '<button class="btn btn-ghost btn-sm btn-ico" type="button" data-img="' + esc(key) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 16l-5-5-9 9"></path></svg><span>Subir archivo (imagen, PDF o Word)</span></button>' +
           '<input type="file" accept="image/*,application/pdf,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" id="im-' + esc(key) + '" aria-label="Subir una imagen, un PDF o un documento Word para el bloque ' + (i+1) + '">' +
           '<span class="rec-dot hidden" id="dot-' + esc(key) + '" aria-hidden="true"></span>' +
           '<span class="rec-timer hidden" id="tm-' + esc(key) + '">0:00</span>' +
@@ -929,7 +935,7 @@
         html += '<div id="sbox-' + esc(key) + '"' + (S.sistemas.length ? '' : ' class="hidden"') + '><div class="sis-t">Marca los sistemas y plataformas que usan en este proceso (también los de otras empresas)</div>' +
           '<div class="pillbox" data-pills="' + esc(key) + '">' + S.sistemas.map(function(s){ return pastillaSistema(key, s, (r.sistemas || []).indexOf(s.nombre) >= 0); }).join('') + '</div>' +
           '<p class="estado ok hidden" id="sd-' + esc(key) + '" aria-live="polite" style="margin:8px 0 0"></p>' +
-          '<p class="preg-g" style="margin:8px 0 0">Si mencionas un sistema al contarlo, lo marcamos solos; incluye las plataformas de otras empresas (Toyota Brasil, Quinto, portal SUNAT). Si marcamos uno que no es, desmárcalo.</p></div>';
+          '<p class="preg-g" style="margin:8px 0 0">Si mencionas un sistema al contarlo, lo marcamos solos; incluye las plataformas de otras empresas (Toyota Brasil, Kinto, portal SUNAT). Si marcamos uno que no es, desmárcalo.</p></div>';
       }
       html += '<p class="sug hidden" id="sg-' + esc(key) + '"></p>' +
         '<div class="fila" style="margin-top:8px;gap:10px"><button type="button" class="btn-link" data-verif="' + esc(key) + '">Revisar mi respuesta</button>' +
@@ -945,7 +951,13 @@
       d.querySelector('[data-rec="' + CSS.escape(key) + '"]').addEventListener('click', function(){ alternarGrabacion(p.id, q.id); });
       var inImg = d.querySelector('#im-' + CSS.escape(key));
       d.querySelector('[data-img="' + CSS.escape(key) + '"]').addEventListener('click', function(){ if (!grab[key]) inImg.click(); });
-      inImg.addEventListener('change', function(){ var fi = inImg.files && inImg.files[0]; inImg.value = ''; leerImagen(p.id, q.id, fi); });
+      inImg.addEventListener('change', function(){
+        var fi = inImg.files && inImg.files[0]; inImg.value = '';
+        if (!fi || grab[key]) return;
+        var malo = archivoInvalido(fi);
+        if (malo){ estado(key, malo, 'warn'); return; }
+        pedirFinalidad(fi).then(function(modo){ if (modo) leerImagen(p.id, q.id, fi, modo); });
+      });
       d.querySelector('[data-verif="' + CSS.escape(key) + '"]').addEventListener('click', function(){ verificar(p.id, q.id, true); });
       var cajaPill = d.querySelector('[data-pills="' + CSS.escape(key) + '"]');
       if (cajaPill) cajaPill.addEventListener('change', function(ev){
@@ -1287,40 +1299,101 @@
   // y la IA escribe lo que ve, útil para el bloque. La imagen no se guarda en ningún servidor: solo queda el texto,
   // que se agrega a la respuesta y la persona revisa, igual que la transcripción de voz.
   function botonImg(key){ return document.querySelector('[data-img="' + CSS.escape(key) + '"]'); }
-  function leerImagen(pid, qid, file){
-    var key = pid + '-' + qid;
-    if (!file || grab[key]) return;
+  var MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  // Para qué sube la persona el archivo: cambia lo que la IA hace con él.
+  var FINALIDADES = [
+    ['bloque', 'Analizar y completar este bloque', 'La IA lee el archivo y escribe lo que sirve para este bloque.'],
+    ['todo', 'Completar todo el formulario de este proceso', 'La IA reparte lo que dice el archivo en los 3 bloques. Después revisas cada uno.'],
+    ['transcribir', 'Solo transcribir el texto', 'Copia el texto del archivo tal cual, sin interpretarlo (los datos personales se ocultan).'],
+    ['documentacion', 'Registrarlo como documentación del proceso', 'Solo anota qué documento es (tipo y título) en el bloque 3.']
+  ];
+  var FINALIDAD_ULTIMA = 'bloque';
+  function tipoArchivo(file){
     var nombre = file.name || '';
-    var esPdf = file.type === 'application/pdf' || /\.pdf$/i.test(nombre);
-    var esDocx = file.type === MIME_DOCX || /\.docx$/i.test(nombre);
-    if (/\.doc$/i.test(nombre) || file.type === 'application/msword'){ estado(key, 'Ese Word es del formato antiguo (.doc): ábrelo y guárdalo como .docx o como PDF, y súbelo de nuevo.', 'warn'); return; }
-    if (!esPdf && !esDocx && !/^image\//.test(file.type)){ estado(key, 'Ese archivo no se puede leer: sube una foto o captura (JPG o PNG), un PDF o un documento Word (.docx).', 'warn'); return; }
+    return {pdf: file.type === 'application/pdf' || /\.pdf$/i.test(nombre), docx: file.type === MIME_DOCX || /\.docx$/i.test(nombre), doc: /\.doc$/i.test(nombre) || file.type === 'application/msword'};
+  }
+  // Mensaje si el archivo no se puede leer (vacío si está bien).
+  function archivoInvalido(file){
+    var t = tipoArchivo(file);
+    if (t.doc) return 'Ese Word es del formato antiguo (.doc): ábrelo y guárdalo como .docx o como PDF, y súbelo de nuevo.';
+    if (!t.pdf && !t.docx && !/^image\//.test(file.type)) return 'Ese archivo no se puede leer: sube una foto o captura (JPG o PNG), un PDF o un documento Word (.docx).';
+    if ((t.pdf || t.docx) && file.size > MAX_PDF_MB * 1048576) return 'El archivo pesa ' + (file.size / 1048576).toFixed(1) + ' MB (máximo ' + MAX_PDF_MB + ' MB): sube solo lo que describe el proceso.';
+    return '';
+  }
+  function pedirFinalidad(file){
+    return new Promise(function(res){
+      var d = document.getElementById('dlgFin');
+      if (!d){ d = document.createElement('dialog'); d.id = 'dlgFin'; d.className = 'dlg-fin'; document.body.appendChild(d); }
+      d.innerHTML = '<h2 style="font-size:17px;margin-bottom:4px">¿Para qué subes este archivo?</h2><p class="lead" style="margin:0 0 8px;font-size:14px">' + esc(file.name || 'Archivo') + '</p>' +
+        FINALIDADES.map(function(f){
+          return '<label class="fin-op"><input type="radio" name="fin" value="' + f[0] + '"' + (f[0] === FINALIDAD_ULTIMA ? ' checked' : '') + '><div><b>' + esc(f[1]) + '</b><span>' + esc(f[2]) + '</span></div></label>';
+        }).join('') +
+        '<div class="fila" style="margin-top:14px"><button type="button" class="btn btn-sm" id="finOk">Continuar</button><button type="button" class="btn-link" id="finNo">Cancelar</button></div>';
+      var listo = false;
+      d.onclose = function(){ if (!listo){ listo = true; res(null); } };
+      d.querySelector('#finOk').onclick = function(){
+        var r = d.querySelector('input[name=fin]:checked');
+        FINALIDAD_ULTIMA = r ? r.value : 'bloque'; listo = true; d.close(); res(FINALIDAD_ULTIMA);
+      };
+      d.querySelector('#finNo').onclick = function(){ d.close(); };
+      d.showModal();
+    });
+  }
+  function leerImagen(pid, qid, file, modo){
+    var key = pid + '-' + qid;
+    modo = modo || 'bloque';
+    if (!file) return;
+    var malo = archivoInvalido(file), t = tipoArchivo(file);
+    if (malo){ estado(key, malo, 'warn'); return; }
+    var esPdf = t.pdf, esDocx = t.docx;
     var que = esDocx ? 'documento' : esPdf ? 'PDF' : 'imagen';
-    if ((esPdf || esDocx) && file.size > MAX_PDF_MB * 1048576){ estado(key, 'El ' + que + ' pesa ' + (file.size / 1048576).toFixed(1) + ' MB (máximo ' + MAX_PDF_MB + ' MB): sube solo lo que describe el proceso.', 'warn'); return; }
-    grab[key] = {pid: pid, qid: qid, fase: 'imagen'};
-    var b = botonImg(key), rec = botonRec(key);
-    if (b) b.disabled = true; if (rec) rec.disabled = true;
-    var fin = function(){ delete grab[key]; if (b) b.disabled = false; if (rec) rec.disabled = false; };
+    // Para completar todo el formulario se bloquean los 3 bloques del proceso mientras la IA lee.
+    var claves = modo === 'todo' ? BLOQUES.map(function(b){ return pid + '-' + b.id; }) : [key];
+    if (claves.some(function(k){ return grab[k]; })){ estado(key, 'Espera a que termine la grabación o la lectura en este proceso.', 'warn'); return; }
+    claves.forEach(function(k){ grab[k] = {pid: pid, qid: qid, fase: 'imagen'}; var bi = botonImg(k), rc = botonRec(k); if (bi) bi.disabled = true; if (rc) rc.disabled = true; });
+    var fin = function(){ claves.forEach(function(k){ delete grab[k]; var bi = botonImg(k), rc = botonRec(k); if (bi) bi.disabled = false; if (rc) rc.disabled = false; }); };
     estado(key, esPdf ? 'La IA está leyendo el PDF… puede tardar un poco más que una imagen.' : esDocx ? 'La IA está leyendo el documento…' : 'La IA está leyendo la imagen…');
     (esPdf ? revisarPdf(file) : esDocx ? file.arrayBuffer() : reducirImagen(file)).then(function(cuerpo){
-      return fetch(API + '/r/imagen?k=' + encodeURIComponent(K) + '&proceso_id=' + encodeURIComponent(pid) + '&pregunta=' + encodeURIComponent(qid),
+      return fetch(API + '/r/imagen?k=' + encodeURIComponent(K) + '&proceso_id=' + encodeURIComponent(pid) + '&pregunta=' + encodeURIComponent(qid) + '&finalidad=' + encodeURIComponent(modo),
         {method: 'POST', headers: {'content-type': esPdf ? 'application/pdf' : esDocx ? MIME_DOCX : 'image/jpeg'}, body: cuerpo})
         .then(function(r){ return r.json().then(function(j){ if (!r.ok || !j.ok) throw new Error(j.error || 'Error ' + r.status); return j; }); });
     }).then(function(j){
       fin();
+      if (modo === 'todo') return aplicarTodo(pid, qid, j, que);
       if (!j.texto){ estado(key, (j.motivo ? j.motivo + ' ' : '') + 'No encontramos información del proceso en ese ' + que + '.', 'warn'); return; }
-      var ta = document.getElementById('tx-' + key);
-      ta.value = (ta.value.trim() ? ta.value.trim() + '\n\n' : '') + (esPdf ? 'Según el PDF: ' : esDocx ? 'Según el documento: ' : 'Según la imagen: ') + j.texto;
-      return guardar(pid, qid).then(function(){
-        estado(key, 'Listo. Revisa lo que la IA leyó del ' + que + ' y corrige lo que haga falta (el archivo no se guardó).' + (esDocx ? ' Las imágenes dentro del Word no se leen: si el flujo es un dibujo, súbelo aparte.' : ''), 'ok');
-        verificar(pid, qid);
+      var bid = modo === 'documentacion' ? 'b3' : qid, dkey = pid + '-' + bid;
+      var prefijo = modo === 'transcribir' ? 'Texto del archivo: ' : modo === 'documentacion' ? 'Documentación: ' : (esPdf ? 'Según el PDF: ' : esDocx ? 'Según el documento: ' : 'Según la imagen: ');
+      var ta = document.getElementById('tx-' + dkey);
+      ta.value = (ta.value.trim() ? ta.value.trim() + '\n\n' : '') + prefijo + j.texto;
+      return guardar(pid, bid).then(function(){
+        estado(dkey, 'Listo. Revisa lo que la IA leyó del ' + que + ' y corrige lo que haga falta (el archivo no se guardó).' + (esDocx ? ' Las imágenes dentro del Word no se leen: si el flujo es un dibujo, súbelo aparte.' : ''), 'ok');
+        verificar(pid, bid);
       });
     }).catch(function(err){
       fin();
       estado(key, /^No pudimos/.test(err.message) ? err.message : 'No pudimos leer el ' + que + ': ' + err.message, 'warn');
     });
   }
-  var MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  // Un documento para todo el formulario: lo que la IA leyó se reparte en los bloques y se revisa cada uno, uno tras otro.
+  function aplicarTodo(pid, qid, j, que){
+    var key = pid + '-' + qid, cola = Promise.resolve(), n = 0;
+    if (!j.bloques || !BLOQUES.some(function(b){ return j.bloques[b.id]; })){
+      estado(key, (j.motivo ? j.motivo + ' ' : '') + 'No encontramos información del proceso en ese ' + que + '.', 'warn'); return;
+    }
+    BLOQUES.forEach(function(b){
+      var texto = j.bloques[b.id];
+      if (!texto) return;
+      n++;
+      cola = cola.then(function(){
+        var k = pid + '-' + b.id, ta = document.getElementById('tx-' + k);
+        ta.value = (ta.value.trim() ? ta.value.trim() + '\n\n' : '') + 'Según el documento: ' + texto;
+        return guardar(pid, b.id).then(function(){ estado(k, 'Cargado desde el documento: revísalo y corrige lo que haga falta.', 'ok'); return verificar(pid, b.id); });
+      });
+    });
+    return cola.then(function(){
+      estado(key, 'Listo. La IA repartió el documento en ' + n + (n === 1 ? ' bloque' : ' bloques') + ': revisa cada uno y completa lo que falte (el archivo no se guardó).', 'ok');
+    });
+  }
   // PDF: se envía tal cual (la IA lo lee completo). Antes se cuentan sus páginas para no gastar de más.
   var MAX_PDF_MB = 10, MAX_PDF_PAGINAS = 10;
   function revisarPdf(file){
