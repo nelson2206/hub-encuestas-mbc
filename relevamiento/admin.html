@@ -295,6 +295,7 @@
             <option value="respondido">Respondidos</option><option value="no_vigente">Ya no se hacen</option><option value="nuevo">Agregados en la encuesta</option>
             <option value="ia_pend">Pendientes de estructurar con IA</option></select></div>
           <div><button class="btn btn-ghost" id="btnNuevoProc" type="button">+ Agregar proceso</button></div>
+          <div><button class="btn btn-navy" id="btnExpMapa" type="button">Exportar todo (Excel)</button></div>
         </div>
         <div class="cob" id="cobertura"></div>
         <div id="mapa"></div>
@@ -678,6 +679,12 @@
   $('#fTexto').addEventListener('input', pintarMapa);
   $('#fGer').addEventListener('change', pintarMapa);
   $('#fEst').addEventListener('change', pintarMapa);
+  $('#btnExpMapa').addEventListener('click', function(){
+    var l = listaMapa();
+    if (!l.length){ alert('Ningún proceso coincide con el filtro.'); return; }
+    var todos = l.length === C.procesos.length;
+    guardarLibro(libroInventario(l, todos), todos ? '' : 'filtrado (' + l.length + ' procesos)');
+  });
 
   function barraCob(cuenta, total, mini){
     return '<span class="cob-bar' + (mini ? ' mini' : '') + '" role="img" aria-label="' +
@@ -685,6 +692,18 @@
       ESTADO_ORDEN.map(function(k){ return cuenta[k] ? '<span class="seg-' + k + '" style="width:' + (100 * cuenta[k] / total) + '%"></span>' : ''; }).join('') + '</span>';
   }
 
+  // Procesos del mapa con los filtros aplicados (lo que se ve y lo que se exporta).
+  function listaMapa(){
+    var texto = sinTildes($('#fTexto').value.trim()), fG = $('#fGer').value, fE = $('#fEst').value;
+    return C.procesos.filter(function(p){
+      if (fG && p.gerencia !== fG) return false;
+      if (texto && sinTildes([p.codigo, p.macroproceso, p.proceso, p.subproceso, p.seccion, p.personas || '', participantesDe(p.id)].join(' ')).indexOf(texto) < 0) return false;
+      if (fE === 'nuevo') return p.fuente === 'nuevo';
+      if (fE === 'ia_pend') return pendienteIA(p.id);
+      if (fE) return cobertura(p.id).estado === fE;
+      return true;
+    });
+  }
   function pintarMapa(){
     // Resumen de toda la campaña (sin filtros): la foto completa de la empresa.
     var total = C.procesos.length, cuenta = contar(C.procesos);
@@ -694,15 +713,9 @@
       '<span>Cobertura: <b>' + pct(cuenta.respondido, vivos) + '</b> (' + cuenta.respondido + ' de ' + vivos + ' procesos vigentes respondidos)</span></div>' +
       '<p class="definicion">Respondido: al menos una persona completó los 3 bloques (todos los puntos del checklist cubiertos o marcados «no aplica»). En curso: alguien lo eligió o empezó a responder. Sin cobertura: nadie lo ha tomado. Ya no se hace: solo hay marcas de que no existe.</p>' : '';
 
-    var texto = sinTildes($('#fTexto').value.trim()), fG = $('#fGer').value, fE = $('#fEst').value;
-    var lista = C.procesos.filter(function(p){
-      if (fG && p.gerencia !== fG) return false;
-      if (texto && sinTildes([p.codigo, p.macroproceso, p.proceso, p.subproceso, p.seccion, p.personas || '', participantesDe(p.id)].join(' ')).indexOf(texto) < 0) return false;
-      if (fE === 'nuevo') return p.fuente === 'nuevo';
-      if (fE === 'ia_pend') return pendienteIA(p.id);
-      if (fE) return cobertura(p.id).estado === fE;
-      return true;
-    });
+    var lista = listaMapa();
+    var be = $('#btnExpMapa');
+    if (be) be.textContent = lista.length === total ? 'Exportar todo (Excel)' : 'Exportar ' + lista.length + (lista.length === 1 ? ' filtrado' : ' filtrados') + ' (Excel)';
     if (!C.procesos.length){ $('#mapa').innerHTML = '<p class="muted" style="margin-top:14px">El mapa está vacío. Carga el inventario en «Carga y configuración» o agrega procesos con el botón.</p>'; return; }
     if (!lista.length){ $('#mapa').innerHTML = '<p class="muted" style="margin-top:14px">Ningún proceso coincide con el filtro.</p>'; return; }
 
@@ -1408,6 +1421,17 @@
     pintarMatrizLista();
   }
 
+  // Filas de la matriz con los filtros aplicados (lo que se ve y lo que se exporta).
+  function listaMatriz(){
+    var texto = sinTildes(FM.texto.trim());
+    return C.procesos.filter(function(p){
+      if (FM.ger && p.gerencia !== FM.ger) return false;
+      if (FM.act && actualizacion(p) !== FM.act) return false;
+      if (FM.falt && !faltantes(p).length) return false;
+      if (texto && sinTildes([p.codigo, p.macroproceso, p.proceso, p.subproceso, p.seccion, p.gerencia].join(' ')).indexOf(texto) < 0) return false;
+      return true;
+    }).sort(porCodigo);
+  }
   function pintarMatrizLista(){
     var cuenta = {}, total = C.procesos.length;
     ACT_ORDEN.forEach(function(k){ cuenta[k] = 0; });
@@ -1419,14 +1443,9 @@
       '<span>Validado: <b>' + pct(cuenta.validado, vigentes) + '</b> (' + cuenta.validado + ' de ' + vigentes + ' vigentes)</span>' +
       ayuda('Validado: la gerencia dio su conformidad (check). Actualizado: el equipo editó la fila con lo relevado. Respondido y En levantamiento: avance de la encuesta. Por actualizar: sigue como en el inventario anterior. Por relevar: área nueva sin procesos en el inventario anterior.') + '</div>' : '';
 
-    var texto = sinTildes(FM.texto.trim());
-    var lista = C.procesos.filter(function(p){
-      if (FM.ger && p.gerencia !== FM.ger) return false;
-      if (FM.act && actualizacion(p) !== FM.act) return false;
-      if (FM.falt && !faltantes(p).length) return false;
-      if (texto && sinTildes([p.codigo, p.macroproceso, p.proceso, p.subproceso, p.seccion, p.gerencia].join(' ')).indexOf(texto) < 0) return false;
-      return true;
-    }).sort(porCodigo);
+    var lista = listaMatriz();
+    var bx = $('#mExportar');
+    if (bx) bx.textContent = lista.length === total ? 'Exportar matriz (Excel)' : 'Exportar ' + lista.length + (lista.length === 1 ? ' fila filtrada' : ' filas filtradas') + ' (Excel)';
     var pendientes = lista.filter(function(p){ return p.validacion !== 'validado'; });
     var h = '<div class="row" style="margin:8px 0 10px"><span class="muted">' + lista.length + ' de ' + total + ' filas</span>' +
       ayuda('Cada fila es un proceso de la matriz final, con los campos que definió TDP y las aprobaciones externas de las que depende. Marca el check cuando la gerencia dueña dé su conformidad; el Excel que exportas es el entregable. ' +
@@ -1778,8 +1797,8 @@
   // (la matriz ya no lleva códigos). Al cliente no se le muestra.
   var COL_ID = 'ID herramienta (no modificar)';
   // Filas del entregable: los campos de la matriz de TDP + estado de actualización y validación.
-  function filasMatriz(){
-    return C.procesos.slice().sort(porCodigo).map(function(p){
+  function filasMatriz(lista){
+    return (lista || C.procesos).slice().sort(porCodigo).map(function(p){
       var fila = {};
       MATRIZ.forEach(function(c){ fila[c[1]] = valorMatriz(p, c[0]); });
       fila['Estado de actualización'] = ACT_TXT[actualizacion(p)];
@@ -1790,8 +1809,8 @@
       return fila;
     });
   }
-  function hojaMatriz(){
-    var filas = filasMatriz();
+  function hojaMatriz(lista){
+    var filas = filasMatriz(lista);
     var ws = XLSX.utils.json_to_sheet(filas.length ? filas : [{'(sin datos)': ''}]);
     var anchos = {};
     MATRIZ.forEach(function(c){ anchos[c[1]] = LARGOS[c[0]] ? 40 : 18; });
@@ -1799,11 +1818,16 @@
     if (ws['!ref']) ws['!autofilter'] = {ref: ws['!ref']};
     return ws;
   }
+  // Exporta las filas que se ven con el filtro de la pestaña Matriz (sin filtro, todas).
   function exportarMatriz(){
+    var lista = listaMatriz();
+    if (!lista.length){ alert('No hay filas con este filtro.'); return; }
     var wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, hojaMatriz(), 'Inventario de Procesos');
-    XLSX.writeFile(wb, 'Matriz de procesos - ' + C.campana.nombre + ' - ' + new Date().toISOString().slice(0,10) + '.xlsx');
+    XLSX.utils.book_append_sheet(wb, hojaMatriz(lista), 'Inventario de Procesos');
+    XLSX.writeFile(wb, nombreArchivo('Matriz de procesos - ' + C.campana.nombre + (lista.length < C.procesos.length ? ' - filtrada (' + lista.length + ' filas)' : '')));
   }
+  // Nombre de archivo seguro, con la fecha del día.
+  function nombreArchivo(base){ return base.replace(/[\\\/:*?"<>|]+/g, '-').slice(0, 140) + ' - ' + new Date().toISOString().slice(0, 10) + '.xlsx'; }
 
   // Aprobaciones externas: en la matriz son tres columnas con una línea por aprobación, en el mismo orden;
   // en la ficha se editan como una tabla (una fila por aprobación). Una celda vacía se guarda como «—» para no desalinear.
@@ -2014,6 +2038,7 @@
     var h = '<div class="row" style="margin-bottom:12px"><span class="chip ' + {respondido:'c-ok', en_curso:'c-inf', sin_cobertura:'c-mut', no_vigente:'c-mut'}[cb.estado] + '">' + ESTADO_TXT[cb.estado] + '</span>' +
       '<button class="btn btn-xs" id="dEstr"' + (rs.length ? '' : ' disabled title="Todavía nadie respondió"') + '>' + (e ? 'Regenerar con IA' : 'Estructurar con IA') + '</button>' +
       '<button class="btn btn-ghost btn-xs" id="dEditar">Editar</button>' +
+      '<button class="btn btn-ghost btn-xs" id="dExportar" title="Descarga un Excel con la matriz, el análisis, las respuestas y la precarga de este proceso">Exportar proceso (Excel)</button>' +
       '<button class="btn btn-ghost btn-xs" id="dBorrar"' + (rs.length ? ' disabled title="Tiene respuestas: no se puede borrar"' : '') + '>Borrar</button>' +
       '<span class="muted" id="dMsg"></span></div>';
     h += editorMatriz(p);
@@ -2086,6 +2111,7 @@
       }).catch(function(err){ b.disabled = false; $('#dMsg').textContent = err.message; });
     });
     $('#dEditar').addEventListener('click', function(){ editarProceso(p); });
+    $('#dExportar').addEventListener('click', function(){ guardarLibro(libroInventario([p], false), (p.codigo ? p.codigo + ' ' : '') + nombreProc(p).slice(0, 60)); });
     Array.prototype.forEach.call($('#dlgB').querySelectorAll('[data-borrar-resp]'), function(b){
       b.addEventListener('click', function(){
         borrarRespuestas(b.dataset.borrarResp, [pid], b).then(function(hecho){ if (hecho) detalle(pid); });
@@ -2639,10 +2665,13 @@
   });
 
   // ------------------------------------------------------------ exportar
-  $('#btnExportar').addEventListener('click', function(){
-    var wb = XLSX.utils.book_new();
-    var inv = [], est = [], preg = [];
-    C.procesos.forEach(function(p){
+  // Libro de Excel con los procesos indicados: todos, los del filtro aplicado o uno solo (desde su ficha).
+  // «Plan de barrido» resume toda la campaña por sección, así que solo va cuando se exportan todos.
+  function libroInventario(procesos, conPlan){
+    var wb = XLSX.utils.book_new(), ids = {};
+    procesos.forEach(function(p){ ids[p.id] = 1; });
+    var inv = [], est = [], preg = [], pre = [];
+    procesos.forEach(function(p){
       var e = estructuradoDe(p.id), d = e ? e.datos : null, cb = cobertura(p.id);
       var base = {'Código': p.codigo, Gerencia: p.gerencia, 'Sección': p.seccion, Macroproceso: p.macroproceso, Proceso: p.proceso, Subproceso: p.subproceso,
         Fuente: FUENTE_TXT[p.fuente] || p.fuente};
@@ -2661,26 +2690,40 @@
       inv.push(fila); est.push(filaE);
       if (d) (d.preguntas_validacion || []).forEach(function(q, i){ preg.push({'Código': p.codigo, Gerencia: p.gerencia, 'Sección': p.seccion, Proceso: nombreProc(p), '#': i+1, Pregunta: q}); });
     });
-    var resp = C.respuestas.filter(function(r){ return (r.texto || '').trim() || r.sistemas.length; }).map(function(r){
+    var resp = C.respuestas.filter(function(r){ return ids[r.proceso_id] && ((r.texto || '').trim() || r.sistemas.length); }).map(function(r){
       var p = C.procesos.filter(function(x){ return x.id === r.proceso_id; })[0] || {};
       var en = IX.enc[r.encuestado_id] || {};
       return {'Código': p.codigo, Proceso: nombreProc(p), Encuestado: en.nombre, 'Área de la persona': (en.gerencia || '') + ' · ' + (en.seccion || ''), Rol: en.rol, Pregunta: PREG[r.pregunta] || r.pregunta, Respuesta: r.texto,
         'Sistemas marcados': r.sistemas.join(', '), Checklist: resumenChecklist(r), Fecha: fecha(r.actualizado)};
     });
-    var plan = resumenSecciones().map(function(s){
-      return {Gerencia: s.gerencia, 'Sección': s.seccion, 'Procesos vigentes': s.procesos, Respondidos: s.respondidos, 'En curso': s.enCurso, 'Sin cobertura': s.sinCobertura,
-        'Ya no se hacen': s.noVigentes, Personas: s.personas, 'Sin empezar': s.sinEmpezar, Terminaron: s.terminaron, 'Qué hacer': accion(s),
-        'Enlace de la gerencia': C.campana.abierta && C.campana.codigo_publico ? enlaceAbierto(s.gerencia) : ''};
+    var ptxt = {};
+    (C.bloques || []).forEach(function(b){ b.puntos.forEach(function(pt){ ptxt[pt[0]] = [b.t, pt[1]]; }); });
+    (C.precarga || []).forEach(function(x){
+      if (!ids[x.proceso_id]) return;
+      var p = C.procesos.filter(function(y){ return y.id === x.proceso_id; })[0] || {};
+      pre.push({'Código': p.codigo, Proceso: nombreProc(p), Bloque: (ptxt[x.punto] || [x.bloque])[0], Punto: (ptxt[x.punto] || ['', x.punto])[1], 'Lo que dicen los documentos': x.texto, Archivos: (x.archivos || []).join(', ')});
     });
     var add = function(rows, nombre, ancho){ var ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{'(sin datos)':''}]); if (ancho) ws['!cols'] = ancho; XLSX.utils.book_append_sheet(wb, ws, nombre); };
-    XLSX.utils.book_append_sheet(wb, hojaMatriz(), 'Inventario de Procesos');
+    XLSX.utils.book_append_sheet(wb, hojaMatriz(procesos), 'Inventario de Procesos');
     add(inv, 'Análisis IA', Object.keys(inv[0] || {}).map(function(){ return {wch:24}; }));
-    add(plan, 'Plan de barrido', [{wch:18},{wch:22},{wch:10},{wch:11},{wch:9},{wch:12},{wch:12},{wch:9},{wch:11},{wch:11},{wch:60},{wch:70}]);
+    if (conPlan){
+      var plan = resumenSecciones().map(function(s){
+        return {Gerencia: s.gerencia, 'Sección': s.seccion, 'Procesos vigentes': s.procesos, Respondidos: s.respondidos, 'En curso': s.enCurso, 'Sin cobertura': s.sinCobertura,
+          'Ya no se hacen': s.noVigentes, Personas: s.personas, 'Sin empezar': s.sinEmpezar, Terminaron: s.terminaron, 'Qué hacer': accion(s),
+          'Enlace de la gerencia': C.campana.abierta && C.campana.codigo_publico ? enlaceAbierto(s.gerencia) : ''};
+      });
+      add(plan, 'Plan de barrido', [{wch:18},{wch:22},{wch:10},{wch:11},{wch:9},{wch:12},{wch:12},{wch:9},{wch:11},{wch:11},{wch:60},{wch:70}]);
+    }
     add(est, 'Estado de campos', Object.keys(est[0] || {}).map(function(){ return {wch:18}; }));
     add(preg, 'Preguntas validación', [{wch:12},{wch:16},{wch:20},{wch:34},{wch:4},{wch:90}]);
     add(resp, 'Respuestas', [{wch:12},{wch:30},{wch:24},{wch:26},{wch:12},{wch:26},{wch:90},{wch:30},{wch:60},{wch:16}]);
-    XLSX.writeFile(wb, 'Inventario de procesos - ' + C.campana.nombre + ' - ' + new Date().toISOString().slice(0,10) + '.xlsx');
-  });
+    if (pre.length) add(pre, 'Precarga (documentos)', [{wch:12},{wch:30},{wch:30},{wch:50},{wch:90},{wch:30}]);
+    return wb;
+  }
+  function guardarLibro(wb, sufijo){
+    XLSX.writeFile(wb, nombreArchivo('Inventario de procesos - ' + C.campana.nombre + (sufijo ? ' - ' + sufijo : '')));
+  }
+  $('#btnExportar').addEventListener('click', function(){ guardarLibro(libroInventario(C.procesos, true), ''); });
 })();
 </script>
 </body>
