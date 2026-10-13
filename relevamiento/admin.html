@@ -572,7 +572,7 @@
 
   // Índices por proceso: quién lo tomó, quién respondió y qué dijo cada uno.
   function indexar(){
-    IX = {rev:{}, resp:{}, todas:{}, est:{}, enc:{}};
+    IX = {rev:{}, resp:{}, todas:{}, est:{}, enc:{}, pre:{}};
     C.encuestados.forEach(function(e){ IX.enc[e.id] = e; });
     C.revisiones.forEach(function(r){ (IX.rev[r.proceso_id] = IX.rev[r.proceso_id] || []).push(r); });
     C.respuestas.forEach(function(r){
@@ -584,6 +584,7 @@
       (m[r.encuestado_id] = m[r.encuestado_id] || []).push(r);
     });
     C.estructurado.forEach(function(x){ IX.est[x.proceso_id] = x; });
+    (C.precarga || []).forEach(function(x){ (IX.pre[x.proceso_id] = IX.pre[x.proceso_id] || {})[x.punto] = x; });
   }
 
   function respuestasDe(pid){ var m = IX.resp[pid] || {}, out = []; Object.keys(m).forEach(function(k){ out = out.concat(m[k]); }); return out; }
@@ -601,7 +602,8 @@
     filas.forEach(function(r){ por[r.pregunta] = r; });
     var legado = PREG_ANTES.every(function(q){ var r = por[q]; return r && ((r.texto || '').trim() || r.sistemas.length); });
     var listos = 0, total = totalPuntos();
-    (C.bloques || []).forEach(function(b){ var ck = (por[b.id] || {}).checklist || {}; b.puntos.forEach(function(pt){ if (puntoListo(ck, pt[0])) listos++; }); });
+    var adm = IX.pre[pid] || {};
+    (C.bloques || []).forEach(function(b){ var ck = (por[b.id] || {}).checklist || {}; b.puntos.forEach(function(pt){ if (adm[pt[0]] || puntoListo(ck, pt[0])) listos++; }); });
     return {listos: listos, total: total, legado: legado, completo: legado || (total > 0 && listos === total)};
   }
   function textoAvance(a){ return a.completo ? (a.legado && a.listos < a.total ? 'Completo (formato anterior)' : 'Completo') : a.listos + ' de ' + a.total + ' puntos'; }
@@ -612,7 +614,7 @@
     b.puntos.forEach(function(pt){
       var x = ck[pt[0]], marca = x && x.fuente === 'persona' ? ' (lo marcó la persona)' : '';
       if (x && x.estado === 'no_aplica') na.push(pt[1] + marca);
-      else if (!puntoListo(ck, pt[0])) falta.push(pt[1]);
+      else if (!puntoListo(ck, pt[0]) && !(IX.pre[r.proceso_id] || {})[pt[0]]) falta.push(pt[1]);
     });
     return [falta.length ? 'Falta: ' + falta.join('; ') : 'Checklist completo', na.length ? 'No aplica: ' + na.join('; ') : ''].filter(Boolean).join(' · ');
   }
@@ -1923,6 +1925,85 @@
     });
   }
 
+  // ------------------------------------------------------------ precarga del checklist desde documentos
+  // El equipo sube documentos del proceso; la IA extrae solo lo que dicen de forma explícita y se revisa antes de guardar.
+  // La persona ve el punto como «Completado por Administrador / IA», pero nunca este texto.
+  var MIME_PRE = {jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', pdf:'application/pdf', docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'};
+  function seccionPrecarga(p){
+    var pre = IX.pre[p.id] || {}, n = Object.keys(pre).length;
+    var h = '<details id="dPre" style="margin:14px 0"' + (n ? ' open' : '') + '><summary style="cursor:pointer;font-weight:700;font-size:14px">Precarga desde documentos con IA <span class="muted" style="font-weight:600">· ' + n + ' de ' + totalPuntos() + ' puntos cubiertos</span></summary>' +
+      '<p class="muted">Sube documentos de este proceso (JPG, PNG, PDF o Word .docx; hasta 10 MB, imágenes hasta 6 MB). La IA solo completa lo que el documento dice de forma explícita y deja vacío lo demás. Revisa, corrige y guarda: ' +
+      'la persona verá esos puntos como «Completado por Administrador / IA», pero no verá este texto, y podrá complementarlos cuando responda.</p>' +
+      '<div class="row"><input type="file" id="preArch" multiple accept=".jpg,.jpeg,.png,.pdf,.docx,image/jpeg,image/png,application/pdf" style="width:auto" aria-label="Documentos del proceso">' +
+      '<button class="btn btn-xs" id="preExtraer">Extraer con IA</button><span class="muted" id="preMsg" aria-live="polite"></span></div>';
+    (C.bloques || []).forEach(function(b){
+      h += '<h4 style="font-size:13px;margin:14px 0 4px">' + esc(b.t) + '</h4>';
+      b.puntos.forEach(function(pt){
+        var x = pre[pt[0]];
+        h += '<div class="campo"><div class="k">' + esc(pt[1]) + '</div><div><textarea data-pre="' + esc(pt[0]) + '" rows="2" style="width:100%;min-height:46px" aria-label="Lo que dicen los documentos sobre: ' + esc(pt[1]) + '">' + esc(x ? x.texto : '') + '</textarea>' +
+          '<div class="ev" id="preev-' + esc(pt[0]) + '">' + (x && x.archivos && x.archivos.length ? esc('De: ' + x.archivos.join(', ')) : '') + '</div></div></div>';
+      });
+    });
+    return h + '<div class="row" style="margin-top:10px"><button class="btn" id="preGuardar">Guardar precarga</button><span class="muted">Un punto sin texto queda sin precarga.</span></div></details>';
+  }
+  function activarPrecarga(p){
+    var det = $('#dPre'); if (!det) return;
+    var arch = {}, msg = function(t){ $('#preMsg').textContent = t; };
+    var pre = IX.pre[p.id] || {};
+    Object.keys(pre).forEach(function(k){ arch[k] = (pre[k].archivos || []).slice(); });
+    var bloquear = function(v){
+      ['#preArch', '#preExtraer', '#preGuardar'].forEach(function(sel){ $(sel).disabled = v; });
+      Array.prototype.forEach.call(det.querySelectorAll('textarea'), function(t){ t.disabled = v; });
+    };
+    var subir = function(x){
+      return fetch(API + '/a/precarga/extraer?proceso_id=' + encodeURIComponent(p.id) + '&nombre=' + encodeURIComponent(x.f.name),
+        {method:'POST', headers:{'x-admin-code': CODIGO, 'content-type': x.m}, body: x.f})
+        .then(function(r){ return r.json().catch(function(){ return {ok:false, error:'Respuesta inesperada'}; }).then(function(j){ if (!r.ok || !j.ok) throw new Error(j.error || 'Error ' + r.status); return j; }); });
+    };
+    $('#preExtraer').addEventListener('click', function(){
+      var fs = Array.prototype.slice.call($('#preArch').files), buenos = [], res = {puntos: 0, errores: [], sinDatos: []};
+      if (!fs.length){ msg('Elige uno o varios archivos.'); return; }
+      fs.forEach(function(f){
+        var ext = (f.name.split('.').pop() || '').toLowerCase(), m = MIME_PRE[ext], max = m && m.indexOf('image/') === 0 ? 6 : 10;
+        if (!m) res.errores.push(f.name + ': formato no permitido (usa JPG, PNG, PDF o Word .docx)');
+        else if (!f.size) res.errores.push(f.name + ': el archivo está vacío');
+        else if (f.size > max * 1048576) res.errores.push(f.name + ': pesa ' + (f.size / 1048576).toFixed(1) + ' MB (máximo ' + max + ' MB)');
+        else buenos.push({f: f, m: m});
+      });
+      if (!buenos.length){ msg(res.errores.join(' · ')); return; }
+      bloquear(true);   // mientras la IA procesa no se puede guardar
+      buenos.reduce(function(prom, x, i){
+        return prom.then(function(){
+          msg('Procesando con IA… ' + (i + 1) + ' de ' + buenos.length + ': ' + x.f.name);
+          return subir(x).then(function(j){
+            if (!j.puntos.length) res.sinDatos.push(x.f.name + (j.motivo ? ' (' + j.motivo + ')' : ''));
+            j.puntos.forEach(function(pt){
+              var ta = det.querySelector('[data-pre="' + pt.id + '"]'); if (!ta) return;
+              var ya = ta.value.trim();
+              if (ya.toLowerCase().indexOf(pt.texto.toLowerCase()) < 0) ta.value = (ya ? ya + '\n' : '') + pt.texto;
+              (arch[pt.id] = arch[pt.id] || []);
+              if (arch[pt.id].indexOf(x.f.name) < 0) arch[pt.id].push(x.f.name);
+              $('#preev-' + pt.id).textContent = 'De: ' + arch[pt.id].join(', ');
+              ta.style.borderColor = 'var(--accent)';
+              res.puntos++;
+            });
+          }).catch(function(err){ res.errores.push(x.f.name + ': ' + err.message); });
+        });
+      }, Promise.resolve()).then(function(){
+        bloquear(false); $('#preArch').value = '';
+        msg((res.puntos ? 'Listo: ' + res.puntos + ' datos extraídos (marcados en color). Revísalos y pulsa «Guardar precarga». ' : (res.errores.length && !res.sinDatos.length ? '' : 'La IA no encontró datos explícitos para los puntos. ')) +
+          (res.sinDatos.length ? 'Sin datos: ' + res.sinDatos.join(', ') + '. ' : '') + (res.errores.length ? 'No se pudo leer: ' + res.errores.join(' · ') : ''));
+      });
+    });
+    $('#preGuardar').addEventListener('click', function(){
+      var puntos = Array.prototype.map.call(det.querySelectorAll('[data-pre]'), function(t){ return {punto: t.dataset.pre, texto: t.value, archivos: arch[t.dataset.pre] || []}; });
+      bloquear(true); msg('Guardando…');
+      api('/a/precarga', {proceso_id: p.id, puntos: puntos}).then(function(j){
+        return abrir(C.campana.id).then(function(){ detalle(p.id); $('#preMsg').textContent = 'Guardado: ' + j.precarga.length + ' puntos cubiertos. La persona los verá como «Completado por Administrador / IA».'; });
+      }).catch(function(err){ bloquear(false); msg(err.message); });
+    });
+  }
+
   // ------------------------------------------------------------ ficha de un proceso
   function detalle(pid, irAMatriz){
     var p = C.procesos.filter(function(x){ return x.id === pid; })[0];
@@ -1936,6 +2017,7 @@
       '<button class="btn btn-ghost btn-xs" id="dBorrar"' + (rs.length ? ' disabled title="Tiene respuestas: no se puede borrar"' : '') + '>Borrar</button>' +
       '<span class="muted" id="dMsg"></span></div>';
     h += editorMatriz(p);
+    h += seccionPrecarga(p);
 
     var ids = {};
     (IX.rev[pid] || []).forEach(function(r){ ids[r.encuestado_id] = 1; });
@@ -1994,6 +2076,7 @@
     $('#dlgB').innerHTML = h;
     if (!$('#dlg').open) $('#dlg').showModal();
     activarEditor(p);
+    activarPrecarga(p);
     if (irAMatriz) $('#fMatriz').scrollIntoView({block: 'start'});
     $('#dEstr').addEventListener('click', function(){
       var b = this; b.disabled = true; $('#dMsg').textContent = 'La IA está leyendo las respuestas (suele tardar menos de un minuto)…';

@@ -47,6 +47,8 @@
  *   POST /a/entrevista           {campana_id, proceso_ids[], estado: ''|agendada|realizada, fecha?, entrevistado?}
  *   POST /a/proceso/mover        {campana_id, proceso_ids[], gerencia, seccion, macroproceso?} | {campana_id, movimientos[]} (constructor del mapa; movimientos restaura)
  *   POST /a/campana/sistemas     {campana_id, sistemas: ["Nombre" | "Nombre | tipo"] o texto con una por línea}   (catálogo de aplicaciones: reemplaza lo cargado por el equipo)
+ *   POST /a/precarga/extraer?proceso_id=&nombre=   cuerpo: archivo JPG/PNG/PDF/DOCX (bytes) -> {puntos[{id, texto, cita}]}   (la IA extrae solo lo explícito; no guarda)
+ *   POST /a/precarga             {proceso_id, puntos[{punto, texto, archivos[]}]}   (guarda la precarga; texto vacío la quita del punto)
  *   POST /a/campana/logo         {campana_id, logo}   (data URI; vacío lo quita)
  *   POST /a/campana/ia           {campana_id, ia_auto}   (la tarea programada completa la matriz con la IA)
  *   POST /a/asignar              {encuestado_id, agregar[], quitar[], restaurar[]}   (lista de procesos de una persona;
@@ -314,14 +316,15 @@ async function procesoPermitido(env, e, procesoId) {
 
 async function rutaSesion(env, url) {
   const e = await encuestadoPorToken(env, url.searchParams.get('k'));
-  const [camp, procs, asig, revs, resps, sis] = await Promise.all([
+  const [camp, procs, asig, revs, resps, sis, pre] = await Promise.all([
     env.DB.prepare('SELECT nombre, cliente, logo FROM campanas WHERE id=?').bind(e.campana_id).first(),
     env.DB.prepare(`SELECT id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente, creado_por, orden
       FROM procesos WHERE campana_id=? AND fuera_alcance=0`).bind(e.campana_id).all(),
     env.DB.prepare('SELECT proceso_id, origen FROM asignaciones WHERE encuestado_id=?').bind(e.id).all(),
     env.DB.prepare('SELECT proceso_id, estado, comentario FROM revisiones WHERE encuestado_id=?').bind(e.id).all(),
     env.DB.prepare('SELECT proceso_id, pregunta, texto, sistemas, checklist FROM respuestas WHERE encuestado_id=?').bind(e.id).all(),
-    env.DB.prepare('SELECT nombre, tipo FROM sistemas WHERE campana_id=? ORDER BY nombre').bind(e.campana_id).all()
+    env.DB.prepare('SELECT nombre, tipo FROM sistemas WHERE campana_id=? ORDER BY nombre').bind(e.campana_id).all(),
+    env.DB.prepare('SELECT pc.proceso_id, pc.punto FROM precarga pc JOIN procesos p ON p.id=pc.proceso_id WHERE p.campana_id=?').bind(e.campana_id).all()
   ]);
   // «excluido»: el equipo quitó de su lista un proceso de su sección (no le corresponde).
   const excluidos = new Set(asig.results.filter(a => a.origen === 'excluido').map(a => a.proceso_id));
@@ -342,6 +345,9 @@ async function rutaSesion(env, url) {
       asignado: asignadoPor[p.id] || ''
     }));
   log('sesion', { campana: e.campana_id, origen: e.origen, estado: e.estado, procesos: procesos.length, k: mascara(e.token) });
+  // Puntos del checklist que el equipo ya cubrió con documentos: solo sus ids (el texto es interno).
+  const precarga = {}, visibles = new Set(procesos.map(x => x.id));
+  pre.results.forEach(x => { if (visibles.has(x.proceso_id)) (precarga[x.proceso_id] = precarga[x.proceso_id] || []).push(x.punto); });
   const revisiones = {};
   revs.results.forEach(r => { revisiones[r.proceso_id] = { estado: r.estado, comentario: r.comentario }; });
   const respuestas = {};
@@ -354,7 +360,7 @@ async function rutaSesion(env, url) {
     ok: true,
     campana: camp,
     encuestado: { nombre: e.nombre, gerencia: e.gerencia, seccion: e.seccion, rol: e.rol, estado: e.estado, origen: e.origen },
-    procesos, revisiones, respuestas,
+    procesos, revisiones, respuestas, precarga,
     sistemas: sis.results,
     bloques: BLOQUES,
     fuera_alcance: (await env.DB.prepare('SELECT COUNT(*) AS n FROM procesos WHERE campana_id=? AND fuera_alcance=1').bind(e.campana_id).first()).n,
@@ -495,6 +501,7 @@ async function rutaSoltar(env, b) {
   ];
   if (p.fuente === 'nuevo' && p.creado_por === e.id && !otros.n) {
     st.push(env.DB.prepare('DELETE FROM estructurado WHERE proceso_id=?').bind(p.id));
+    st.push(env.DB.prepare('DELETE FROM precarga WHERE proceso_id=?').bind(p.id));
     st.push(env.DB.prepare('DELETE FROM procesos WHERE id=?').bind(p.id));
   }
   await env.DB.batch(st);
@@ -748,6 +755,7 @@ async function rutaImportar(env, b) {
     st.push(env.DB.prepare('DELETE FROM revisiones WHERE encuestado_id IN (SELECT id FROM encuestados WHERE campana_id=?)').bind(camp.id));
     st.push(env.DB.prepare('DELETE FROM encuestados WHERE campana_id=?').bind(camp.id));
     st.push(env.DB.prepare('DELETE FROM estructurado WHERE campana_id=?').bind(camp.id));
+    st.push(env.DB.prepare('DELETE FROM precarga WHERE proceso_id IN (SELECT id FROM procesos WHERE campana_id=?)').bind(camp.id));
     st.push(env.DB.prepare('DELETE FROM procesos WHERE campana_id=?').bind(camp.id));
     st.push(env.DB.prepare('DELETE FROM sistemas WHERE campana_id=?').bind(camp.id));
   }
@@ -861,19 +869,21 @@ async function rutaCampana(env, url) {
   const camp = await env.DB.prepare('SELECT * FROM campanas WHERE id=?').bind(id).first();
   if (!camp) throw new HttpError(404, 'Campaña no encontrada');
   const q = s => env.DB.prepare(s).bind(id).all().then(r => r.results);
-  const [encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado] = await Promise.all([
+  const [encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, precarga] = await Promise.all([
     q('SELECT id, token, nombre, correo, gerencia, seccion, rol, estado, actualizado, origen FROM encuestados WHERE campana_id=? ORDER BY gerencia, seccion, nombre'),
     q('SELECT * FROM procesos WHERE campana_id=? ORDER BY gerencia, seccion, orden, macroproceso, proceso, subproceso'),
     q('SELECT r.* FROM revisiones r JOIN encuestados e ON e.id=r.encuestado_id WHERE e.campana_id=?'),
     q('SELECT r.* FROM respuestas r JOIN encuestados e ON e.id=r.encuestado_id WHERE e.campana_id=?'),
     q('SELECT a.* FROM asignaciones a JOIN encuestados e ON e.id=a.encuestado_id WHERE e.campana_id=?'),
     q('SELECT nombre, tipo FROM sistemas WHERE campana_id=? ORDER BY nombre'),
-    q('SELECT proceso_id, datos, modelo, generado FROM estructurado WHERE campana_id=?')
+    q('SELECT proceso_id, datos, modelo, generado FROM estructurado WHERE campana_id=?'),
+    q('SELECT pc.proceso_id, pc.bloque, pc.punto, pc.texto, pc.archivos, pc.actualizado FROM precarga pc JOIN procesos p ON p.id=pc.proceso_id WHERE p.campana_id=?')
   ]);
   estructurado.forEach(x => { x.datos = JSON.parse(x.datos); });
+  precarga.forEach(x => { x.archivos = JSON.parse(x.archivos || '[]'); });
   respuestas.forEach(x => { x.sistemas = JSON.parse(x.sistemas || '[]'); x.checklist = leerMatriz(x.checklist); });
   procesos.forEach(x => { x.matriz = leerMatriz(x.matriz); x.matriz_ia = leerMatriz(x.matriz_ia); });
-  return { ok: true, campana: camp, encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, bloques: BLOQUES, estandares_base: ESTANDARES_BASE };
+  return { ok: true, campana: camp, encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, precarga, bloques: BLOQUES, estandares_base: ESTANDARES_BASE };
 }
 
 // Alta o edición de un proceso desde el mapa de la consola.
@@ -1022,6 +1032,7 @@ async function rutaProcesoBorrar(env, b) {
     env.DB.prepare('DELETE FROM revisiones WHERE proceso_id=?').bind(p.id),
     env.DB.prepare('DELETE FROM respuestas WHERE proceso_id=?').bind(p.id),
     env.DB.prepare('DELETE FROM estructurado WHERE proceso_id=?').bind(p.id),
+    env.DB.prepare('DELETE FROM precarga WHERE proceso_id=?').bind(p.id),
     env.DB.prepare('DELETE FROM procesos WHERE id=?').bind(p.id)
   ]);
   return { ok: true };
@@ -1106,6 +1117,7 @@ async function rutaEncuestadoBorrar(env, b) {
       st.push(env.DB.prepare('UPDATE procesos SET creado_por=NULL WHERE id=?').bind(p.id));
     } else {
       st.push(env.DB.prepare('DELETE FROM estructurado WHERE proceso_id=?').bind(p.id));
+      st.push(env.DB.prepare('DELETE FROM precarga WHERE proceso_id=?').bind(p.id));
       st.push(env.DB.prepare('DELETE FROM procesos WHERE id=?').bind(p.id));
     }
   }
@@ -1156,6 +1168,7 @@ async function rutaBorrarCampana(env, b) {
     env.DB.prepare('DELETE FROM revisiones WHERE encuestado_id IN (SELECT id FROM encuestados WHERE campana_id=?)').bind(camp.id),
     env.DB.prepare('DELETE FROM asignaciones WHERE encuestado_id IN (SELECT id FROM encuestados WHERE campana_id=?)').bind(camp.id),
     env.DB.prepare('DELETE FROM estructurado WHERE campana_id=?').bind(camp.id),
+    env.DB.prepare('DELETE FROM precarga WHERE proceso_id IN (SELECT id FROM procesos WHERE campana_id=?)').bind(camp.id),
     env.DB.prepare('DELETE FROM procesos WHERE campana_id=?').bind(camp.id),
     env.DB.prepare('DELETE FROM sistemas WHERE campana_id=?').bind(camp.id),
     env.DB.prepare('DELETE FROM encuestados WHERE campana_id=?').bind(camp.id),
@@ -1258,7 +1271,7 @@ const VIGENCIA_TEXTO = {
 };
 const ORIGEN_TEXTO = { nuevo: 'agregado por un colaborador en la encuesta', consultor: 'agregado por el equipo consultor' };
 
-function textoParaClaude(camp, p, encuestados, revisiones, respuestas, sistemas) {
+function textoParaClaude(camp, p, encuestados, revisiones, respuestas, sistemas, precarga) {
   const PREG = { q1: 'Objetivo, inicio y fin', q2: 'Actividades y participantes', q3: 'Sistemas y manualidad',
     q4: 'Terceros', q5: 'Datos personales', q6: 'Indicadores, normas y frecuencia',
     b1: 'Bloque 1 · Objetivo, actividades, riesgos y aprobaciones', b2: 'Bloque 2 · Sistemas y terceros',
@@ -1284,6 +1297,11 @@ function textoParaClaude(camp, p, encuestados, revisiones, respuestas, sistemas)
   lineas.push(`CATÁLOGO DE SISTEMAS DEL CLIENTE: ${sistemas.map(s => s.nombre + (s.tipo ? ' (' + s.tipo + ')' : '')).join('; ') || '(no cargado)'}`);
   lineas.push(`GLOSARIO DE ESTÁNDARES DE LA CAMPAÑA: ${estandaresDe(camp)}`);
   lineas.push('');
+  if (precarga && precarga.length) {
+    lineas.push('=== DOCUMENTOS DEL PROCESO CARGADOS POR EL EQUIPO CONSULTOR (fuente documental; cuenta como "dicho" y en la evidencia cita el documento) ===');
+    precarga.forEach(x => lineas.push(`[${PUNTO_TXT[x.punto] || x.punto}] ${String(x.texto).replace(/\s+/g, ' ')}`));
+    lineas.push('');
+  }
   encuestados.forEach(e => {
     const rev = revisiones.find(r => r.encuestado_id === e.id);
     const resp = respuestas.filter(r => r.encuestado_id === e.id);
@@ -1359,13 +1377,14 @@ async function estructurarProceso(env, procesoId, ctx, origen) {
   if (!p) throw new HttpError(404, 'Proceso no encontrado');
   if (p.fuera_alcance) throw new HttpError(409, 'Este proceso está fuera de alcance: no se estructura');
   const camp = await env.DB.prepare('SELECT * FROM campanas WHERE id=?').bind(p.campana_id).first();
-  const [enc, revs, resps, sis] = await Promise.all([
+  const [enc, revs, resps, sis, pre] = await Promise.all([
     // Todas las personas que revisaron o respondieron este proceso, sean o no de la sección dueña.
     env.DB.prepare(`SELECT id, rol, gerencia, seccion FROM encuestados WHERE id IN
       (SELECT encuestado_id FROM revisiones WHERE proceso_id=? UNION SELECT encuestado_id FROM respuestas WHERE proceso_id=?)`).bind(p.id, p.id).all(),
     env.DB.prepare('SELECT * FROM revisiones WHERE proceso_id=?').bind(p.id).all(),
     env.DB.prepare('SELECT * FROM respuestas WHERE proceso_id=?').bind(p.id).all(),
-    env.DB.prepare('SELECT nombre, tipo FROM sistemas WHERE campana_id=?').bind(p.campana_id).all()
+    env.DB.prepare('SELECT nombre, tipo FROM sistemas WHERE campana_id=?').bind(p.campana_id).all(),
+    env.DB.prepare('SELECT punto, texto FROM precarga WHERE proceso_id=? ORDER BY bloque, punto').bind(p.id).all()
   ]);
   if (!resps.results.some(r => (r.texto || '').trim())) throw new HttpError(409, 'Este proceso todavía no tiene respuestas');
 
@@ -1380,7 +1399,7 @@ async function estructurarProceso(env, procesoId, ctx, origen) {
       thinking: { type: 'adaptive' },
       output_config: { effort: cfg.esfuerzo, format: { type: 'json_schema', schema: SALIDA_SCHEMA } },
       system: SISTEMA_PROMPT,
-      messages: [{ role: 'user', content: textoParaClaude(camp, p, enc.results, revs.results, resps.results, sis.results) }]
+      messages: [{ role: 'user', content: textoParaClaude(camp, p, enc.results, revs.results, resps.results, sis.results, pre.results) }]
     }).finalMessage();
   } catch (err) {
     console.error('claude', err && err.message);
@@ -1540,7 +1559,7 @@ Para cada punto del checklist decide:
 - "no_aplica": la persona dijo claramente que eso no existe en su proceso ("no trabajamos con terceros", "no tenemos indicadores", "no manejamos datos de personas"). Cuenta como respondido. Los puntos que dependen de él también son "no_aplica" (si no manejan datos de personas, tampoco hay finalidad de su tratamiento; si no se relacionan con terceros, tampoco hay finalidad con terceros). Si dijeron que no dependen de la aprobación de nadie fuera de su área, las aprobaciones son "no_aplica". En "evidencia" cita la frase.
 - "falta": no lo mencionó, o lo dijo tan vago que no sirve para un inventario de procesos ("usamos varios sistemas" sin nombrarlos). "evidencia" queda vacía.
 Los sistemas marcados en la lista cuentan para el punto de qué sistemas usan, pero no para qué se usa cada uno.
-"sugerencia": una sola frase amable, en segunda persona (tú), que pida solo lo que falta, con un ejemplo corto si ayuda. Si no falta nada, cadena vacía.
+"sugerencia": una sola frase amable, en segunda persona (tú), que pida solo lo que falta, con un ejemplo corto si ayuda. Si no falta nada, cadena vacía. Si la entrada trae «PUNTOS YA CUBIERTOS POR EL EQUIPO», no los pidas en la sugerencia (la persona puede ampliarlos, pero no es obligatorio); márcalos igual según lo que diga la respuesta.
 "sistemas": los sistemas, aplicaciones o herramientas informáticas que la respuesta dice que se usan en el proceso (un ERP, un Excel, un aplicativo del área, el correo, un portal, y también plataformas de otras empresas de las que dependen: Toyota Brasil, Kinto, el portal de SUNAT). Solo los que se nombran o se identifican con claridad en la respuesta: no incluyas equipos físicos, no deduzcas por el tipo de proceso y no repitas. Si el nombre dicho coincide con uno del CATÁLOGO de la campaña, escribe el nombre EXACTO del catálogo (corrige los errores de transcripción: «es a pe» es SAP, «quinto» o «kinto» es Kinto); si no está en el catálogo, escríbelo corto, tal como lo dijo. Si no menciona ninguno, lista vacía.
 Actividades: el punto de actividades es "cubierto" solo si la persona cuenta pasos concretos y dice cada cuánto se hacen (frecuencia); si falta la frecuencia, es "falta" y la sugerencia la pide. Manual o por sistema se valida en su propio punto.
 Estándares: hay dos puntos. "estandar_tdp" es "cubierto" cuando la persona nombra un estándar, política, procedimiento o instructivo OFICIAL de TDP, o dice claramente que no hay; no cuenta un diagrama de un proveedor sin estandarización. "estandar_global" es "cubierto" cuando nombra un estándar o lineamiento global de TMC (Toyota Motor Corporation) o de Mitsui & Company, o dice claramente que no hay; Mitsui Automotriz (MASA) es un concesionario y no cuenta. Cada uno es "falta" si solo habla de estándares en general sin nombrar ninguno.
@@ -1589,7 +1608,8 @@ async function rutaVerificar(env, b, ctx) {
   let sistemas = [];
   try { sistemas = JSON.parse((r && r.sistemas) || '[]'); } catch (x) { /* sin sistemas */ }
   // La huella incluye los puntos del bloque: si cambia el checklist, la respuesta se vuelve a revisar.
-  const firmaDe = lista => huella(texto + '|' + lista.join(',') + '|' + bloque.puntos.map(x => x[0]).join(','));
+  const cubiertosEquipo = (await env.DB.prepare('SELECT punto FROM precarga WHERE proceso_id=? AND bloque=? ORDER BY punto').bind(p.id, bloque.id).all()).results.map(x => x.punto);
+  const firmaDe = lista => huella(texto + '|' + lista.join(',') + '|' + bloque.puntos.map(x => x[0]).join(',') + '|eq:' + cubiertosEquipo.join(','));
   const firma = await firmaDe(sistemas);
   if (previo._huella === firma) return { ok: true, checklist: previo, sistemas, sistemas_nuevos: [] };
   const nuevo = { _huella: firma, _sugerencia: '' };
@@ -1620,6 +1640,7 @@ async function rutaVerificar(env, b, ctx) {
           'CHECKLIST:', ...bloque.puntos.map(([id, t]) => `- ${id}: ${t}`),
           '', 'RESPUESTA:', texto || '(sin texto)',
           sistemas.length ? '\nSISTEMAS MARCADOS EN LA LISTA: ' + sistemas.join(', ') : '',
+          cubiertosEquipo.length ? '\nPUNTOS YA CUBIERTOS POR EL EQUIPO (no los pidas): ' + cubiertosEquipo.join(', ') : '',
           glosarioEst ? '\nGLOSARIO DE ESTÁNDARES DE LA CAMPAÑA: ' + glosarioEst : '',
           bloque.sistemas ? '\nCATÁLOGO DE SISTEMAS DE LA CAMPAÑA: ' + (catalogo.length ? catalogo.join('; ') : '(vacío)') : '(Este bloque no detecta sistemas: devuelve "sistemas" vacío.)'
         ].join('\n') }]
@@ -1686,33 +1707,47 @@ const TODO_SCHEMA = {
 };
 const FINALIDADES = ['bloque', 'todo', 'transcribir', 'documentacion'];
 
+// Archivo subido (imagen, PDF o Word) validado antes de mandarlo a la IA. Un archivo ilegible o de otro formato se rechaza con un mensaje claro.
+async function leerArchivoSubido(req, permitidos, msgTipo) {
+  const tipo = (req.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  if (!permitidos.includes(tipo)) throw new HttpError(415, msgTipo);
+  const esPdf = tipo === 'application/pdf', esDocx = tipo === MIME_DOCX;
+  const que = esDocx ? 'el documento' : esPdf ? 'el PDF' : 'la imagen';
+  const buf = await req.arrayBuffer();
+  if (!buf.byteLength) throw new HttpError(400, 'Archivo vacío');
+  let doc = null;
+  if (esDocx) {
+    // Word: la IA no lee .docx directamente; se extrae su texto aquí (el archivo no se guarda).
+    if (buf.byteLength > MAX_PDF) throw new HttpError(413, 'El documento pesa demasiado (máximo 10 MB)');
+    try { doc = await textoDeDocx(buf); }
+    catch (x) { throw new HttpError(415, 'No pudimos abrir ese Word. Guárdalo como .docx o como PDF y súbelo de nuevo.'); }
+    if (!doc.texto) throw new HttpError(422, 'No encontramos texto en ese documento Word. Si es un dibujo o una imagen, súbelo aparte como imagen o PDF.');
+  } else if (esPdf) {
+    if (buf.byteLength > MAX_PDF) throw new HttpError(413, 'El PDF pesa demasiado (máximo 10 MB)');
+    if (new TextDecoder('latin1').decode(new Uint8Array(buf, 0, 5)) !== '%PDF-') throw new HttpError(415, 'Ese archivo no es un PDF válido');
+    const paginas = (new TextDecoder('latin1').decode(new Uint8Array(buf)).match(/\/Type\s*\/Page(?![A-Za-z])/g) || []).length;
+    if (paginas > MAX_PDF_PAGINAS) throw new HttpError(413, `El PDF tiene ${paginas} páginas (máximo ${MAX_PDF_PAGINAS}): sube solo las páginas del proceso`);
+  } else {
+    if (buf.byteLength > MAX_IMAGEN) throw new HttpError(413, 'La imagen pesa demasiado (máximo 6 MB)');
+    const c = new Uint8Array(buf, 0, Math.min(4, buf.byteLength));
+    const jpg = c[0] === 0xff && c[1] === 0xd8 && c[2] === 0xff, png = c[0] === 0x89 && c[1] === 0x50 && c[2] === 0x4e && c[3] === 0x47;
+    if ((tipo === 'image/jpeg' && !jpg) || (tipo === 'image/png' && !png)) throw new HttpError(415, 'Ese archivo no es una imagen válida o está dañado');
+  }
+  return { tipo, esPdf, esDocx, que, buf, doc };
+}
+function bloqueDeArchivo(a) {
+  if (a.esDocx) return { type: 'text', text: 'DOCUMENTO DE WORD (texto extraído; las imágenes del documento no se leen):\n' + a.doc.texto + (a.doc.recortado ? '\n[…el documento sigue; se recortó]' : '') };
+  return { type: a.esPdf ? 'document' : 'image', source: { type: 'base64', media_type: a.tipo, data: aBase64(a.buf) } };
+}
+
 async function rutaImagen(env, req, url, ctx) {
   const e = await encuestadoPorToken(env, url.searchParams.get('k'));
   const p = await procesoPermitido(env, e, url.searchParams.get('proceso_id'));
   const bloque = BLOQUES.find(x => x.id === url.searchParams.get('pregunta'));
   if (!bloque) throw new HttpError(400, 'Bloque inválido');
   const finalidad = FINALIDADES.includes(url.searchParams.get('finalidad')) ? url.searchParams.get('finalidad') : 'bloque';
-  const tipo = (req.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-  const esPdf = tipo === 'application/pdf', esDocx = tipo === MIME_DOCX;
-  if (!esPdf && !esDocx && !['image/jpeg', 'image/png', 'image/webp'].includes(tipo)) throw new HttpError(415, 'Sube una imagen JPG, PNG o WEBP, un PDF o un documento Word (.docx)');
-  const que = esDocx ? 'el documento' : esPdf ? 'el PDF' : 'la imagen';
-  const buf = await req.arrayBuffer();
-  if (!buf.byteLength) throw new HttpError(400, 'Archivo vacío');
-  // Word: la IA no lee .docx directamente; se extrae su texto aquí (el archivo no se guarda).
-  let doc = null;
-  if (esDocx) {
-    if (buf.byteLength > MAX_PDF) throw new HttpError(413, 'El documento pesa demasiado (máximo 10 MB)');
-    try { doc = await textoDeDocx(buf); }
-    catch (x) { throw new HttpError(415, 'No pudimos abrir ese Word. Guárdalo como .docx o como PDF y súbelo de nuevo.'); }
-    if (!doc.texto) throw new HttpError(422, 'No encontramos texto en ese documento Word. Si es un dibujo o una imagen, súbelo aparte como imagen o PDF.');
-  }
-  if (esDocx) { /* ya validado arriba */ }
-  else if (esPdf) {
-    if (buf.byteLength > MAX_PDF) throw new HttpError(413, 'El PDF pesa demasiado (máximo 10 MB)');
-    if (new TextDecoder('latin1').decode(new Uint8Array(buf, 0, 5)) !== '%PDF-') throw new HttpError(415, 'Ese archivo no es un PDF válido');
-    const paginas = (new TextDecoder('latin1').decode(new Uint8Array(buf)).match(/\/Type\s*\/Page(?![A-Za-z])/g) || []).length;
-    if (paginas > MAX_PDF_PAGINAS) throw new HttpError(413, `El PDF tiene ${paginas} páginas (máximo ${MAX_PDF_PAGINAS}): sube solo las páginas del proceso`);
-  } else if (buf.byteLength > MAX_IMAGEN) throw new HttpError(413, 'La imagen pesa demasiado (máximo 6 MB)');
+  const { tipo, esPdf, esDocx, que, buf, doc } = await leerArchivoSubido(req, ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', MIME_DOCX],
+    'Sube una imagen JPG, PNG o WEBP, un PDF o un documento Word (.docx)');
   let msg;
   const cfg = iaDe(env, 'imagen'), t0 = Date.now();
   try {
@@ -1724,8 +1759,7 @@ async function rutaImagen(env, req, url, ctx) {
       output_config: { effort: cfg.esfuerzo, format: { type: 'json_schema', schema: finalidad === 'todo' ? TODO_SCHEMA : IMAGEN_SCHEMA } },
       system: { bloque: IMAGEN_PROMPT, todo: TODO_PROMPT, transcribir: TRANSCRIBIR_PROMPT, documentacion: DOCUMENTACION_PROMPT }[finalidad],
       messages: [{ role: 'user', content: [
-        esDocx ? { type: 'text', text: 'DOCUMENTO DE WORD (texto extraído; las imágenes del documento no se leen):\n' + doc.texto + (doc.recortado ? '\n[…el documento sigue; se recortó]' : '') }
-          : { type: esPdf ? 'document' : 'image', source: { type: 'base64', media_type: tipo, data: aBase64(buf) } },
+        bloqueDeArchivo({ esDocx, esPdf, tipo, buf, doc }),
         { type: 'text', text: (finalidad === 'todo'
           ? [`PROCESO: ${p.subproceso || p.proceso || p.macroproceso}`, ...BLOQUES.flatMap(b => ['', `BLOQUE ${b.id}: ${b.t}`, 'CHECKLIST:', ...b.puntos.map(([, t]) => '- ' + t)])]
           : finalidad === 'bloque'
@@ -1750,6 +1784,111 @@ async function rutaImagen(env, req, url, ctx) {
     return { ok: true, bloques, texto: Object.values(bloques).filter(Boolean).join(' '), motivo: s.relevante ? '' : txt(s.motivo, 300) };
   }
   return { ok: true, texto: s.relevante ? txt(s.texto, finalidad === 'transcribir' ? 6000 : 3000) : '', motivo: s.relevante ? '' : txt(s.motivo, 300) };
+}
+
+// ---------------------------------------------------------------- precarga del checklist desde documentos (consola)
+// El equipo sube documentos del proceso; la IA extrae solo lo que dicen de forma explícita y el equipo revisa y guarda.
+// Los puntos guardados salen en la encuesta como «cubiertos por el administrador»; el texto es interno y nunca se envía a la encuesta.
+const TIPOS_PRECARGA = ['image/jpeg', 'image/png', 'application/pdf', MIME_DOCX];
+const TODOS_PUNTOS = BLOQUES.flatMap(b => b.puntos.map(([id]) => id));
+const BLOQUE_DE_PUNTO = {};
+BLOQUES.forEach(b => b.puntos.forEach(([id]) => { BLOQUE_DE_PUNTO[id] = b.id; }));
+const PRECARGA_SCHEMA = {
+  type: 'object',
+  properties: {
+    relevante: { type: 'boolean' }, motivo: { type: 'string' },
+    puntos: { type: 'array', items: { type: 'object', properties: {
+      id: { type: 'string', enum: TODOS_PUNTOS }, encontrado: { type: 'boolean' }, texto: { type: 'string' }, cita: { type: 'string' }
+    }, required: ['id', 'encontrado', 'texto', 'cita'], additionalProperties: false } }
+  },
+  required: ['relevante', 'motivo', 'puntos'],
+  additionalProperties: false
+};
+const PRECARGA_PROMPT = `Recibes un documento de un proceso de trabajo (imagen, PDF de varias páginas o el texto de un Word; en el Word las imágenes no se leen) que el equipo consultor cargó para PRE-LLENAR el checklist de relevamiento de ese proceso. Política de cero alucinación:
+- Para cada punto del checklist marca "encontrado": true SOLO si el documento dice de forma explícita y no ambigua algo que responde ese punto. Si no hay evidencia textual o visual directa, "encontrado": false y "texto" y "cita" quedan vacíos.
+- No infieras por el tipo de proceso, no completes con conocimiento general, no supongas y no inventes cargos, sistemas, frecuencias, estándares ni cifras. No uses lo que dice un punto para llenar otro.
+- "texto": lo que el documento dice sobre ese punto, con sus mismas palabras o parafraseado muy de cerca, en español, máximo 60 palabras.
+- "cita": fragmento literal breve del documento (máximo 25 palabras) que sustenta el texto; es obligatorio cuando "encontrado" es true. En un diagrama o imagen, transcribe el rótulo o texto visible.
+- Actividades: "encontrado" solo si hay pasos concretos y su frecuencia (cada cuánto se hacen); sin frecuencia explícita, es false.
+- Si el documento dice claramente que algo no existe ("no se usan terceros", "no hay indicadores"), es "encontrado" con ese texto.
+- Nunca copies datos personales concretos (nombres de personas, DNI, teléfonos, correos, direcciones, montos de clientes): usa cargos y categorías.
+- Estándares: ${REGLAS_ESTANDARES}
+Si el documento no tiene información de un proceso de trabajo, "relevante" es false, todos los puntos quedan "encontrado": false y en "motivo" dices en una frase qué se ve.
+Devuelve un elemento por cada punto del checklist, sin omitir ninguno.`;
+
+async function rutaPrecargaExtraer(env, req, url, ctx) {
+  const p = await env.DB.prepare('SELECT * FROM procesos WHERE id=?').bind(txt(url.searchParams.get('proceso_id'), 60)).first();
+  if (!p) throw new HttpError(404, 'Proceso no encontrado');
+  const nombre = txt(url.searchParams.get('nombre'), 150) || 'documento';
+  const a = await leerArchivoSubido(req, TIPOS_PRECARGA, 'Formato no permitido: sube un archivo JPG, PNG, PDF o Word (.docx).');
+  const camp = await env.DB.prepare('SELECT estandares FROM campanas WHERE id=?').bind(p.campana_id).first();
+  const cfg = iaDe(env, 'estructurar'), t0 = Date.now();
+  let msg;
+  try {
+    msg = await clienteClaude(env).beta.messages.stream({
+      model: cfg.modelo,
+      max_tokens: 6000,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: cfg.esfuerzo, format: { type: 'json_schema', schema: PRECARGA_SCHEMA } },
+      system: PRECARGA_PROMPT,
+      messages: [{ role: 'user', content: [
+        bloqueDeArchivo(a),
+        { type: 'text', text: [`PROCESO: ${p.subproceso || p.proceso || p.macroproceso}`,
+          ...BLOQUES.flatMap(b => ['', `BLOQUE ${b.id}: ${b.t}`, 'CHECKLIST:', ...b.puntos.map(([id, t]) => `- ${id}: ${t}`)]),
+          '', 'GLOSARIO DE ESTÁNDARES DE LA CAMPAÑA: ' + estandaresDe(camp)].join('\n') }
+      ] }]
+    }).finalMessage();
+  } catch (err) {
+    log('precarga_error', { campana: p.campana_id, tipo: a.tipo, error: String((err && err.message) || err).slice(0, 200) });
+    throw new HttpError(502, `No pudimos leer ${a.que} en este momento. Intenta de nuevo en un minuto.`);
+  }
+  registrarIA(ctx, 'precarga', msg, cfg, t0);
+  if (msg.stop_reason === 'refusal') throw new HttpError(422, 'La IA no pudo procesar ese archivo.');
+  if (msg.stop_reason === 'max_tokens') throw new HttpError(502, 'La lectura del archivo quedó incompleta. Reintenta.');
+  let r = {};
+  try { r = JSON.parse((msg.content.find(c => c.type === 'text') || {}).text || '{}'); }
+  catch (x) { throw new HttpError(502, 'La lectura devolvió un formato inesperado. Reintenta.'); }
+  // Cero alucinación: sin cita no hay evidencia directa; en un Word, la cita debe estar en el texto del documento.
+  const limpio = x => normal(x).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const base = a.esDocx ? limpio(a.doc.texto) : '';
+  const puntos = [], descartados = [], vistos = new Set();
+  (r.relevante ? r.puntos || [] : []).forEach(x => {
+    if (!x || !TODOS_PUNTOS.includes(x.id) || vistos.has(x.id)) return;
+    vistos.add(x.id);
+    const texto = txt(x.texto, 600), cita = txt(x.cita, 300);
+    if (!x.encontrado || !texto) return;
+    if (!cita) { descartados.push(x.id); return; }
+    if (a.esDocx) {
+      const c = limpio(cita), pal = c.split(' ').filter(w => w.length >= 3);
+      if (!base.includes(c) && (!pal.length || pal.filter(w => base.includes(w)).length / pal.length < 0.85)) { descartados.push(x.id); return; }
+    }
+    puntos.push({ id: x.id, bloque: BLOQUE_DE_PUNTO[x.id], texto, cita });
+  });
+  log('precarga_extraer', { campana: p.campana_id, tipo: a.tipo, bytes: a.buf.byteLength, puntos: puntos.length, descartados: descartados.length });
+  return { ok: true, archivo: nombre, puntos, descartados: descartados.length, motivo: r.relevante ? '' : txt(r.motivo, 300) };
+}
+
+async function rutaPrecarga(env, b) {
+  const p = await env.DB.prepare('SELECT id, campana_id FROM procesos WHERE id=?').bind(txt(b.proceso_id, 60)).first();
+  if (!p) throw new HttpError(404, 'Proceso no encontrado');
+  const t = ahora(), st = [];
+  (Array.isArray(b.puntos) ? b.puntos.slice(0, 40) : []).forEach(x => {
+    const id = txt(x && x.punto, 40);
+    if (!TODOS_PUNTOS.includes(id)) return;
+    const texto = txt(x.texto, 1500);
+    if (!texto) { st.push(env.DB.prepare('DELETE FROM precarga WHERE proceso_id=? AND punto=?').bind(p.id, id)); return; }
+    const archivos = (Array.isArray(x.archivos) ? x.archivos : []).map(n => txt(n, 150)).filter(Boolean).slice(0, 10);
+    st.push(env.DB.prepare(`INSERT INTO precarga (proceso_id, bloque, punto, texto, archivos, creado, actualizado) VALUES (?,?,?,?,?,?,?)
+      ON CONFLICT(proceso_id, punto) DO UPDATE SET texto=excluded.texto, archivos=excluded.archivos, actualizado=excluded.actualizado`)
+      .bind(p.id, BLOQUE_DE_PUNTO[id], id, texto, JSON.stringify(archivos), t, t));
+  });
+  if (!st.length) throw new HttpError(400, 'No hay nada que guardar');
+  await env.DB.batch(st);
+  const filas = (await env.DB.prepare('SELECT proceso_id, bloque, punto, texto, archivos, actualizado FROM precarga WHERE proceso_id=?').bind(p.id).all()).results;
+  filas.forEach(x => { x.archivos = JSON.parse(x.archivos || '[]'); });
+  log('precarga', { campana: p.campana_id, puntos: filas.length });
+  return { ok: true, precarga: filas };
 }
 
 // La persona marca un punto como "lo mencioné" (cubierto) o "no aplica"; estado vacío deshace su marca.
@@ -1890,6 +2029,7 @@ export default {
         exigirAdmin(req, env);
         if (ruta === 'GET /a/campanas') return json(await rutaCampanas(env), 200, h);
         if (ruta === 'GET /a/campana') return json(await rutaCampana(env, url), 200, h);
+        if (ruta === 'POST /a/precarga/extraer') return json(await rutaPrecargaExtraer(env, req, url, ctx), 200, h);
         if (req.method === 'POST') {
           const b = await cuerpo(req);
           if (url.pathname === '/a/campana') return json(await rutaCampanaNueva(env, b), 200, h);
@@ -1899,6 +2039,7 @@ export default {
           if (url.pathname === '/a/campana/ia') return json(await rutaCampanaIA(env, b), 200, h);
           if (url.pathname === '/a/campana/estandares') return json(await rutaEstandares(env, b), 200, h);
           if (url.pathname === '/a/estandares/probar') return json(await rutaEstandaresProbar(env, b, ctx), 200, h);
+          if (url.pathname === '/a/precarga') return json(await rutaPrecarga(env, b), 200, h);
           if (url.pathname === '/a/asignar') return json(await rutaAsignar(env, b), 200, h);
           if (url.pathname === '/a/asignar-por-inventario') return json(await rutaAsignarInventario(env, b), 200, h);
           if (url.pathname === '/a/enlace') return json(await rutaEnlace(env, b), 200, h);

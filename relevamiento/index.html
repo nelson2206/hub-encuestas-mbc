@@ -160,7 +160,7 @@
   /* Checklist de cada bloque: lo que la matriz necesita saber */
   .ck-t{font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700;color:var(--muted);margin:0 0 6px 36px}
   .ck{list-style:none;margin:0 0 14px 36px;padding:0;display:flex;flex-direction:column;gap:8px}
-  @media (max-width:560px){ .ck,.ck-t{margin-left:0} }
+  @media (max-width:560px){ .ck,.ck-t,.ck-adm{margin-left:0} }
   .ck li{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.35}
   .ck .caja{flex:none;width:19px;height:19px;border-radius:5px;border:2px solid var(--field-line);display:grid;place-content:center;font-size:12px;font-weight:800;line-height:1;margin-top:1px;color:transparent}
   .ck li.cubierto .caja{background:var(--ok);border-color:var(--ok);color:#fff}
@@ -169,6 +169,11 @@
   .ck .t{flex:1;min-width:0}
   .ck .nota{display:block;font-size:12.5px;color:var(--muted);margin-top:1px}
   .ck li.falta .nota{color:var(--warn)}
+  .ck-adm{font-family:Montserrat,sans-serif;font-size:13px;font-weight:700;color:var(--heading);margin:0 0 8px 36px}
+  .ck li.admin .caja{background:var(--navy);border-color:var(--navy);color:#fff}
+  .ck .tag-adm{appearance:none;cursor:pointer;border:0;margin:4px 6px 0 0}
+  .ck .tag-comp{margin:4px 6px 0 0;background:var(--ok);color:#fff}
+  .ck .ayuda-adm{display:block;font-size:12.5px;color:var(--muted);margin-top:4px}
   .ck .acc{flex:none;display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
   .btn-mini{appearance:none;cursor:pointer;background:var(--card);border:1.5px solid var(--field-line);color:var(--heading);border-radius:8px;padding:3px 9px;font-family:Montserrat,sans-serif;font-weight:600;font-size:12px;white-space:nowrap}
   .btn-mini:hover{border-color:var(--navy)} .btn-mini[disabled]{opacity:.5;cursor:default}
@@ -931,8 +936,11 @@
 
   // Checklist: un punto está listo si quedó cubierto o si no aplica al proceso. Un proceso está completo
   // cuando todos los puntos de sus 3 bloques están listos.
-  function puntoListo(ck, id){ var x = ck && ck[id]; return !!x && (x.estado === 'cubierto' || x.estado === 'no_aplica'); }
-  function listosBloque(pid, b){ var ck = respuesta(pid, b.id).checklist || {}; return b.puntos.filter(function(pt){ return puntoListo(ck, pt[0]); }).length; }
+  // Puntos que el equipo cubrió con documentos (solo se sabe cuáles, nunca lo que dicen).
+  var AYUDA_ADM = 'Este requisito ya fue validado administrativamente, pero puedes ingresar información si deseas detallar o rectificar el punto.';
+  function adminCubre(pid, id){ return !!pid && ((S.precarga || {})[pid] || []).indexOf(id) >= 0; }
+  function puntoListo(ck, id, pid){ var x = ck && ck[id]; return adminCubre(pid, id) || (!!x && (x.estado === 'cubierto' || x.estado === 'no_aplica')); }
+  function listosBloque(pid, b){ var ck = respuesta(pid, b.id).checklist || {}; return b.puntos.filter(function(pt){ return puntoListo(ck, pt[0], pid); }).length; }
   function totalPuntos(){ return BLOQUES.reduce(function(a, b){ return a + b.puntos.length; }, 0); }
   function listosProceso(pid){ return BLOQUES.reduce(function(a, b){ return a + listosBloque(pid, b); }, 0); }
   function procesoCompleto(pid){ return !!BLOQUES.length && listosProceso(pid) === totalPuntos(); }
@@ -961,6 +969,7 @@
         '<div class="preg-t"><span class="qn">' + (i+1) + '</span><span>' + esc(q.t) + '</span></div>' +
         '<p class="preg-g">' + esc(q.g) + '</p>' +
         '<p class="ck-t" id="ckt-' + esc(key) + '">Lo que necesitamos saber</p>' +
+        '<p class="ck-adm hidden" id="cka-' + esc(key) + '"></p>' +
         '<ul class="ck" id="ck-' + esc(key) + '" aria-labelledby="ckt-' + esc(key) + '"></ul>' +
         '<div class="rec-row">' +
           '<button class="btn btn-rec btn-sm btn-ico" type="button" data-rec="' + esc(key) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3" fill="currentColor" stroke="none"></rect><path d="M5 10.5a7 7 0 0 0 14 0M12 17.5V21"></path></svg><span>Grabar</span></button>' +
@@ -1023,6 +1032,12 @@
         pintarSelSis(key, d);
       }
       d.querySelector('#ck-' + CSS.escape(key)).addEventListener('click', function(ev){
+        var ad = ev.target.closest('[data-adm]');
+        if (ad){   // ayuda del punto cubierto por el equipo (en el celular no hay cursor: se abre al tocar)
+          var ay = document.getElementById('adm-' + key + '-' + ad.dataset.adm);
+          if (ay){ var abrir = ay.classList.contains('hidden'); ay.classList.toggle('hidden', !abrir); ad.setAttribute('aria-expanded', abrir ? 'true' : 'false'); }
+          return;
+        }
         var bt = ev.target.closest('[data-punto]');
         if (bt) marcarPunto(p.id, q.id, bt.dataset.punto, bt.dataset.estado, bt);
       });
@@ -1128,19 +1143,32 @@
       if (est === 'cubierto') nota = persona ? 'Marcaste que lo mencionaste' : (x.evidencia ? '«' + x.evidencia + '»' : '');
       else if (est === 'no_aplica') nota = persona ? 'Marcaste que no aplica a tu proceso' : 'Dijiste que no aplica' + (x.evidencia ? ': «' + x.evidencia + '»' : '');
       else if (est === 'falta') nota = 'Todavía no lo mencionas';
+      // Cubierto por Administrador / IA: se ve como listo aunque la persona no haya dicho nada; si además lo trata, queda «Complementado por ti».
+      var adm = adminCubre(pid, pt[0]), comp = adm && est === 'cubierto';
+      if (adm && (est === 'falta' || est === 'pendiente')){ est = 'cubierto'; nota = ''; }
       var acc = '';
       if (persona) acc = '<button type="button" class="btn-mini" data-punto="' + esc(pt[0]) + '" data-estado="">Deshacer</button>';
-      else if (est === 'falta' || est === 'pendiente'){
+      else if (!adm && (est === 'falta' || est === 'pendiente')){
         // "No aplica" solo en lo que puede no existir (terceros, datos personales, indicadores…): el objetivo o los pasos hay que contarlos.
         acc = (hay ? '<button type="button" class="btn-mini" data-punto="' + esc(pt[0]) + '" data-estado="cubierto" aria-label="Lo mencioné: ' + esc(pt[1]) + '">Lo mencioné</button>' : '') +
           (pt[2] ? '<button type="button" class="btn-mini" data-punto="' + esc(pt[0]) + '" data-estado="no_aplica" aria-label="No aplica: ' + esc(pt[1]) + '">No aplica</button>' : '');
       }
-      return '<li class="' + est + '"><span class="caja" aria-hidden="true">' + (est === 'cubierto' ? '✓' : est === 'no_aplica' ? '–' : '') + '</span>' +
-        '<span class="t"><span class="sr">' + EST_TXT[est] + ': </span>' + esc(pt[1]) + (nota ? '<span class="nota">' + esc(nota) + '</span>' : '') + '</span>' +
+      var marca = adm ? '<span class="adm-tags"><button type="button" class="tag tag-adm" data-adm="' + esc(pt[0]) + '" aria-expanded="false" title="' + esc(AYUDA_ADM) + '">Completado por Administrador / IA</button>' +
+        (comp ? '<span class="tag tag-comp">Complementado por ti</span>' : '') + '</span><span class="ayuda-adm hidden" id="adm-' + esc(key) + '-' + esc(pt[0]) + '">' + esc(AYUDA_ADM) + '</span>' : '';
+      return '<li class="' + est + (adm ? ' admin' : '') + '"><span class="caja" aria-hidden="true">' + (est === 'cubierto' ? '✓' : est === 'no_aplica' ? '–' : '') + '</span>' +
+        '<span class="t"><span class="sr">' + EST_TXT[est] + ': </span>' + esc(pt[1]) + (nota ? '<span class="nota">' + esc(nota) + '</span>' : '') + marca + '</span>' +
         (acc ? '<span class="acc">' + acc + '</span>' : '') + '</li>';
     }).join('');
+    // Estado del bloque según lo que cubrió el equipo: parcial o completo (la persona puede seguir sin escribir nada).
+    var linea = (root || document).querySelector('#cka-' + CSS.escape(key));
+    if (linea){
+      var nAdm = b.puntos.filter(function(pt){ return adminCubre(pid, pt[0]); }).length;
+      linea.classList.toggle('hidden', !nAdm);
+      if (nAdm) linea.textContent = (nAdm === b.puntos.length ? 'Completado por Administrador / IA. Puedes continuar sin escribir nada o agregar detalle si quieres.'
+        : 'Parcialmente completado: ' + nAdm + ' de ' + b.puntos.length + ' puntos ya vienen de Administrador / IA.') + (hay ? ' · Con tu aporte.' : '');
+    }
     var sg = (root || document).querySelector('#sg-' + CSS.escape(key));
-    var faltan = b.puntos.filter(function(pt){ return !puntoListo(ck, pt[0]); }).length;
+    var faltan = b.puntos.filter(function(pt){ return !puntoListo(ck, pt[0], pid); }).length;
     if (sg){ sg.textContent = faltan && ck._sugerencia ? ck._sugerencia : ''; sg.classList.toggle('hidden', !(faltan && ck._sugerencia)); }
     if (b.sistemas) pintarNotaSistemas(pid, bid, root);
   }
@@ -1174,7 +1202,7 @@
       if (j.sistemas && !sinGuardar[key]) aplicarSistemas(pid, bid, j.sistemas, j.sistemas_nuevos);   // si la persona cambió algo mientras tanto, no se pisa
       ponerChecklist(pid, bid, j.checklist, !sinGuardar[key] ? j.sistemas : null);
       var b = bloque(bid), ck = j.checklist || {};
-      var faltan = b.puntos.filter(function(pt){ return !puntoListo(ck, pt[0]); }).length;
+      var faltan = b.puntos.filter(function(pt){ return !puntoListo(ck, pt[0], pid); }).length;
       estadoRev(key, faltan ? (faltan === 1 ? 'Falta 1 punto de este bloque.' : 'Faltan ' + faltan + ' puntos de este bloque.') : '✓ Bloque completo.', faltan ? 'warn' : 'ok');
     }).catch(function(err){
       estadoRev(key, err.message, 'warn');

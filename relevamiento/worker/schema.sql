@@ -111,3 +111,16 @@ CREATE TABLE IF NOT EXISTS estructurado (
   modelo TEXT NOT NULL,
   generado TEXT NOT NULL
 );
+
+-- Precarga del checklist desde documentos cargados en la consola (2026-10-13). El texto es interno: la encuesta solo recibe qué puntos están cubiertos.
+CREATE TABLE IF NOT EXISTS precarga (
+  proceso_id TEXT NOT NULL,
+  bloque TEXT NOT NULL,
+  punto TEXT NOT NULL,
+  texto TEXT NOT NULL DEFAULT '',
+  archivos TEXT NOT NULL DEFAULT '[]',
+  creado TEXT NOT NULL,
+  actualizado TEXT NOT NULL,
+  PRIMARY KEY (proceso_id, punto)
+);
+CREATE INDEX IF NOT EXISTS ix_precarga_proceso ON precarga(proceso_id);
