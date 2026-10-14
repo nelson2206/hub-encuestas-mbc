@@ -215,6 +215,15 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
   .idea[aria-pressed="true"] b::before{content:"✓ ";color:var(--accent)}
   .idea.oculta{display:none}
   .ideas-sel{margin:10px 2px 0;font-size:13px;color:var(--heading);font-weight:600}
+  .memoria{margin:0 0 16px;border-radius:14px;background:var(--panel);border:1px solid var(--line);padding:14px}
+  .memoria-head{font-family:Montserrat,sans-serif;font-size:14px;font-weight:700;color:var(--heading);margin:0 0 4px}
+  .memoria-sub{font-size:13px;color:var(--muted);margin:0 0 11px}
+  .memoria ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:9px;counter-reset:mem}
+  .memoria li{counter-increment:mem;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--navy);border-radius:10px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start}
+  .memoria .memo{font-size:22px;line-height:1;flex:none}
+  .memoria b{display:block;font-family:Montserrat,sans-serif;font-size:13.5px;color:var(--heading);line-height:1.25}
+  .memoria b::before{content:counter(mem) ". ";color:var(--accent)}
+  .memoria small{display:block;font-size:12.5px;color:var(--muted);line-height:1.35;margin-top:3px}
   .opc-badge{display:inline-block;margin-left:8px;font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;vertical-align:2px}
   .dup-banner{background:var(--warn-bg);color:var(--warn);border-radius:14px;padding:16px 18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 </style>
@@ -653,6 +662,15 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
       if (q.nota) inner += '<p class="qnote">'+esc(q.nota)+'</p>';
       card.innerHTML = inner;
       return card;
+    }
+    // Ayuda memoria: puntos que conviene cubrir al responder (solo guía visual, no se marca)
+    if (q.memoria && q.memoria.length){
+      inner += '<div class="memoria"><p class="memoria-head">🧭 Ayuda memoria</p>'+
+        '<p class="memoria-sub">Para que podamos entender tu caso, intenta tocar estos puntos (no hace falta en orden):</p><ol>';
+      q.memoria.forEach(function(it){
+        inner += '<li><span class="memo" aria-hidden="true">'+esc(it.e||'•')+'</span><span><b>'+esc(it.t||'')+'</b>'+(it.d?'<small>'+esc(it.d)+'</small>':'')+'</span></li>';
+      });
+      inner += '</ol></div>';
     }
     if (q.ideas && q.ideas.length){
       inner += '<div class="ideas" id="ideas-'+q.id+'">'+
