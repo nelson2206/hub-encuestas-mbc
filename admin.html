@@ -227,6 +227,62 @@
     .card:hover{border-color:var(--field-line);box-shadow:0 2px 4px rgba(0,35,80,.05),0 12px 32px rgba(0,35,80,.09)}
   }
   @media (prefers-reduced-motion: reduce){ .card{animation:none} }
+  /* ---------- Estadísticas ---------- */
+  .an-filtros{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+  .an-filtros .campo{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .an-filtros select{max-width:300px}
+  .an-body{transition:opacity .15s ease}
+  .an-body.cargando{opacity:.5}
+  .an-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:12px}
+  .an-tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0}
+  .an-tile .lbl{font-family:Montserrat,sans-serif;font-weight:600;font-size:12px;color:var(--muted)}
+  .an-tile .val{font-family:Montserrat,sans-serif;font-weight:700;font-size:28px;color:var(--heading);line-height:1.15;margin-top:4px}
+  .an-tile .sub{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .an-tile .delta{font-weight:700}
+  .an-tile .delta.sube{color:var(--ok)} .an-tile .delta.baja{color:var(--danger)}
+  .an-spark{display:flex;align-items:flex-end;gap:2px;height:26px;margin-top:8px}
+  .an-spark i{display:block;flex:1;max-width:10px;background:var(--line);border-radius:2px 2px 0 0;min-height:2px}
+  .an-spark i:last-child{background:var(--navy)}
+  .an-card h3{font-size:15px;margin:0 0 4px}
+  .an-card .meta{margin:0 0 12px}
+  .an-wrap{display:grid;grid-template-columns:34px 1fr;gap:0 8px}
+  .an-y{position:relative;height:150px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .an-y span{position:absolute;right:0;transform:translateY(50%)}
+  .an-plot{position:relative;height:150px;display:flex;align-items:flex-end;gap:2px;border-bottom:1px solid var(--line)}
+  .an-gl{position:absolute;left:0;right:0;height:0;border-top:1px solid var(--line-soft);pointer-events:none}
+  .an-col{position:relative;flex:1 1 0;max-width:24px;height:100%;display:flex;align-items:flex-end;outline:none}
+  .an-col i{display:block;width:100%;background:var(--navy);border-radius:4px 4px 0 0;transition:filter .12s ease}
+  .an-col:hover i,.an-col:focus-visible i{filter:brightness(1.3)}
+  .an-col:focus-visible{box-shadow:0 0 0 2px var(--accent) inset}
+  .an-x{grid-column:2;display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:5px}
+  .an-xs{grid-column:2;display:flex;gap:2px;margin-top:5px;height:15px}
+  .an-xc{position:relative;flex:1 1 0;max-width:24px;min-width:0}
+  .an-xc span{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11px;color:var(--muted)}
+  .an-hb{display:grid;grid-template-columns:minmax(110px,36%) 1fr;gap:4px 12px;align-items:center;padding:5px 0}
+  .an-hb .et{font-size:13.5px;color:var(--ink);overflow-wrap:anywhere}
+  .an-hb .barra{display:flex;align-items:center;gap:8px;min-width:0}
+  .an-hb .barra i{display:block;height:14px;background:var(--navy);border-radius:0 4px 4px 0;min-width:2px;transition:filter .12s ease}
+  .an-hb:hover .barra i{filter:brightness(1.3)}
+  .an-hb .barra b{font-family:Montserrat,sans-serif;font-size:12.5px;color:var(--ink);white-space:nowrap;font-weight:700}
+  .an-hb .barra span{font-size:12px;color:var(--muted);white-space:nowrap}
+  .an-meter{height:8px;border-radius:99px;background:var(--navy-100);overflow:hidden;margin:6px 0 4px}
+  .an-meter div{height:100%;background:var(--navy);border-radius:99px}
+  .an-stats{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:8px 0 2px}
+  .an-stats strong{color:var(--ink);font-family:Montserrat,sans-serif}
+  .an-sub{font-family:Montserrat,sans-serif;font-weight:600;font-size:12px;color:var(--muted);margin:14px 0 4px}
+  .an-det{margin-top:12px}
+  .an-det summary{cursor:pointer;font-size:12.5px;color:var(--muted);font-weight:600}
+  .an-det summary:hover{color:var(--heading)}
+  .an-scroll{overflow-x:auto;margin-top:8px}
+  .an-tabla{border-collapse:collapse;width:100%;font-size:13px}
+  .an-tabla th,.an-tabla td{padding:7px 10px;border-bottom:1px solid var(--line-soft);text-align:left;vertical-align:top}
+  .an-tabla th{font-family:Montserrat,sans-serif;font-weight:600;font-size:12px;color:var(--muted);white-space:nowrap}
+  .an-tabla td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .an-tabla td.cel{white-space:nowrap}
+  .an-tip{position:fixed;z-index:60;pointer-events:none;background:var(--navy-700);color:#fff;border-radius:9px;padding:7px 11px;font-size:12px;line-height:1.35;box-shadow:0 6px 18px rgba(0,20,50,.3);display:none;max-width:240px}
+  .an-tip strong{display:block;font-family:Montserrat,sans-serif;font-size:14px}
+  .an-aviso{border-radius:10px;padding:10px 14px;font-size:13px;background:var(--warn-bg);color:var(--warn);margin-top:12px}
+  .an-vacio{text-align:center;padding:36px 16px;color:var(--muted)}
   .modal-bg{position:fixed;inset:0;background:rgba(0,20,50,.55);display:none;place-content:center;z-index:50}
   .modal-bg.on{display:grid}
   .modal{background:var(--card);border-radius:18px;padding:28px;max-width:360px;text-align:center;
@@ -306,6 +362,7 @@
 <div id="consoleView" class="wrap hidden">
   <div class="tabs">
     <button class="tab on" data-tab="tList" data-ico="lista">Encuestas</button>
+    <button class="tab" data-tab="tAn" data-ico="barras">Estadísticas</button>
     <button class="tab" data-tab="tNew" data-ico="mas">Nueva encuesta</button>
     <button class="tab" data-tab="tIA" data-ico="cerebro">Analista IA</button>
     <button class="tab" data-tab="tUsers" data-ico="gente">Usuarios</button>
@@ -479,6 +536,24 @@
     </div>
   </div>
 
+  <!-- ESTADÍSTICAS -->
+  <div class="panel" id="tAn">
+    <div class="card">
+      <h2 style="font-size:17px;margin-bottom:4px">Estadísticas por encuesta</h2>
+      <p class="meta" style="margin:0 0 14px">Se calculan aquí mismo con las respuestas actuales: no usan IA ni gastan cuota. Para temas y recomendaciones redactadas usa el Analista IA.</p>
+      <div class="an-filtros">
+        <div class="campo"><label for="anSurvey">Encuesta</label><select id="anSurvey"></select></div>
+        <div class="campo"><label for="anPeriodo">Período</label>
+          <select id="anPeriodo"><option value="todo">Todo el tiempo</option><option value="30">Últimos 30 días</option><option value="7">Últimos 7 días</option></select></div>
+        <div class="campo"><label for="anSeg">Comparar por</label><select id="anSeg"><option value="">(sin comparar)</option></select></div>
+        <button class="btn btn-ghost btn-xs" id="anRefrescar" type="button">Actualizar datos</button>
+      </div>
+      <div class="msg" id="anMsg"></div>
+    </div>
+    <div class="an-body" id="anBody"></div>
+  </div>
+  <div class="an-tip" id="anTip" role="tooltip"></div>
+
   <!-- USUARIOS -->
   <div class="panel" id="tUsers">
     <div class="card">
@@ -599,6 +674,7 @@
   var ICONS = {
     lista:'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
     mas:'M12 5v14M5 12h14',
+    barras:'M5 21V11M12 21V3M19 21v-7',
     papelera:'M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6',
     cerebro:'M12 5a3 3 0 0 0-3 3 3 3 0 0 0-1 5.8V16a3 3 0 0 0 4 2.8 3 3 0 0 0 4-2.8v-2.2A3 3 0 0 0 15 8a3 3 0 0 0-3-3Z',
     gente:'M16 19v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 9a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 19v-2a4 4 0 0 0-3-3.9M16 1.1a4 4 0 0 1 0 7.8',
@@ -858,6 +934,7 @@
       VIENE_DE_EDITAR = false;
       if (t.getAttribute('data-tab')==='tUsers') loadUsers();
       if (t.getAttribute('data-tab')==='tIA') fillIaSelect();
+      if (t.getAttribute('data-tab')==='tAn') anIniciar();
       if (t.getAttribute('data-tab')==='tCfg') refreshGeminiEstado();
     });
   });
@@ -921,6 +998,7 @@
             '<span class="menu-wrap">'+
               '<button class="btn btn-ghost btn-icon" data-a="menu" aria-haspopup="true" aria-expanded="false" title="Más acciones">'+ico('tres')+'</button>'+
               '<div class="menu">'+
+                '<button data-a="stats">'+ico('barras')+'Ver estadísticas</button>'+
                 (puedeEditar() ? '<button data-a="toggle">'+ico(activa?'pausa':'play')+(activa?'Cerrar (dejar de recibir)':'Reabrir encuesta')+'</button>' : '')+
                 (puedeEditar() ? '<button data-a="edit">'+ico('lapiz')+'Editar preguntas</button>' : '')+
                 (puedeEditar() ? '<button data-a="short">'+ico('enlace')+'Generar link corto</button>' : '')+
@@ -1000,6 +1078,8 @@
         document.querySelector('[data-tab="tNew"]').click();
         msg('#bMsg','ok','Plantilla duplicada: asigna un usuario y contraseña nuevos y guarda.');
       });
+    } else if (a==='stats'){
+      anAbrir(id);
     } else if (a==='del'){
       abrirEliminar(id, fila.getAttribute('data-titulo'), Number(fila.getAttribute('data-resp')||0));
     } else if (a==='ver'){
@@ -1033,6 +1113,429 @@
   });
 
   $('#qrCerrar').addEventListener('click', function(){ $('#qrModal').classList.remove('on'); });
+
+  // ---------- estadisticas por encuesta (se calculan en el navegador con las respuestas actuales) ----------
+  var AN = { cache:{}, idPendiente:'' };
+  var AN_STOP = new Set(('de la que el en y a los del se las por un para con no una su al lo como mas pero sus le ya o este si porque esta entre cuando muy sin sobre tambien me hasta hay donde quien desde todo nos durante todos uno les ni contra otros ese eso ante ellos e esto antes algunos que unos yo otro otras otra tanto esa estos mucho quienes nada muchos cual poco ella estar estas algunas algo nosotros mi mis tu te ti tus ellas nosotras os estoy estan estamos son fue fueron era eran ser siendo sido tiene tienen tenia tenian tengo tenemos tener hace hacen hago hacemos hacer cada vez veces asi aqui alli entonces despues luego solo bien mal puede pueden podemos puedo poder ahora siempre nunca ademas mismo misma mismos mismas cosas cosa manera forma parte partes tipo tipos caso casos muchas mucha pues bueno vamos va van voy ver veo vemos aun tan sea sean habia hubo hacia unas unos esas esos aquel aquella aquellos aquellas nuestro nuestra nuestros nuestras cuales cuanto cuantos cuanta dentro fuera segun mientras aunque sino tampoco algun alguna ninguno ninguna ningun toda todas quiza estaba estaban hemos han has').split(' '));
+  function anSinTildes(w){ return w.normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+  function anEl(tag, cls, txt){ var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  function anFecha(s){
+    if (s instanceof Date) return s;
+    var m = String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0));
+    var d = new Date(s); return isNaN(d.getTime()) ? null : d;
+  }
+  function anDia(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function anPct(a, b){ return b ? Math.round(a*100/b) : 0; }
+  function anCorto(d){ return d.toLocaleDateString('es-PE', {day:'numeric', month:'short'}); }
+
+  /** Opciones elegidas en una pregunta cerrada, reconociendo las opciones vigentes (admite ";" dentro de una opcion). */
+  function anOpciones(q, val){
+    var res = {sel:[], otro:'', huerfana:false};
+    val = String(val||'').trim();
+    if (!val) return res;
+    var i = val.indexOf(' | Otro: ');
+    if (i >= 0){ res.otro = val.slice(i + 9); val = val.slice(0, i); }
+    var s = '; ' + val + '; ';
+    (q.opciones||[]).concat(q.otro ? ['Otro'] : []).forEach(function(o){ if (s.indexOf('; ' + o + '; ') >= 0) res.sel.push(o); });
+    if (!res.sel.length && val){ res.huerfana = true; }
+    return res;
+  }
+
+  /** Une la definicion de la encuesta con lo exportado. Cada columna se asigna a su pregunta por TITULO
+   *  (los numeros P# cambian al editar la encuesta); lo que no coincide es de una version anterior. */
+  function anPrepara(ex, enc){
+    var H = ex.headers || [], rows = ex.rows || [];
+    var pregs = enc.preguntas || [];
+    var info = {}; pregs.forEach(function(q){ info[q.id] = {cols:[], tcols:[]}; });
+    var colTs = -1, colAdj = -1, colDisp = -1, legado = [];
+    H.forEach(function(h, i){
+      h = String(h);
+      if (h === 'Marca temporal'){ colTs = i; return; }
+      if (h.indexOf('Adjuntos') === 0){ colAdj = i; return; }
+      if (h === 'Dispositivo'){ colDisp = i; return; }
+      var mt = h.match(/^Transcripci[oó]n (P\d+)$/);
+      if (mt){ if (info[mt[1]]) info[mt[1]].tcols.push(i); return; }
+      var m = h.match(/^(P\d+) · (.*) \((selecci[oó]n|texto)\)$/);
+      if (!m) return;
+      var cand = pregs.filter(function(q){ return String(q.titulo).trim() === m[2].trim(); });
+      var q = cand.length > 1 ? (cand.filter(function(c){ return c.id === m[1]; })[0] || cand[0]) : cand[0];
+      if (q) info[q.id].cols.push(i); else legado.push(i);
+    });
+    var legadoConDatos = legado.filter(function(c){ return rows.some(function(r){ return String(r[c]==null?'':r[c]).trim() !== ''; }); }).length;
+    var resp = rows.map(function(r){
+      var o = {fecha: colTs >= 0 ? anFecha(r[colTs]) : null, v:{}, adj:{}, adjTotal:0, disp: colDisp >= 0 ? String(r[colDisp]||'') : ''};
+      pregs.forEach(function(q){
+        var val = '', tr = '';
+        info[q.id].cols.forEach(function(c){ var x = String(r[c]==null?'':r[c]).trim(); if (x && !val) val = x; });
+        info[q.id].tcols.forEach(function(c){ var x = String(r[c]==null?'':r[c]).trim(); if (x && !tr) tr = x; });
+        o.v[q.id] = {val:val, tr:tr};
+      });
+      if (colAdj >= 0) String(r[colAdj]||'').split('\n').forEach(function(l){
+        var m = l.match(/^(P\d+):/); if (m){ o.adj[m[1]] = (o.adj[m[1]]||0) + 1; o.adjTotal++; }
+      });
+      return o;
+    });
+    var byId = {}; pregs.forEach(function(q){ byId[q.id] = q; });
+    return {enc:enc, pregs:pregs, byId:byId, resp:resp, legadoConDatos:legadoConDatos, tieneDisp: colDisp >= 0};
+  }
+
+  function anCerrada(q){ return q.tipo === 'cerrada_unica' || q.tipo === 'cerrada_multiple'; }
+  /** La pregunta le correspondia a esta respuesta? (respeta la logica de saltos, tambien encadenada) */
+  function anAplica(D, q, o, nivel){
+    var c = q.condicion;
+    if (!c || !c.q || (nivel||0) > 8) return true;
+    var vals = Array.isArray(c.valor) ? c.valor.filter(Boolean) : (c.valor ? [c.valor] : []);
+    if (!vals.length) return true;
+    var padre = D.byId[c.q]; if (!padre) return true;
+    if (!anAplica(D, padre, o, (nivel||0) + 1)) return false;
+    var sel = anOpciones(padre, o.v[padre.id].val).sel;
+    return vals.some(function(v){ return sel.indexOf(v) >= 0; });
+  }
+  function anRespondida(q, o){
+    var x = o.v[q.id];
+    if (anCerrada(q)) return x.val !== '';
+    return x.val !== '' || x.tr !== '' || (o.adj[q.id]||0) > 0;
+  }
+
+  function anPalabras(textos){
+    var docs = {};
+    textos.forEach(function(t){
+      var vistos = {};
+      String(t||'').toLowerCase().split(/[^\p{L}\p{N}]+/u).forEach(function(w){
+        if (w.length < 4 || AN_STOP.has(anSinTildes(w)) || /^\d+$/.test(w)) return;
+        if (!vistos[w]){ vistos[w] = 1; docs[w] = (docs[w]||0) + 1; }
+      });
+    });
+    return Object.keys(docs).map(function(w){ return {w:w, n:docs[w]}; })
+      .filter(function(x){ return x.n >= 2; })
+      .sort(function(a,b){ return b.n - a.n || (a.w < b.w ? -1 : 1); }).slice(0, 10);
+  }
+
+  // ---- tooltip (un solo elemento; tambien con teclado) ----
+  function anTip(ev, el){
+    var tip = document.getElementById('anTip');
+    var p = (el.getAttribute('data-tip')||'').split('|');
+    tip.textContent = '';
+    tip.appendChild(anEl('strong', '', p[0]));
+    if (p[1]) tip.appendChild(document.createTextNode(p[1]));
+    tip.style.display = 'block';
+    var r = el.getBoundingClientRect();
+    var x = ev && ev.type === 'pointermove' ? ev.clientX : r.left + r.width/2;
+    tip.style.left = Math.max(8, Math.min(window.innerWidth - tip.offsetWidth - 8, x - tip.offsetWidth/2)) + 'px';
+    tip.style.top = Math.max(8, r.top - tip.offsetHeight - 8) + 'px';
+  }
+  function anTipOff(){ document.getElementById('anTip').style.display = 'none'; }
+
+  function anTabla(cabeceras, filas){
+    var det = anEl('details', 'an-det');
+    det.appendChild(anEl('summary', '', 'Ver como tabla'));
+    var sc = anEl('div', 'an-scroll'), t = anEl('table', 'an-tabla'), thead = anEl('thead'), trh = anEl('tr');
+    cabeceras.forEach(function(c){ trh.appendChild(anEl('th', '', c)); });
+    thead.appendChild(trh); t.appendChild(thead);
+    var tb = anEl('tbody');
+    filas.forEach(function(f){ var tr = anEl('tr'); f.forEach(function(c, i){ tr.appendChild(anEl('td', i ? 'num' : '', c)); }); tb.appendChild(tr); });
+    t.appendChild(tb); sc.appendChild(t); det.appendChild(sc);
+    return det;
+  }
+
+  function anBarrasH(items){   // items: [{et, n, pct, tip}]
+    var host = anEl('div'), max = Math.max.apply(null, items.map(function(x){ return x.n; }).concat([1]));
+    items.forEach(function(x){
+      var fila = anEl('div', 'an-hb'); fila.tabIndex = 0;
+      fila.setAttribute('data-tip', (x.tip || (x.n + '|' + x.et)));
+      fila.appendChild(anEl('div', 'et', x.et));
+      var b = anEl('div', 'barra'), i = anEl('i');
+      i.style.width = Math.max(1, Math.round(x.n / max * 78)) + '%';
+      b.appendChild(i); b.appendChild(anEl('b', '', String(x.n)));
+      if (x.pct != null) b.appendChild(anEl('span', '', x.pct + '%'));
+      fila.appendChild(b); host.appendChild(fila);
+    });
+    return host;
+  }
+
+  function anSerie(filtradas, periodo, hoy){
+    var fechas = filtradas.map(function(o){ return o.fecha; }).filter(Boolean);
+    if (!fechas.length) return null;
+    var ini = periodo === 'todo' ? anDia(new Date(Math.min.apply(null, fechas))) : anDia(new Date(hoy.getTime() - (Number(periodo) - 1)*86400000));
+    var fin = anDia(hoy);
+    var dias = Math.round((fin - ini)/86400000) + 1;
+    var semanal = dias > 90;
+    var cubos = [], idx = {};
+    function clave(d){ var x = anDia(d); if (semanal){ var dow = (x.getDay() + 6) % 7; x = new Date(x.getFullYear(), x.getMonth(), x.getDate() - dow); } return x.getTime(); }
+    for (var d = new Date(ini); d <= fin; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)){
+      var k = clave(d);
+      if (idx[k] == null){ idx[k] = cubos.length; cubos.push({k:k, n:0}); }
+    }
+    filtradas.forEach(function(o){ if (!o.fecha) return; var k = clave(o.fecha); if (idx[k] != null) cubos[idx[k]].n++; });
+    return {cubos:cubos, semanal:semanal};
+  }
+  function anNice(max){
+    if (max <= 5) return Math.max(max, 1);
+    var p = Math.pow(10, Math.floor(Math.log10(max))), f = max / p;
+    return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+  }
+
+  function anTile(lbl, val, sub, spark, delta){
+    var t = anEl('div', 'an-tile');
+    t.appendChild(anEl('div', 'lbl', lbl));
+    t.appendChild(anEl('div', 'val', val));
+    var s = anEl('div', 'sub');
+    if (delta){ s.appendChild(anEl('span', 'delta ' + delta.clase, delta.txt)); s.appendChild(document.createTextNode(' ' + sub)); }
+    else s.textContent = sub;
+    t.appendChild(s);
+    if (spark && spark.length > 1){
+      var sp = anEl('div', 'an-spark'), m = Math.max.apply(null, spark.concat([1]));
+      spark.slice(-14).forEach(function(v){ var i = anEl('i'); i.style.height = Math.max(8, Math.round(v/m*100)) + '%'; sp.appendChild(i); });
+      t.appendChild(sp);
+    }
+    return t;
+  }
+
+  function anRender(D){
+    var body = $('#anBody'); body.textContent = '';
+    var periodo = $('#anPeriodo').value, segId = $('#anSeg').value;
+    var hoy = new Date();
+    var corte = periodo === 'todo' ? null : anDia(new Date(hoy.getTime() - (Number(periodo) - 1)*86400000));
+    var fil = D.resp.filter(function(o){ return !corte || (o.fecha && o.fecha >= corte); });
+    var previas = corte ? D.resp.filter(function(o){ var c2 = new Date(corte.getTime() - Number(periodo)*86400000); return o.fecha && o.fecha >= c2 && o.fecha < corte; }) : [];
+    var pregs = D.pregs, enc = D.enc;
+
+    if (!D.resp.length){ body.appendChild(anEl('div', 'card an-vacio', 'Esta encuesta aún no tiene respuestas.')); return; }
+    if (!fil.length){ body.appendChild(anEl('div', 'card an-vacio', 'No hay respuestas en el período elegido. Prueba con "Todo el tiempo".')); return; }
+
+    // ---- KPIs ----
+    var serie = anSerie(fil, periodo, hoy);
+    var comp = fil.map(function(o){
+      var ap = pregs.filter(function(q){ return anAplica(D, q, o); });
+      var ok = ap.filter(function(q){ return anRespondida(q, o); }).length;
+      return ap.length ? ok / ap.length : 0;
+    });
+    var compMedia = Math.round(comp.reduce(function(a,b){ return a+b; }, 0) / comp.length * 100);
+    var conAdjR = fil.filter(function(o){ return o.adjTotal > 0; }).length;
+    var totAdj = fil.reduce(function(a, o){ return a + o.adjTotal; }, 0);
+    var ult = fil.map(function(o){ return o.fecha; }).filter(Boolean).sort(function(a,b){ return b - a; })[0];
+    var dd = ult ? Math.floor((anDia(hoy) - anDia(ult))/86400000) : null;
+    var kp = anEl('div', 'an-kpis');
+    var delta = null;
+    if (corte){
+      var dif = fil.length - previas.length;
+      delta = {txt: (dif > 0 ? '▲ +' : dif < 0 ? '▼ ' : '= ') + dif, clase: dif > 0 ? 'sube' : dif < 0 ? 'baja' : ''};
+    }
+    kp.appendChild(anTile('Respuestas', String(fil.length),
+      corte ? ('vs. ' + periodo + ' días anteriores') : (enc.cupo ? ('de un cupo de ' + enc.cupo + ' (' + anPct(fil.length, Number(enc.cupo)) + '%)') : 'en total'),
+      serie ? serie.cubos.map(function(c){ return c.n; }) : null, delta));
+    kp.appendChild(anTile('Completitud media', compMedia + '%', 'de las preguntas que le tocaban a cada persona'));
+    kp.appendChild(anTile('Con voz o archivos', anPct(conAdjR, fil.length) + '%', totAdj + ' adjuntos en total'));
+    kp.appendChild(anTile('Última respuesta', dd == null ? '—' : dd === 0 ? 'hoy' : dd === 1 ? 'ayer' : 'hace ' + dd + ' días', ult ? ult.toLocaleDateString('es-PE', {day:'numeric', month:'long', year:'numeric'}) : ''));
+    if (D.tieneDisp){
+      var conDisp = fil.filter(function(o){ return o.disp; }), mov = conDisp.filter(function(o){ return /^m[oó]vil/i.test(o.disp); }).length;
+      if (conDisp.length) kp.appendChild(anTile('Desde celular', anPct(mov, conDisp.length) + '%', (conDisp.length - mov) + ' desde computador'));
+    }
+    body.appendChild(kp);
+
+    // ---- respuestas en el tiempo ----
+    if (serie){
+      var cd = anEl('div', 'card an-card');
+      cd.appendChild(anEl('h3', '', 'Respuestas ' + (serie.semanal ? 'por semana' : 'por día')));
+      cd.appendChild(anEl('p', 'meta', 'Cuándo llegan las respuestas. Pasa el cursor por una barra para ver el detalle.'));
+      var max = anNice(Math.max.apply(null, serie.cubos.map(function(c){ return c.n; }).concat([1])));
+      var wrap = anEl('div', 'an-wrap'), y = anEl('div', 'an-y');
+      [0, 50, 100].forEach(function(p){ var s = anEl('span', '', String(Math.round(max*p/100))); s.style.bottom = p + '%'; y.appendChild(s); });
+      var plot = anEl('div', 'an-plot');
+      [50, 100].forEach(function(p){ var g = anEl('div', 'an-gl'); g.style.bottom = p + '%'; plot.appendChild(g); });
+      serie.cubos.forEach(function(c){
+        var col = anEl('div', 'an-col'), i = anEl('i');
+        i.style.height = (c.n / max * 100) + '%';
+        col.setAttribute('data-tip', c.n + ' respuesta' + (c.n === 1 ? '' : 's') + '|' + (serie.semanal ? 'Semana del ' : '') + anCorto(new Date(c.k)));
+        if (serie.cubos.length <= 40) col.tabIndex = 0;
+        col.appendChild(i); plot.appendChild(col);
+      });
+      wrap.appendChild(y); wrap.appendChild(plot);
+      var nC = serie.cubos.length, ex;
+      if (nC <= 56){
+        // pocas barras: cada etiqueta va justo debajo de su barra (una de cada 2 o 3, para que no se pisen)
+        var paso = nC <= 28 ? 2 : 3;
+        ex = anEl('div', 'an-xs');
+        serie.cubos.forEach(function(c, i){
+          var cel = anEl('div', 'an-xc');
+          if (i % paso === 0) cel.appendChild(anEl('span', '', anCorto(new Date(c.k))));
+          ex.appendChild(cel);
+        });
+      } else {
+        ex = anEl('div', 'an-x');
+        ex.appendChild(anEl('span', '', anCorto(new Date(serie.cubos[0].k))));
+        ex.appendChild(anEl('span', '', anCorto(new Date(serie.cubos[nC - 1].k))));
+      }
+      wrap.appendChild(ex); cd.appendChild(wrap);
+      cd.appendChild(anTabla([serie.semanal ? 'Semana' : 'Día', 'Respuestas'], serie.cubos.filter(function(c){ return c.n > 0; }).map(function(c){ return [anCorto(new Date(c.k)), String(c.n)]; })));
+      body.appendChild(cd);
+    }
+
+    // ---- comparar por una pregunta cerrada ----
+    var seg = segId ? D.byId[segId] : null;
+    if (seg){
+      var grupos = (seg.opciones||[]).concat(seg.otro ? ['Otro'] : []).map(function(o){ return {et:o, rs:[]}; });
+      var otra = {et:'(opción de una versión anterior)', rs:[]}, sin = {et:'Sin responder', rs:[]};
+      fil.forEach(function(o){
+        var r = anOpciones(seg, o.v[seg.id].val);
+        if (r.sel.length) r.sel.forEach(function(s){ grupos.filter(function(g){ return g.et === s; })[0].rs.push(o); });
+        else if (r.huerfana) otra.rs.push(o);
+        else if (anAplica(D, seg, o)) sin.rs.push(o);
+      });
+      if (otra.rs.length) grupos.push(otra);
+      if (sin.rs.length) grupos.push(sin);
+      var otras = pregs.filter(function(q){ return q.id !== seg.id; });
+      var cs = anEl('div', 'card an-card');
+      cs.appendChild(anEl('h3', '', 'Comparación por: ' + seg.titulo));
+      cs.appendChild(anEl('p', 'meta', 'En preguntas abiertas: % que respondió entre quienes la veían. En preguntas cerradas: la opción más elegida.' + (seg.tipo === 'cerrada_multiple' ? ' Una persona puede aparecer en más de un grupo.' : '')));
+      var sc = anEl('div', 'an-scroll'), tb = anEl('table', 'an-tabla'), th = anEl('thead'), trh = anEl('tr');
+      ['Grupo', 'Respuestas', '% del total'].concat(otras.map(function(q){ return q.id + ' · ' + (q.titulo.length > 30 ? q.titulo.slice(0, 29) + '…' : q.titulo); })).forEach(function(t, i){
+        var c = anEl('th', '', t); if (i >= 3) c.title = otras[i-3].titulo; trh.appendChild(c);
+      });
+      th.appendChild(trh); tb.appendChild(th);
+      var tbd = anEl('tbody');
+      grupos.forEach(function(g){
+        var tr = anEl('tr');
+        tr.appendChild(anEl('td', '', g.et));
+        tr.appendChild(anEl('td', 'num', String(g.rs.length)));
+        tr.appendChild(anEl('td', 'num', anPct(g.rs.length, fil.length) + '%'));
+        otras.forEach(function(q){
+          var td = anEl('td', 'cel num');
+          var base = g.rs.filter(function(o){ return anAplica(D, q, o); });
+          if (!base.length){ td.textContent = '—'; tr.appendChild(td); return; }
+          if (anCerrada(q)){
+            var cuenta = {}, ntot = 0;
+            base.forEach(function(o){ var r = anOpciones(q, o.v[q.id].val); if (r.sel.length) ntot++; r.sel.forEach(function(s){ cuenta[s] = (cuenta[s]||0) + 1; }); });
+            var top = Object.keys(cuenta).sort(function(a,b){ return cuenta[b] - cuenta[a]; })[0];
+            td.style.textAlign = 'left';
+            td.textContent = top ? top + ' (' + anPct(cuenta[top], ntot) + '%)' : '—';
+          } else {
+            var p = anPct(base.filter(function(o){ return anRespondida(q, o); }).length, base.length);
+            td.textContent = p + '%';
+            td.style.background = 'color-mix(in srgb, var(--navy) ' + Math.round(p * 0.34) + '%, transparent)';
+          }
+          tr.appendChild(td);
+        });
+        tbd.appendChild(tr);
+      });
+      tb.appendChild(tbd); sc.appendChild(tb); cs.appendChild(sc); body.appendChild(cs);
+    }
+
+    // ---- preguntas cerradas ----
+    var cerr = pregs.filter(anCerrada);
+    if (cerr.length) body.appendChild(anEl('h3', 'an-sub', 'Preguntas cerradas'));
+    cerr.forEach(function(q){
+      var ap = fil.filter(function(o){ return anAplica(D, q, o); });
+      var cuenta = {}, otros = [], respondieron = 0, huerf = 0;
+      ap.forEach(function(o){
+        var r = anOpciones(q, o.v[q.id].val);
+        if (r.sel.length || r.huerfana) respondieron++;
+        r.sel.forEach(function(s){ cuenta[s] = (cuenta[s]||0) + 1; });
+        if (r.huerfana) huerf++;
+        if (r.otro) otros.push(r.otro);
+      });
+      var items = (q.opciones||[]).concat(q.otro ? ['Otro'] : []).map(function(o){ return {et:o, n:cuenta[o]||0, pct:anPct(cuenta[o]||0, respondieron)}; });
+      if (huerf) items.push({et:'(opción de una versión anterior)', n:huerf, pct:anPct(huerf, respondieron)});
+      var orden = items.slice().sort(function(a,b){ return b.n - a.n; });
+      var c = anEl('div', 'card an-card');
+      c.appendChild(anEl('h3', '', q.id + ' · ' + q.titulo));
+      c.appendChild(anEl('p', 'meta', respondieron + ' de ' + ap.length + ' respondieron' + (ap.length < fil.length ? ' (la veían ' + ap.length + ' de ' + fil.length + ')' : '') + (q.tipo === 'cerrada_multiple' ? ' · se podía elegir más de una opción' : '')));
+      c.appendChild(anBarrasH(orden.map(function(x){ return {et:x.et, n:x.n, pct:x.pct, tip:x.n + ' (' + x.pct + '%)|' + x.et}; })));
+      if (otros.length){ c.appendChild(anEl('div', 'an-sub', 'Lo que escribieron en "Otro"')); otros.slice(0, 12).forEach(function(t){ c.appendChild(anEl('div', 'meta', '• ' + t)); }); }
+      c.appendChild(anTabla(['Opción', 'Respuestas', '%'], orden.map(function(x){ return [x.et, String(x.n), x.pct + '%']; })));
+      body.appendChild(c);
+    });
+
+    // ---- preguntas abiertas ----
+    var abi = pregs.filter(function(q){ return !anCerrada(q); });
+    if (abi.length) body.appendChild(anEl('h3', 'an-sub', 'Preguntas abiertas'));
+    abi.forEach(function(q){
+      var ap = fil.filter(function(o){ return anAplica(D, q, o); });
+      var rsp = ap.filter(function(o){ return anRespondida(q, o); });
+      var conTexto = ap.filter(function(o){ return o.v[q.id].val !== ''; }).length;
+      var conAudio = ap.filter(function(o){ return o.v[q.id].tr !== ''; }).length;
+      var conAdj = ap.filter(function(o){ return (o.adj[q.id]||0) > 0; }).length;
+      var nAdj = ap.reduce(function(a, o){ return a + (o.adj[q.id]||0); }, 0);
+      var textos = rsp.map(function(o){ return (o.v[q.id].val + ' ' + o.v[q.id].tr).trim(); });
+      var c = anEl('div', 'card an-card');
+      c.appendChild(anEl('h3', '', q.id + ' · ' + q.titulo));
+      c.appendChild(anEl('p', 'meta', ap.length < fil.length ? 'La veían ' + ap.length + ' de ' + fil.length + ' personas (según sus respuestas anteriores).' : 'La veían todas las personas.'));
+      var m = anEl('div', 'an-meter'), mf = anEl('div'); mf.style.width = anPct(rsp.length, ap.length) + '%'; m.appendChild(mf);
+      m.setAttribute('data-tip', anPct(rsp.length, ap.length) + '%|respondieron ' + rsp.length + ' de ' + ap.length); m.tabIndex = 0;
+      c.appendChild(m);
+      var st = anEl('div', 'an-stats');
+      [[rsp.length + ' de ' + ap.length, 'respondieron'], [String(conTexto), 'con texto'], [String(conAudio), 'con audio transcrito'], [String(conAdj), 'con adjuntos (' + nAdj + ')']].forEach(function(p){
+        var s = anEl('span'); s.appendChild(anEl('strong', '', p[0])); s.appendChild(document.createTextNode(' ' + p[1])); st.appendChild(s);
+      });
+      c.appendChild(st);
+      var pal = anPalabras(textos);
+      if (pal.length){
+        c.appendChild(anEl('div', 'an-sub', 'Palabras más mencionadas (en cuántas respuestas aparece cada una)'));
+        c.appendChild(anBarrasH(pal.map(function(x){ return {et:x.w, n:x.n, pct:anPct(x.n, rsp.length), tip:x.n + ' respuestas|' + x.w}; })));
+        c.appendChild(anTabla(['Palabra', 'Respuestas'], pal.map(function(x){ return [x.w, String(x.n)]; })));
+      } else if (rsp.length){
+        c.appendChild(anEl('p', 'meta', 'Todavía no hay palabras que se repitan en al menos 2 respuestas (o los audios aún no están transcritos).'));
+      }
+      body.appendChild(c);
+    });
+
+    if (D.legadoConDatos) body.appendChild(anEl('div', 'an-aviso', 'Hay ' + D.legadoConDatos + ' columna' + (D.legadoConDatos > 1 ? 's' : '') + ' con datos de versiones anteriores de esta encuesta que ya no coinciden con ninguna pregunta actual; no están incluidas aquí, pero sí en el Excel.'));
+  }
+
+  function anCargar(forzar){
+    var id = $('#anSurvey').value; if (!id) return;
+    var body = $('#anBody');
+    var listo = function(D){
+      // llena "Comparar por" con las preguntas cerradas (conserva la eleccion si sigue existiendo)
+      var sel = $('#anSeg'), previo = sel.value;
+      sel.textContent = '';
+      var o0 = document.createElement('option'); o0.value = ''; o0.textContent = '(sin comparar)'; sel.appendChild(o0);
+      D.pregs.filter(anCerrada).forEach(function(q){ var o = document.createElement('option'); o.value = q.id; o.textContent = q.id + ' · ' + (q.titulo.length > 50 ? q.titulo.slice(0, 49) + '…' : q.titulo); sel.appendChild(o); });
+      if (previo && D.byId[previo]) sel.value = previo;
+      body.classList.remove('cargando');
+      anRender(D);
+    };
+    if (AN.cache[id] && !forzar){ listo(AN.cache[id]); return; }
+    body.classList.add('cargando');
+    Promise.all([api({op:'export', id:id}), api({op:'get', id:id})]).then(function(par){
+      var ex = par[0], g = par[1];
+      if (!ex.ok || !g.ok){
+        body.classList.remove('cargando');
+        msg('#anMsg', 'warn', 'No se pudieron cargar los datos (' + (ex.error || g.error) + ').');
+        return;
+      }
+      var D = anPrepara(ex, g.encuesta);
+      AN.cache[id] = D; listo(D);
+    }).catch(function(){ body.classList.remove('cargando'); msg('#anMsg', 'warn', 'No se pudo conectar.'); });
+  }
+
+  function anIniciar(){
+    api({op:'list'}).then(function(res){
+      if (!res.ok) return;
+      var sel = $('#anSurvey'), actual = AN.idPendiente || sel.value;
+      sel.textContent = '';
+      res.encuestas.forEach(function(s){ var o = document.createElement('option'); o.value = s.id; o.textContent = s.titulo + ' (' + s.respuestas + ' resp.)'; sel.appendChild(o); });
+      if (actual && res.encuestas.some(function(s){ return s.id === actual; })) sel.value = actual;
+      AN.idPendiente = '';
+      anCargar(true);
+    });
+  }
+  function anAbrir(id){ AN.idPendiente = id; document.querySelector('.tab[data-tab="tAn"]').click(); }
+
+  $('#anSurvey').addEventListener('change', function(){ $('#anSeg').value = ''; anCargar(false); });
+  $('#anPeriodo').addEventListener('change', function(){ anCargar(false); });
+  $('#anSeg').addEventListener('change', function(){ anCargar(false); });
+  $('#anRefrescar').addEventListener('click', function(){ anCargar(true); });
+  (function(){
+    var cuerpo = $('#anBody');
+    function mostrar(ev){ var t = ev.target.closest && ev.target.closest('[data-tip]'); if (t) anTip(ev, t); else anTipOff(); }
+    cuerpo.addEventListener('pointermove', mostrar);
+    cuerpo.addEventListener('pointerleave', anTipOff);
+    cuerpo.addEventListener('focusin', mostrar);
+    cuerpo.addEventListener('focusout', anTipOff);
+  })();
 
   // ---------- eliminar encuesta (solo propietarios; el servidor lo vuelve a exigir) ----------
   var DEL = {id:'', titulo:''};
