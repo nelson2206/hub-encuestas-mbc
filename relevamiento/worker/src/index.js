@@ -659,8 +659,8 @@ async function rutaRegistro(env, b) {
 
   const ids = [...new Set(Array.isArray(b.procesos) ? b.procesos.map(x => txt(x, 60)).filter(Boolean) : [])].slice(0, 60);
   const id = uid(), token = tokenNuevo(), t = ahora();
-  await env.DB.prepare(`INSERT INTO encuestados (id, campana_id, token, nombre, correo, gerencia, seccion, rol, estado, actualizado, origen)
-    VALUES (?,?,?,?,?,?,?,?,?,?,'abierto')`).bind(id, camp.id, token, nombre, correo, gerencia, seccion, txt(b.cargo, 80), ids.length ? 'en_curso' : 'pendiente', t).run();
+  await env.DB.prepare(`INSERT INTO encuestados (id, campana_id, token, nombre, correo, gerencia, seccion, rol, estado, actualizado, origen, creado)
+    VALUES (?,?,?,?,?,?,?,?,?,?,'abierto',?)`).bind(id, camp.id, token, nombre, correo, gerencia, seccion, txt(b.cargo, 80), ids.length ? 'en_curso' : 'pendiente', t, t).run();
   const e = { id, campana_id: camp.id };
   const elegidos = ids.length ? await asignarProcesos(env, e, ids, 'encuestado') : [];
   // Procesos donde figura con su nombre en el inventario anterior: quedan en su lista para que confirme su relación.
@@ -805,8 +805,8 @@ async function rutaImportar(env, b) {
         return;
       }
     }
-    st.push(env.DB.prepare('INSERT INTO encuestados (id, campana_id, token, nombre, correo, gerencia, seccion, rol) VALUES (?,?,?,?,?,?,?,?)')
-      .bind(uid(), camp.id, tokenNuevo(), nombre, correo, gerencia, seccion, txt(x.rol, 60)));
+    st.push(env.DB.prepare('INSERT INTO encuestados (id, campana_id, token, nombre, correo, gerencia, seccion, rol, creado) VALUES (?,?,?,?,?,?,?,?,?)')
+      .bind(uid(), camp.id, tokenNuevo(), nombre, correo, gerencia, seccion, txt(x.rol, 60), t));
     nE++;
   });
 
@@ -870,7 +870,7 @@ async function rutaCampana(env, url) {
   if (!camp) throw new HttpError(404, 'Campaña no encontrada');
   const q = s => env.DB.prepare(s).bind(id).all().then(r => r.results);
   const [encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, precarga] = await Promise.all([
-    q('SELECT id, token, nombre, correo, gerencia, seccion, rol, estado, actualizado, origen FROM encuestados WHERE campana_id=? ORDER BY gerencia, seccion, nombre'),
+    q('SELECT id, token, nombre, correo, gerencia, seccion, rol, estado, actualizado, origen, creado FROM encuestados WHERE campana_id=? ORDER BY gerencia, seccion, nombre'),
     q('SELECT * FROM procesos WHERE campana_id=? ORDER BY gerencia, seccion, orden, macroproceso, proceso, subproceso'),
     q('SELECT r.* FROM revisiones r JOIN encuestados e ON e.id=r.encuestado_id WHERE e.campana_id=?'),
     q('SELECT r.* FROM respuestas r JOIN encuestados e ON e.id=r.encuestado_id WHERE e.campana_id=?'),

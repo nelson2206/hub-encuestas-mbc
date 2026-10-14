@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS encuestados (
   rol TEXT NOT NULL DEFAULT '',        -- líder / soporte
   estado TEXT NOT NULL DEFAULT 'pendiente',  -- pendiente / en_curso / enviado
   actualizado TEXT,
-  origen TEXT NOT NULL DEFAULT 'carga'       -- carga (Excel) / abierto (se registró solo)
+  origen TEXT NOT NULL DEFAULT 'carga',      -- carga (Excel) / abierto (se registró solo)
+  creado TEXT                                -- cuándo se cargó o registró (para medir inactividad)
 );
 CREATE INDEX IF NOT EXISTS ix_enc_campana ON encuestados(campana_id);
 CREATE INDEX IF NOT EXISTS ix_enc_correo ON encuestados(campana_id, correo);
