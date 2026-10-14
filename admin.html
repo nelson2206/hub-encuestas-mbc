@@ -145,6 +145,7 @@
   .menu button:hover{background:var(--surface)}
   .menu button svg{color:var(--muted);flex:none}
   .menu hr{border:none;border-top:1px solid var(--line-soft);margin:5px 2px}
+  .menu button.menu-danger,.menu button.menu-danger svg{color:var(--danger)}
 
   .opciones{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media (max-width:760px){ .opciones{grid-template-columns:1fr} }
@@ -562,6 +563,20 @@
   </div>
 </div>
 
+<div class="modal-bg" id="delModal">
+  <div class="modal" style="text-align:left;max-width:460px">
+    <h3 style="margin-bottom:8px">Eliminar encuesta</h3>
+    <p class="meta" id="delTexto" style="margin:0 0 14px;line-height:1.5"></p>
+    <label for="delConfirmar">Para confirmar, escribe el título exacto de la encuesta</label>
+    <input type="text" id="delConfirmar" autocomplete="off" spellcheck="false">
+    <div class="msg" id="delMsg"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-ghost btn-xs" id="delCancelar" type="button">Cancelar</button>
+      <button class="btn btn-xs" id="delOk" type="button" disabled style="background:var(--danger);border-color:var(--danger)">Eliminar definitivamente</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="qrModal">
   <div class="modal">
     <h3 id="qrTitulo">Código QR</h3>
@@ -584,6 +599,7 @@
   var ICONS = {
     lista:'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
     mas:'M12 5v14M5 12h14',
+    papelera:'M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6',
     cerebro:'M12 5a3 3 0 0 0-3 3 3 3 0 0 0-1 5.8V16a3 3 0 0 0 4 2.8 3 3 0 0 0 4-2.8v-2.2A3 3 0 0 0 15 8a3 3 0 0 0-3-3Z',
     gente:'M16 19v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 9a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 19v-2a4 4 0 0 0-3-3.9M16 1.1a4 4 0 0 1 0 7.8',
     tuerca:'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z',
@@ -733,7 +749,7 @@
   function demoApi(p){
     var op = p.op, res;
     var ejemplo = location.href.replace(/admin\.html.*$/, 'index.html?demo=1');
-    var soloLectura = ['save','toggle','respuesta_delete','usuarios_save','usuarios_delete','set_key','set_groq','set_admin','shorten','upload_image','publicar_adjuntos','export_xlsx'];
+    var soloLectura = ['save','toggle','encuesta_delete','respuesta_delete','usuarios_save','usuarios_delete','set_key','set_groq','set_admin','shorten','upload_image','publicar_adjuntos','export_xlsx'];
     if (soloLectura.indexOf(op) >= 0) res = {ok:false, error:'deshabilitado en la demo'};
     else if (op === 'ping') res = {ok:true, gemini:true, groq:true, rol:'owner', alcance:'*', usuario:'demo', nombre:'Demo'};
     else if (op === 'list') res = {ok:true, sheetUrl:'#', gemini:true, groq:true, rol:'owner', alcance:'*', encuestas:[
@@ -897,7 +913,7 @@
           '</div>'+
           (pct!==null ? '<div class="bar"><div style="width:'+pct+'%"></div></div><div class="meta" style="margin-top:5px">'+pct+'% del cupo</div>' : '')+
           (dias.length > 2 ? '<div class="spark">'+spark+'</div><div class="meta" style="margin-top:4px">últimos '+dias.length+' días con actividad</div>' : '')+
-          '<div class="acts" data-id="'+esc(s.id)+'" data-titulo="'+esc(s.titulo)+'" data-link="'+esc(linkPropio)+'">'+
+          '<div class="acts" data-id="'+esc(s.id)+'" data-titulo="'+esc(s.titulo)+'" data-resp="'+esc(String(s.respuestas||0))+'" data-link="'+esc(linkPropio)+'">'+
             '<button class="btn btn-xs" data-a="ver">'+ico('ojo')+'Ver respuestas</button>'+
             '<button class="btn btn-ghost btn-xs" data-a="csv">'+ico('descarga')+'Excel</button>'+
             '<button class="btn btn-ghost btn-xs" data-a="copy" data-link="'+esc(linkPropio)+'">'+ico('copiar')+'Copiar link</button>'+
@@ -911,6 +927,7 @@
                 '<button data-a="qr">'+ico('qr')+'Código QR</button>'+
                 (esOwner() ? '<button data-a="dup">'+ico('copia2')+'Duplicar encuesta</button>' : '')+
                 (s.respuestasUrl ? '<hr><button data-a="sheet" data-url="'+esc(s.respuestasUrl)+'">'+ico('hoja')+'Abrir en Google Sheets</button>' : '')+
+                (esOwner() ? '<hr><button data-a="del" class="menu-danger">'+ico('papelera')+'Eliminar encuesta…</button>' : '')+
               '</div>'+
             '</span>'+
           '</div>';
@@ -983,6 +1000,8 @@
         document.querySelector('[data-tab="tNew"]').click();
         msg('#bMsg','ok','Plantilla duplicada: asigna un usuario y contraseña nuevos y guarda.');
       });
+    } else if (a==='del'){
+      abrirEliminar(id, fila.getAttribute('data-titulo'), Number(fila.getAttribute('data-resp')||0));
     } else if (a==='ver'){
       verRespuestas(id, fila.getAttribute('data-titulo'));
     } else if (a==='qr'){
@@ -1014,6 +1033,41 @@
   });
 
   $('#qrCerrar').addEventListener('click', function(){ $('#qrModal').classList.remove('on'); });
+
+  // ---------- eliminar encuesta (solo propietarios; el servidor lo vuelve a exigir) ----------
+  var DEL = {id:'', titulo:''};
+  function cerrarEliminar(){ $('#delModal').classList.remove('on'); }
+  function abrirEliminar(id, titulo, nResp){
+    DEL = {id:id, titulo:titulo};
+    $('#delTexto').innerHTML = 'Vas a eliminar <strong>'+esc(titulo)+'</strong>'+(nResp ? ' y sus <strong>'+nResp+' respuesta'+(nResp>1?'s':'')+'</strong>' : '')+
+      '. La encuesta deja de existir y su link deja de funcionar. La hoja de respuestas y los archivos adjuntos van a la papelera de Drive (recuperables 30 días); la configuración queda guardada en la hoja "_eliminadas".';
+    $('#delConfirmar').value = '';
+    $('#delOk').disabled = true;
+    $('#delMsg').className = 'msg';
+    $('#delModal').classList.add('on');
+    $('#delConfirmar').focus();
+  }
+  $('#delConfirmar').addEventListener('input', function(){ $('#delOk').disabled = (this.value.trim() !== DEL.titulo.trim()); });
+  $('#delCancelar').addEventListener('click', cerrarEliminar);
+  $('#delModal').addEventListener('click', function(ev){ if (ev.target.id==='delModal') cerrarEliminar(); });
+  $('#delOk').addEventListener('click', function(){
+    var b = $('#delOk');
+    b.disabled = true; b.textContent = 'Eliminando…';
+    api({op:'encuesta_delete', id:DEL.id, confirmar:$('#delConfirmar').value.trim()}).then(function(r){
+      b.textContent = 'Eliminar definitivamente';
+      if (r.ok){
+        cerrarEliminar();
+        msg('#listMsg','ok','Encuesta eliminada. La hoja de respuestas y los adjuntos quedaron en la papelera de Drive (30 días).');
+        loadList();
+        return;
+      }
+      b.disabled = false;
+      msg('#delMsg','warn', r.error==='sin_permiso' ? 'Tu usuario no puede eliminar encuestas.'
+        : r.error==='confirmacion_no_coincide' ? 'El título escrito no coincide.'
+        : r.error==='deshabilitado en la demo' ? 'En la demo no se puede eliminar nada.'
+        : 'Error: '+r.error);
+    }).catch(function(){ b.disabled = false; b.textContent = 'Eliminar definitivamente'; msg('#delMsg','warn','No se pudo conectar.'); });
+  });
 
   // ---------- ver / borrar respuestas ----------
   var RESP = {id:'', titulo:''};
