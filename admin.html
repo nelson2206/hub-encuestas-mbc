@@ -1149,7 +1149,14 @@
 
   function qTemplate(){ return {id:'', titulo:'', detalle:'', guia:'', nota:'', tipo:'abierta', opciones:[], otro:false, max:'', audio:true, texto:true, archivo:true, imagen:'', condicion:null}; }
 
-  /** Fila de lógica de saltos: mostrar la pregunta solo si una cerrada anterior tiene cierta opción. */
+  /** La condicion guarda un valor ("Legal") o varios (["Legal","Compras"]); este helper unifica ambos. */
+  function condValores(c){
+    if (!c) return [];
+    if (Array.isArray(c.valor)) return c.valor.filter(Boolean);
+    return c.valor ? [c.valor] : [];
+  }
+
+  /** Fila de lógica de saltos: mostrar la pregunta solo si una cerrada anterior tiene alguna de las opciones marcadas. */
   function condRow(q, i){
     var prevCerradas = Q.slice(0, i).map(function(p, j){ return {idx:j, p:p}; })
       .filter(function(x){ return x.p.tipo==='cerrada_unica' || x.p.tipo==='cerrada_multiple'; });
@@ -1165,11 +1172,16 @@
     if (condQ){
       var src = prevCerradas.filter(function(x){ return 'P'+(x.idx+1)===condQ; })[0];
       var ops = src ? (src.p.opciones||[]).concat(src.p.otro?['Otro']:[]) : [];
-      html += '<label>incluye</label><select data-f="condv" style="max-width:180px">';
+      var marcadas = condValores(q.condicion);
+      var huerfanas = marcadas.filter(function(v){ return ops.indexOf(v) < 0; });
+      html += '<label>elige</label>';
       ops.forEach(function(o){
-        html += '<option value="'+esc(o)+'"'+(q.condicion && q.condicion.valor===o?' selected':'')+'>'+esc(o)+'</option>';
+        html += '<label><input type="checkbox" data-f="condv" value="'+esc(o)+'"'+(marcadas.indexOf(o)>=0?' checked':'')+'> '+esc(o)+'</label>';
       });
-      html += '</select>';
+      html += '<span class="meta" data-cond-hint style="color:var(--danger);'+(marcadas.length?'display:none':'')+'">Marca al menos una opción; si no, la pregunta se mostrará siempre.</span>';
+      if (huerfanas.length){
+        html += '<span class="meta" style="color:var(--danger)">Ya no existe en la pregunta de origen: '+esc(huerfanas.join(', '))+'. Desmárcala o vuelve a crear la opción.</span>';
+      }
     }
     return html + '</div>';
   }
@@ -1234,7 +1246,13 @@
       renderQ();
     }
     else if (f==='condv'){
-      if (q.condicion) q.condicion.valor = el.value;
+      if (!q.condicion) return;
+      var caja = el.closest('.qb');
+      var marcadas = Array.prototype.map.call(caja.querySelectorAll('input[data-f="condv"]:checked'), function(x){ return x.value; });
+      // una sola opcion se guarda como texto (formato de siempre); varias, como lista
+      q.condicion.valor = marcadas.length > 1 ? marcadas : (marcadas[0] || '');
+      var aviso = caja.querySelector('[data-cond-hint]');
+      if (aviso) aviso.style.display = marcadas.length ? 'none' : '';
     }
     else q[f] = el.value;
   }
@@ -1336,7 +1354,7 @@
       if (q.guia) o.guia = q.guia.trim();
       if (q.nota) o.nota = q.nota;
       if (q.imagen) o.imagen = q.imagen;
-      if (q.condicion && q.condicion.q && q.condicion.valor) o.condicion = q.condicion;
+      if (q.condicion && q.condicion.q && condValores(q.condicion).length) o.condicion = {q:q.condicion.q, valor:q.condicion.valor};
       if (q.tipo==='cerrada_unica'||q.tipo==='cerrada_multiple'){
         o.opciones = q.opciones||[];
         if (q.otro) o.otro = true;

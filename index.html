@@ -464,11 +464,26 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
   }
 
   // lógica de saltos: una pregunta puede depender de la opción elegida en una cerrada anterior
-  function isVisibleQ(q){
-    if (!q.condicion || !q.condicion.q || !q.condicion.valor) return true;
-    var s = state[q.condicion.q];
+  // La condicion acepta un valor ("Legal") o varios (["Legal","Compras"]): se muestra si eligio cualquiera.
+  function condValores(c){
+    if (!c) return [];
+    if (Array.isArray(c.valor)) return c.valor.filter(Boolean);
+    return c.valor ? [c.valor] : [];
+  }
+  function isVisibleQ(q, vistas){
+    var c = q.condicion;
+    var valores = condValores(c);
+    if (!c || !c.q || !valores.length) return true;
+    // si la pregunta de la que depende esta oculta, esta tambien se oculta (aunque tenga una respuesta vieja)
+    vistas = (vistas && typeof vistas === 'object') ? vistas : {};
+    if (!vistas[q.id]){
+      vistas[q.id] = true;
+      var origen = SURVEY.preguntas.filter(function(p){ return p.id === c.q; })[0];
+      if (origen && !isVisibleQ(origen, vistas)) return false;
+    }
+    var s = state[c.q];
     if (!s || !s.sel) return true;
-    return s.sel.indexOf(q.condicion.valor) >= 0;
+    return valores.some(function(v){ return s.sel.indexOf(v) >= 0; });
   }
 
   // guardado parcial (texto y selecciones; audio/archivos no persisten entre visitas)
@@ -858,6 +873,9 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
       if (el) el.style.display = vis ? '' : 'none';
       if (!vis) return;
       total++;
+      // numeracion continua: solo cuentan las preguntas que la persona realmente ve
+      var num = el && el.querySelector('.qnum');
+      if (num) num.textContent = total;
       var ok = isAnswered(q);
       if (ok) done++;
       if (el) el.classList.toggle('done', ok);
