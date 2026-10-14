@@ -1147,7 +1147,7 @@
     }).catch(function(){ b.disabled=false; b.textContent='Proponer encuesta'; msg('#aiMsg','warn','No se pudo conectar.'); });
   });
 
-  function qTemplate(){ return {id:'', titulo:'', detalle:'', guia:'', nota:'', tipo:'abierta', opciones:[], otro:false, max:'', audio:true, texto:true, archivo:true, imagen:'', condicion:null}; }
+  function qTemplate(){ return {id:'', titulo:'', detalle:'', guia:'', nota:'', tipo:'abierta', opciones:[], otro:false, max:'', audio:true, texto:true, archivo:true, imagen:'', condicion:null, ideas:[], estilo:'', opcional:false}; }
 
   /** La condicion guarda un valor ("Legal") o varios (["Legal","Compras"]); este helper unifica ambos. */
   function condValores(c){
@@ -1186,6 +1186,24 @@
     return html + '</div>';
   }
 
+  /** Ideas de inspiración <-> texto editable "emoji | título | descripción | área1; área2". */
+  function ideasATexto(ideas){
+    return (ideas||[]).map(function(it){
+      return [it.e||'', it.t||'', it.d||'', (it.a||[]).join('; ')].join(' | ').replace(/( \| )+$/,'');
+    }).join('\n');
+  }
+  function textoAIdeas(txt){
+    return String(txt||'').split('\n').map(function(l){
+      var c = l.split('|').map(function(x){ return x.trim(); });
+      if (!c[1]) return null;
+      var it = {e:c[0]||'💡', t:c[1]};
+      if (c[2]) it.d = c[2];
+      var a = (c[3]||'').split(';').map(function(x){ return x.trim(); }).filter(Boolean);
+      if (a.length) it.a = a;
+      return it;
+    }).filter(Boolean);
+  }
+
   function renderQ(){
     var host = $('#qList');
     host.textContent='';
@@ -1214,13 +1232,18 @@
           '<div class="chks">'+
             '<label><input type="checkbox" data-f="otro"'+(q.otro?' checked':'')+'> Incluir "Otro" con campo libre</label>'+
             '<label>Máx. selecciones <input type="number" data-f="max" value="'+esc(q.max||'')+'" min="1" style="width:70px"></label>'+
+            '<label><input type="checkbox" data-f="estilo"'+(q.estilo==='tarjetas'?' checked':'')+'> 🧩 Mostrar como tarjetas grandes (si la opción empieza con emoji, se ve en grande)</label>'+
           '</div>'
         :
           '<div class="chks">'+
             '<label><input type="checkbox" data-f="audio"'+(q.audio!==false?' checked':'')+'> 🎙️ Audio</label>'+
             '<label><input type="checkbox" data-f="texto"'+(q.texto!==false?' checked':'')+'> ✍️ Texto</label>'+
             '<label><input type="checkbox" data-f="archivo"'+(q.archivo!==false?' checked':'')+'> 📎 Archivo</label>'+
-          '</div>'
+            '<label><input type="checkbox" data-f="opcional"'+(q.opcional?' checked':'')+'> Opcional</label>'+
+          '</div>'+
+          '<label>💡 Tarjetas de ideas (opcional, una por línea: emoji | título | descripción | áreas separadas por ;)</label>'+
+          '<textarea data-f="ideas" placeholder="📄 Validar documentos | La IA revisa vigencias y certificados | 👷 Recursos Humanos">'+esc(ideasATexto(q.ideas))+'</textarea>'+
+          '<span class="meta">Las áreas deben escribirse igual que la opción de una pregunta cerrada; así la persona ve primero las ideas de su área.</span>'
         )+
         '<div class="chks" style="align-items:center">'+
           '<label class="btn btn-ghost btn-xs" style="cursor:pointer">🖼 Imagen o PDF de referencia'+
@@ -1238,7 +1261,9 @@
     var f = el.getAttribute('data-f');
     if (!f) return;
     if (f==='opciones') q.opciones = el.value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
-    else if (f==='otro'||f==='audio'||f==='texto'||f==='archivo') q[f] = el.checked;
+    else if (f==='otro'||f==='audio'||f==='texto'||f==='archivo'||f==='opcional') q[f] = el.checked;
+    else if (f==='estilo') q.estilo = el.checked ? 'tarjetas' : '';
+    else if (f==='ideas') q.ideas = textoAIdeas(el.value);
     else if (f==='max') q.max = el.value ? Number(el.value) : '';
     else if (f==='tipo'){ q.tipo = el.value; renderQ(); }
     else if (f==='condq'){
@@ -1354,12 +1379,15 @@
       if (q.guia) o.guia = q.guia.trim();
       if (q.nota) o.nota = q.nota;
       if (q.imagen) o.imagen = q.imagen;
+      if (q.opcional) o.opcional = true;
       if (q.condicion && q.condicion.q && condValores(q.condicion).length) o.condicion = {q:q.condicion.q, valor:q.condicion.valor};
       if (q.tipo==='cerrada_unica'||q.tipo==='cerrada_multiple'){
         o.opciones = q.opciones||[];
         if (q.otro) o.otro = true;
         if (q.max) o.max = q.max;
+        if (q.estilo) o.estilo = q.estilo;
       } else {
+        if (q.ideas && q.ideas.length) o.ideas = q.ideas;
         o.audio = q.audio !== false;
         o.texto = q.texto !== false;
         o.archivo = q.archivo !== false;

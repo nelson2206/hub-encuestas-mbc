@@ -187,6 +187,35 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
   @keyframes cardIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion: reduce){ .qcard{animation:none} .btn{transition:none} }
   .quota-pill{display:inline-block;margin-top:10px;font-family:Montserrat,sans-serif;font-size:12.5px;font-weight:700;color:#FFD9E6;background:rgba(255,0,84,.25);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:6px 14px}
+  /* ===== Tarjetas visuales: opciones grandes e ideas de inspiración ===== */
+  .lockup{flex-wrap:wrap;row-gap:10px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .tile{position:relative;cursor:pointer;display:block}
+  .tile input{position:absolute;opacity:0;pointer-events:none}
+  .tile .tbox{display:flex;flex-direction:column;align-items:flex-start;gap:8px;height:100%;border:1.5px solid var(--field-line);background:var(--card);border-radius:14px;padding:14px 14px 13px;font-size:14px;line-height:1.3;font-weight:600;color:var(--ink);transition:border-color 140ms ease, background 140ms ease, transform 140ms var(--ease)}
+  .tile .temo{font-size:28px;line-height:1}
+  .tile:hover .tbox{border-color:var(--heading)}
+  .tile:active .tbox{transform:scale(.97)}
+  .tile input:checked + .tbox{background:var(--navy);border-color:var(--navy);color:#fff}
+  .tile input:focus-visible + .tbox{outline:3px solid var(--accent);outline-offset:2px}
+  .tile input:checked + .tbox::after{content:"✓";position:absolute;top:9px;right:11px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;font-weight:800;display:grid;place-content:center}
+  .ideas{margin:0 0 16px;border-radius:14px;background:linear-gradient(135deg,var(--accent-soft),var(--panel) 70%);padding:14px 14px 12px;border:1px dashed var(--accent)}
+  .ideas-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .ideas-head strong{font-family:Montserrat,sans-serif;font-size:14px;color:var(--heading)}
+  .ideas-head span{font-size:13px;color:var(--muted)}
+  .ideas-head .btn-link{margin-left:auto}
+  .idea-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:9px}
+  .idea{appearance:none;cursor:pointer;text-align:left;font:inherit;color:var(--ink);background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;display:flex;gap:10px;align-items:flex-start;transition:border-color 140ms ease, transform 140ms var(--ease), box-shadow 160ms ease}
+  .idea:hover{border-color:var(--heading);box-shadow:0 6px 18px -10px rgba(0,25,60,.35)}
+  .idea:active{transform:scale(.97)}
+  .idea .iemo{font-size:24px;line-height:1;flex:none}
+  .idea b{display:block;font-family:Montserrat,sans-serif;font-size:13.5px;color:var(--heading);line-height:1.25}
+  .idea small{display:block;font-size:12.5px;color:var(--muted);line-height:1.35;margin-top:3px}
+  .idea[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+  .idea[aria-pressed="true"] b::before{content:"✓ ";color:var(--accent)}
+  .idea.oculta{display:none}
+  .ideas-sel{margin:10px 2px 0;font-size:13px;color:var(--heading);font-weight:600}
+  .opc-badge{display:inline-block;margin-left:8px;font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;vertical-align:2px}
   .dup-banner{background:var(--warn-bg);color:var(--warn);border-radius:14px;padding:16px 18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 </style>
 </head>
@@ -402,17 +431,20 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
       document.documentElement.style.setProperty('--accent', SURVEY.color);
     }
     // El logo del cliente acompana a la marca MBC, no la reemplaza.
+    // Admite varios logos separados por "|" (ej. empresa + grupo).
     if (SURVEY.logo){
       var lockup = document.querySelector('.hero .lockup');
       if (lockup){
-        var sep = document.createElement('span');
-        sep.className = 'sep';
-        var img = document.createElement('img');
-        img.className = 'cliente-logo';
-        img.src = SURVEY.logo;
-        img.alt = 'Logo del cliente';
-        lockup.appendChild(sep);
-        lockup.appendChild(img);
+        String(SURVEY.logo).split('|').map(function(s){ return s.trim(); }).filter(Boolean).forEach(function(url){
+          var sep = document.createElement('span');
+          sep.className = 'sep';
+          var img = document.createElement('img');
+          img.className = 'cliente-logo';
+          img.src = url;
+          img.alt = 'Logo del cliente';
+          lockup.appendChild(sep);
+          lockup.appendChild(img);
+        });
       }
     }
     if (SURVEY.restantes !== null && SURVEY.restantes !== undefined){
@@ -433,7 +465,7 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
     state = {};
     if (SURVEY.anonima === false) root.appendChild(buildIdentidad());
     SURVEY.preguntas.forEach(function(q, idx){
-      state[q.id] = isClosed(q) ? {sel:[], otro:''} : {audios:[], text:'', files:[]};
+      state[q.id] = isClosed(q) ? {sel:[], otro:''} : {audios:[], text:'', files:[], ideas:[]};
       root.appendChild(buildCard(q, idx));
     });
     wireEvents();
@@ -529,12 +561,65 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
 
   function isClosed(q){ return q.tipo === 'cerrada_unica' || q.tipo === 'cerrada_multiple'; }
 
+  /** "🔧 Mantenimiento" -> {emo:'🔧', txt:'Mantenimiento'}; sin emoji inicial devuelve emo vacío. */
+  function partirEmoji(o){
+    var m = String(o).match(/^((?:\p{Regional_Indicator}{2}|\p{Extended_Pictographic})(?:️|‍\p{Extended_Pictographic})*)\s+(.+)$/u);
+    return m ? {emo:m[1], txt:m[2]} : {emo:'', txt:String(o)};
+  }
+
+  // ================== Ideas de inspiración ==================
+  // Cada idea puede llevar áreas (it.a); se muestran primero las del área que la persona marcó.
+  var verTodas = {};
+  function toggleIdea(qid, btn){
+    var q = SURVEY.preguntas.filter(function(p){ return p.id === qid; })[0];
+    var it = q && q.ideas[Number(btn.getAttribute('data-k'))];
+    if (!it) return;
+    var lista = state[qid].ideas;
+    var pos = lista.indexOf(it.t);
+    if (pos >= 0) lista.splice(pos, 1); else lista.push(it.t);
+    btn.setAttribute('aria-pressed', pos >= 0 ? 'false' : 'true');
+    var sel = document.getElementById('ideasel-'+qid);
+    if (sel){
+      sel.classList.toggle('hidden', !lista.length);
+      sel.textContent = lista.length ? '✓ Elegiste '+lista.length+': cuéntanos abajo cómo te ayudaría (con tu voz es más rápido).' : '';
+    }
+    refresh();
+  }
+  function areasMarcadas(){
+    var out = [];
+    SURVEY.preguntas.forEach(function(p){
+      var s = state[p.id];
+      if (s && s.sel) out = out.concat(s.sel);
+    });
+    return out;
+  }
+  function filtrarIdeas(){
+    var marcadas = areasMarcadas();
+    SURVEY.preguntas.forEach(function(q){
+      if (!q.ideas || !q.ideas.length) return;
+      var host = document.getElementById('ideas-'+q.id);
+      if (!host) return;
+      var ocultas = 0;
+      q.ideas.forEach(function(it, k){
+        var areas = it.a || [];
+        var ver = verTodas[q.id] || !areas.length || !marcadas.length ||
+          areas.some(function(a){ return marcadas.indexOf(a) >= 0; }) ||
+          state[q.id].ideas.indexOf(it.t) >= 0;
+        var b = host.querySelector('[data-k="'+k+'"]');
+        if (b) b.classList.toggle('oculta', !ver);
+        if (!ver) ocultas++;
+      });
+      var todas = host.querySelector('[data-act="todas"]');
+      if (todas){ todas.classList.toggle('hidden', !ocultas); todas.textContent = 'Ver las '+q.ideas.length+' ideas'; }
+    });
+  }
+
   function buildCard(q, idx){
     var card = document.createElement('section');
     card.className = 'qcard';
     card.id = 'card-'+q.id;
     var inner =
-      '<div class="qtitle"><span class="qnum">'+(idx+1)+'</span><span class="qtext">'+esc(q.titulo)+'</span>'+
+      '<div class="qtitle"><span class="qnum">'+(idx+1)+'</span><span class="qtext">'+esc(q.titulo)+(q.opcional?'<span class="opc-badge">Opcional</span>':'')+'</span>'+
       '<span class="answered">✓ Respondida</span></div>'+
       (q.detalle ? '<p class="qsub">'+esc(q.detalle)+'</p>' : '')+
       (q.guia ? '<p class="qhintline">'+esc(q.guia)+'</p>' : '');
@@ -546,16 +631,39 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
     }
     if (isClosed(q)){
       var kind = q.tipo === 'cerrada_unica' ? 'radio' : 'checkbox';
-      inner += '<div class="pillbox">';
-      (q.opciones||[]).forEach(function(o){
-        inner += '<label class="pill"><input type="'+kind+'" name="opt-'+q.id+'" value="'+esc(o)+'"><span>'+esc(o)+'</span></label>';
-      });
-      if (q.otro) inner += '<label class="pill"><input type="'+kind+'" name="opt-'+q.id+'" value="Otro"><span>Otro</span></label>';
-      inner += '</div>';
+      if (q.estilo === 'tarjetas'){
+        // opciones como tarjetas grandes; si la opcion empieza con emoji, va arriba en grande
+        inner += '<div class="tiles">';
+        (q.opciones||[]).concat(q.otro ? ['✏️ Otro'] : []).forEach(function(o){
+          var p = partirEmoji(o);
+          var val = (q.otro && o === '✏️ Otro') ? 'Otro' : o;
+          inner += '<label class="tile"><input type="'+kind+'" name="opt-'+q.id+'" value="'+esc(val)+'"><span class="tbox">'+
+            (p.emo ? '<span class="temo" aria-hidden="true">'+p.emo+'</span>' : '')+'<span>'+esc(p.txt)+'</span></span></label>';
+        });
+        inner += '</div>';
+      } else {
+        inner += '<div class="pillbox">';
+        (q.opciones||[]).forEach(function(o){
+          inner += '<label class="pill"><input type="'+kind+'" name="opt-'+q.id+'" value="'+esc(o)+'"><span>'+esc(o)+'</span></label>';
+        });
+        if (q.otro) inner += '<label class="pill"><input type="'+kind+'" name="opt-'+q.id+'" value="Otro"><span>Otro</span></label>';
+        inner += '</div>';
+      }
       if (q.otro) inner += '<div id="otro-'+q.id+'" class="hidden" style="margin-top:12px;max-width:340px"><label style="margin:0 0 5px">¿Cuál otro?</label><input type="text" id="otroin-'+q.id+'" maxlength="120"></div>';
       if (q.nota) inner += '<p class="qnote">'+esc(q.nota)+'</p>';
       card.innerHTML = inner;
       return card;
+    }
+    if (q.ideas && q.ideas.length){
+      inner += '<div class="ideas" id="ideas-'+q.id+'">'+
+        '<div class="ideas-head"><strong>💡 ¿Sin ideas? Inspírate</strong><span>Toca las que te sirvan; puedes elegir varias y luego contarnos más abajo.</span>'+
+        '<button type="button" class="btn-link hidden" data-act="todas" data-q="'+q.id+'">Ver todas</button></div>'+
+        '<div class="idea-grid">';
+      q.ideas.forEach(function(it, k){
+        inner += '<button type="button" class="idea" aria-pressed="false" data-act="idea" data-q="'+q.id+'" data-k="'+k+'">'+
+          '<span class="iemo" aria-hidden="true">'+esc(it.e||'💡')+'</span><span><b>'+esc(it.t||'')+'</b>'+(it.d?'<small>'+esc(it.d)+'</small>':'')+'</span></button>';
+      });
+      inner += '</div><p class="ideas-sel hidden" id="ideasel-'+q.id+'"></p></div>';
     }
     inner += '<div class="modes">';
     if (q.audio !== false){
@@ -855,6 +963,8 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
     else if (act==='oir') oirAvance(qid);
     else if (act==='redo') redoRec(qid);
     else if (act==='file') document.getElementById('fileinput-'+qid).click();
+    else if (act==='idea') toggleIdea(qid, b);
+    else if (act==='todas'){ verTodas[qid] = true; refresh(); }
   });
 
   // ================== Progreso y envío ==================
@@ -862,7 +972,7 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
     var s = state[q.id];
     if (!s) return false;
     if (s.sel) return s.sel.length > 0;
-    return !!((s.audios && s.audios.length) || s.text || (s.files && s.files.length));
+    return !!((s.audios && s.audios.length) || s.text || (s.files && s.files.length) || (s.ideas && s.ideas.length));
   }
   function refresh(){
     if (!SURVEY) return;
@@ -882,6 +992,7 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
     });
     $('#pfill').style.width = (total ? done/total*100 : 0)+'%';
     $('#ptext').textContent = done+' de '+total+' respondidas';
+    filtrarIdeas();
     saveDraft();
   }
   function showMsg(kind, text){ var m=$('#msg'); m.className='msg show '+kind; m.textContent=text; }
@@ -892,7 +1003,7 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
     document.querySelectorAll('.qcard.missing').forEach(function(el){ el.classList.remove('missing'); });
     SURVEY.preguntas.forEach(function(q){ if (recs[q.id] && recs[q.id].recorder && recs[q.id].recorder.state !== 'inactive') stopRec(q.id); });
 
-    var pending = SURVEY.preguntas.filter(function(q){ return isVisibleQ(q) && !isAnswered(q); });
+    var pending = SURVEY.preguntas.filter(function(q){ return isVisibleQ(q) && !q.opcional && !isAnswered(q); });
     if (pending.length){
       pending.forEach(function(q){ var el=document.getElementById('card-'+q.id); if (el) el.classList.add('missing'); });
       showMsg('warn','Te falta responder '+pending.length+' pregunta'+(pending.length>1?'s':'')+' (marcadas en fucsia).');
@@ -913,6 +1024,7 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
         return;
       }
       answers[key+' (texto)'] = s.text || '';
+      if (q.ideas && q.ideas.length) answers[key+' (ideas elegidas)'] = (s.ideas||[]).join('; ');
       (s.audios||[]).forEach(function(a, i){
         var ext = (a.mime||'').indexOf('mp4') >= 0 ? 'm4a' : 'webm';
         var sufijo = (s.audios.length > 1) ? ('-audio' + (i+1)) : '-audio';
