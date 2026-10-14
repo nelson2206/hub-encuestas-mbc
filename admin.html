@@ -1240,6 +1240,8 @@
             '<label><input type="checkbox" data-f="texto"'+(q.texto!==false?' checked':'')+'> ✍️ Texto</label>'+
             '<label><input type="checkbox" data-f="archivo"'+(q.archivo!==false?' checked':'')+'> 📎 Archivo</label>'+
             '<label><input type="checkbox" data-f="opcional"'+(q.opcional?' checked':'')+'> Opcional</label>'+
+            '<label>Máx. audios <input type="number" data-f="max_audios" value="'+esc(q.max_audios||'')+'" min="1" max="5" placeholder="3" style="width:64px"></label>'+
+            '<label>Cada audio es un <input type="text" data-f="audio_parte" value="'+esc(q.audio_parte||'')+'" maxlength="20" placeholder="ej. Caso" style="width:110px"></label>'+
           '</div>'+
           '<label>💡 Tarjetas de ideas (opcional, una por línea: emoji | título | descripción | áreas separadas por ;)</label>'+
           '<textarea data-f="ideas" placeholder="📄 Validar documentos | La IA revisa vigencias y certificados | 👷 Recursos Humanos">'+esc(ideasATexto(q.ideas))+'</textarea>'+
@@ -1268,6 +1270,7 @@
     else if (f==='ideas') q.ideas = textoAIdeas(el.value);
     else if (f==='memoria') q.memoria = textoAIdeas(el.value);
     else if (f==='max') q.max = el.value ? Number(el.value) : '';
+    else if (f==='max_audios') q.max_audios = el.value ? Number(el.value) : '';
     else if (f==='tipo'){ q.tipo = el.value; renderQ(); }
     else if (f==='condq'){
       q.condicion = el.value ? {q: el.value, valor: ''} : null;
@@ -1392,6 +1395,8 @@
       } else {
         if (q.ideas && q.ideas.length) o.ideas = q.ideas;
         if (q.memoria && q.memoria.length) o.memoria = q.memoria;
+        if (q.max_audios) o.max_audios = q.max_audios;
+        if (q.audio_parte) o.audio_parte = q.audio_parte.trim();
         o.audio = q.audio !== false;
         o.texto = q.texto !== false;
         o.archivo = q.archivo !== false;

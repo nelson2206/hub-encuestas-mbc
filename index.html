@@ -699,7 +699,9 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
         '<div class="rec-row hidden" id="prev-'+q.id+'" style="margin-top:10px">'+
           '<audio controls id="preview-'+q.id+'" style="max-width:100%"></audio>'+
         '</div>'+
-        '<p class="rec-status" id="status-'+q.id+'" style="margin:8px 0 0">Pulsa Grabar y habla (hasta 10 minutos). Puedes pausar, escucharte y añadir más de un audio.</p>'+
+        '<p class="rec-status" id="status-'+q.id+'" style="margin:8px 0 0">'+(q.audio_parte
+          ? 'Graba un audio por cada '+esc(q.audio_parte.toLowerCase())+' (hasta '+maxAudios(q)+', de hasta 10 minutos cada uno). Al terminar uno, pulsa «Grabar otro '+esc(q.audio_parte.toLowerCase())+'».'
+          : 'Pulsa Grabar y habla (hasta 10 minutos). Puedes pausar, escucharte y añadir más de un audio.')+'</p>'+
       '</div>';
     }
     if (q.texto !== false){
@@ -911,16 +913,20 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
     fr.readAsDataURL(blob);
   }
   /** Lista de grabaciones de una pregunta: cada una con su reproductor y su papelera. */
+  /** Cada pregunta puede fijar cuántos audios admite (max_audios, 1-5) y cómo se llama cada uno (audio_parte, ej. "Caso"). */
+  function preguntaPorId(qid){ return (SURVEY.preguntas||[]).filter(function(p){ return p.id === qid; })[0] || {}; }
+  function maxAudios(q){ var n = Number(q && q.max_audios); return (n >= 1 && n <= 5) ? n : MAX_AUDIOS_Q; }
   function pintarGrabaciones(qid){
     var caja = document.getElementById('play-'+qid);
     var lista = state[qid].audios || [];
+    var qd = preguntaPorId(qid), tope_ = maxAudios(qd), parte = qd.audio_parte || 'Parte';
     caja.textContent = '';
     if (!lista.length){ caja.classList.add('hidden'); return; }
     caja.classList.remove('hidden');
     lista.forEach(function(a, i){
       var fila = document.createElement('div');
       fila.className = 'grabacion';
-      var etiqueta = lista.length > 1 ? ('Parte ' + (i+1) + ' · ' + fmtSecs(a.secs)) : ('Tu audio · ' + fmtSecs(a.secs));
+      var etiqueta = (lista.length > 1 || qd.audio_parte) ? (parte + ' ' + (i+1) + ' · ' + fmtSecs(a.secs)) : ('Tu audio · ' + fmtSecs(a.secs));
       fila.innerHTML = '<span class="gnum">' + esc(etiqueta) + '</span>';
       var au = document.createElement('audio');
       au.controls = true; au.src = a.url;
@@ -934,19 +940,20 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
       fila.appendChild(del);
       caja.appendChild(fila);
     });
-    if (lista.length < MAX_AUDIOS_Q){
+    if (lista.length < tope_){
       var mas = document.createElement('button');
       mas.type = 'button';
       mas.className = 'btn btn-ghost btn-sm btn-ico';
       mas.setAttribute('data-act','rec');
       mas.setAttribute('data-q', qid);
-      mas.innerHTML = IC_MIC + '<span>Grabar otro audio</span>';
+      mas.className = 'btn btn-rec btn-sm btn-ico';
+      mas.innerHTML = IC_MIC + '<span>' + (qd.audio_parte ? 'Grabar otro ' + esc(parte.toLowerCase()) : 'Grabar otro audio') + '</span>';
       caja.appendChild(mas);
     } else {
       var tope = document.createElement('p');
       tope.className = 'rec-status';
       tope.style.margin = '4px 0 0';
-      tope.textContent = 'Llegaste al máximo de ' + MAX_AUDIOS_Q + ' audios en esta pregunta.';
+      tope.textContent = 'Llegaste al máximo de ' + tope_ + ' audios en esta pregunta.';
       caja.appendChild(tope);
     }
   }
