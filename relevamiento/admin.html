@@ -67,6 +67,22 @@
   /* Seguimiento: prioridad (el color nunca va solo: lleva ícono y texto), avance, resumen y menú de acciones */
   .prio{display:inline-flex;align-items:center;gap:5px;font-family:Montserrat,sans-serif;font-size:12px;font-weight:800;border-radius:999px;padding:3px 10px;white-space:nowrap}
   .prio-urgente{background:var(--bad-bg);color:var(--bad)} .prio-seguimiento{background:var(--warn-bg);color:var(--warn)} .prio-controlado{background:var(--ok-bg);color:var(--ok)}
+  .prio-programada{background:var(--panel);color:var(--muted);border:1px solid var(--field-line)}
+  .pbar.grande{width:100%;height:10px;margin:6px 0 4px}
+  details.cl{border:1px solid var(--line);border-radius:12px;margin:8px 0;background:var(--card)}
+  details.cl>summary{cursor:pointer;padding:10px 14px;list-style:none;display:flex;gap:10px 16px;flex-wrap:wrap;align-items:center}
+  details.cl>summary::-webkit-details-marker{display:none}
+  details.cl>summary::before{content:'▸';color:var(--muted)} details.cl[open]>summary::before{content:'▾'}
+  details.cl:focus-within{outline:2px solid var(--navy);outline-offset:1px}
+  .cl-ger>summary{font-family:Montserrat,sans-serif;font-weight:800;color:var(--heading);font-size:15px}
+  .cl-sec{margin:6px 14px 8px 18px}
+  .cl-cifras{display:flex;gap:6px 16px;flex-wrap:wrap;margin-left:auto;font-size:13px;color:var(--muted);font-weight:400}
+  .cl-cuerpo{padding:0 14px 12px}
+  .cl-barra{background:var(--panel);border-radius:12px;padding:12px 16px;flex:1 1 260px}
+  .filtros-cl{grid-template-columns:2fr 1fr}
+  .filtros-mp{grid-template-columns:2fr 1fr 1fr 1fr auto}
+  @media (max-width:800px){ .filtros-cl,.filtros-mp{grid-template-columns:1fr} }
+  .sin-resp{color:var(--bad);font-weight:700}
   .pbar{display:block;height:6px;width:96px;border-radius:99px;background:var(--line);overflow:hidden;margin:4px 0 0 auto}
   .pbar i{display:block;height:100%;background:var(--ok)}
   .sum-p{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 12px}
@@ -310,13 +326,14 @@
           <button type="button" data-mapav="constructor" aria-pressed="false">Constructor</button></div>
           <span class="muted" id="mapaVistaTxt">Quién cubre cada proceso y qué falta.</span></div>
         <div id="vCobertura">
-        <div class="filtros">
+        <div class="filtros filtros-mp">
           <div><label for="fTexto">Buscar en el mapa</label><input type="search" id="fTexto" placeholder="Nombre, código, macroproceso o persona…"></div>
           <div><label for="fGer">Gerencia</label><select id="fGer"></select></div>
           <div><label for="fEst">Estado</label><select id="fEst">
             <option value="">Todos</option><option value="sin_cobertura">Sin cobertura</option><option value="en_curso">En curso</option>
             <option value="respondido">Respondidos</option><option value="no_vigente">Ya no se hacen</option><option value="nuevo">Agregados en la encuesta</option>
             <option value="ia_pend">Pendientes de estructurar con IA</option></select></div>
+          <div><label for="fPersona">Persona</label><select id="fPersona"></select></div>
           <div><button class="btn btn-ghost" id="btnNuevoProc" type="button">+ Agregar proceso</button></div>
           <div><button class="btn btn-navy" id="btnExpMapa" type="button">Exportar todo (Excel)</button></div>
         </div>
@@ -368,6 +385,13 @@
             <p class="muted">Ayuda al reconocimiento de voz con siglas y nombres propios. Los nombres de la hoja Sistemas se agregan solos.</p>
             <input type="text" id="inGlosario">
             <div class="row" style="margin-top:8px"><button class="btn btn-ghost btn-xs" id="btnGlosario">Guardar glosario</button><span class="muted" id="msgGlosario"></span></div>
+            <h3 style="font-size:14px;margin-top:22px">Acceso del cliente (solo lectura)</h3>
+            <p class="muted">Un código propio para la administradora del cliente: ve el avance por gerencia y sección, las personas y los procesos asignados, y los porcentajes de información completada y de procesos validados. <b>Nunca</b> ve lo que respondieron las personas, el análisis de la IA, la precarga con documentos, los correos ni los enlaces personales, y no puede cambiar nada. Renovar o desactivar el código cierra su sesión al instante.</p>
+            <div id="clAcceso"></div>
+            <h3 style="font-size:14px;margin-top:22px">Texto de invitación</h3>
+            <p class="muted">Es el texto que se copia en «Invitar» y en el acta de cada gerencia. Marcas que se reemplazan: <code>{cliente}</code>, <code>{gerencia}</code>, <code>{seccion}</code>, <code>{area}</code> (la sección o, si no hay, la gerencia), <code>{enlace}</code>, <code>{apertura}</code> y <code>{plazo}</code>.</p>
+            <textarea id="inInvitacion" rows="12" aria-label="Texto de invitación de la campaña" style="min-height:200px"></textarea>
+            <div class="row" style="margin-top:8px"><button class="btn btn-ghost btn-xs" id="btnInvitacion">Guardar texto</button><button class="btn btn-ghost btn-xs" id="btnInvitacionBase">Restablecer el texto base</button><span class="muted" id="msgInvitacion"></span></div>
             <h3 style="font-size:14px;margin-top:22px">Aplicaciones y sistemas de la campaña</h3>
             <p class="muted">Es la lista que la persona ve en el bloque 2 para buscar y marcar (una por línea; opcional «Nombre | tipo»). Al guardar reemplaza la lista cargada por el equipo; se conservan las que la IA detectó o las personas agregaron. Lo que ya respondieron no cambia.</p>
             <textarea id="inSistemas" rows="8" aria-label="Aplicaciones y sistemas de la campaña" style="min-height:140px"></textarea>
@@ -387,6 +411,17 @@
         </div>
       </div>
     </div>
+  </section>
+  <section class="card hidden" id="vCliente">
+    <div class="row" style="justify-content:space-between"><h2 id="clTitulo">Seguimiento del relevamiento</h2>
+      <div class="row"><button class="btn btn-ghost btn-xs" id="clActualizar">Actualizar</button><button class="btn btn-navy btn-xs" id="clExportar">Exportar avance (Excel)</button><button class="btn btn-ghost btn-xs" id="clSalir">Salir</button></div></div>
+    <p class="muted" id="clSub" aria-live="polite"></p>
+    <div id="clResumen"></div>
+    <div class="filtros filtros-cl" role="search" style="margin-top:14px">
+      <div><label for="clTexto">Buscar gerencia, sección, persona o proceso</label><input type="search" id="clTexto" placeholder="Escribe para filtrar…"></div>
+      <div><label for="clGer">Gerencia</label><select id="clGer"></select></div>
+    </div>
+    <div id="clLista" style="margin-top:12px"></div>
   </section>
 </main>
 
@@ -484,8 +519,14 @@
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function sinTildes(s){ return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
   function fecha(s){ return String(s || '').slice(0,16).replace('T',' '); }
+  // Con ?cliente=1 la misma página es el panel de la administradora del cliente: su propio código, solo lectura (/c/campana).
+  var CLIENTE = new URLSearchParams(location.search).get('cliente') === '1';
+  if (CLIENTE){
+    document.querySelector('header .sub').textContent = 'Voz MBC · seguimiento del relevamiento (acceso del cliente)';
+    document.querySelector('#vLogin p.muted').textContent = 'Ingresa el código de acceso que te entregó el equipo consultor.';
+  }
   var CODIGO = '';
-  try { CODIGO = sessionStorage.getItem('relev-admin') || ''; } catch(e){}
+  try { CODIGO = sessionStorage.getItem(CLIENTE ? 'relev-cliente' : 'relev-admin') || ''; } catch(e){}
   var C = null;          // volcado de la campaña abierta
   var IX = null;         // índices por proceso para calcular la cobertura
   var CARGA = null;      // Excel leído, pendiente de importar
@@ -500,7 +541,7 @@
       });
     });
   }
-  function ver(id){ ['vLogin','vCampanas','vCampana'].forEach(function(v){ $('#'+v).classList.toggle('hidden', v !== id); }); ajustarAncho(); }
+  function ver(id){ ['vLogin','vCampanas','vCampana','vCliente'].forEach(function(v){ $('#'+v).classList.toggle('hidden', v !== id); }); ajustarAncho(); }
   function copiar(texto, boton){
     navigator.clipboard.writeText(texto).then(function(){
       if (!boton) return;
@@ -511,7 +552,22 @@
   }
 
   // ------------------------------------------------------------ acceso
+  function entrarCliente(){
+    CODIGO = $('#inCodigo').value.trim() || CODIGO;
+    $('#loginMsg').textContent = 'Verificando…';
+    fetch(API + '/c/campana', {headers: {'x-client-code': CODIGO}}).then(function(r){ return r.json().catch(function(){ return {ok: false, error: 'Respuesta inesperada'}; }).then(function(j){ return {r: r, j: j}; }); })
+      .then(function(x){
+        if (!x.r.ok || !x.j.ok) throw new Error(x.j.error || 'Código de acceso incorrecto');
+        try { sessionStorage.setItem('relev-cliente', CODIGO); } catch(e){}
+        $('#loginMsg').textContent = '';
+        cargarCliente(x.j);
+      }).catch(function(err){
+        try { sessionStorage.removeItem('relev-cliente'); } catch(e){}
+        ver('vLogin'); $('#loginMsg').textContent = err.message;
+      });
+  }
   function entrar(){
+    if (CLIENTE) return entrarCliente();
     CODIGO = $('#inCodigo').value.trim() || CODIGO;
     $('#loginMsg').textContent = 'Verificando…';
     api('/a/campanas').then(function(j){
@@ -584,6 +640,8 @@
       $('#inGlosario').value = C.campana.glosario || '';
       $('#inEstandares').value = C.campana.estandares || C.estandares_base || '';
       $('#inSistemas').value = (C.sistemas || []).filter(function(x){ return x.tipo !== 'detectado' && x.tipo !== 'agregado'; }).map(function(x){ return x.nombre + (x.tipo ? ' | ' + x.tipo : ''); }).join('\n');
+      $('#inInvitacion').value = (C.campana.invitacion || '').trim() || BASE_INVITACION;
+      pintarAccesoCliente();
       $('#msgSistemas').textContent = (C.sistemas || []).length + ' en la lista de la encuesta.';
       $('#msgEstandares').textContent = C.campana.estandares ? '' : 'Usando el glosario base.';
       pintarLogo();
@@ -643,6 +701,19 @@
     return [falta.length ? 'Falta: ' + falta.join('; ') : 'Checklist completo', na.length ? 'No aplica: ' + na.join('; ') : ''].filter(Boolean).join(' · ');
   }
 
+  // Puntos del checklist cubiertos entre todas las personas que respondieron el proceso y el equipo (documentos): sin repetir.
+  function puntosUnidos(pid){
+    var cub = {}, adm = IX.pre[pid] || {};
+    Object.keys(adm).forEach(function(k){ cub[k] = 1; });
+    var validos = {}; (C.bloques || []).forEach(function(b){ b.puntos.forEach(function(pt){ validos[pt[0]] = 1; }); });
+    Object.keys(IX.todas[pid] || {}).forEach(function(eid){
+      IX.todas[pid][eid].forEach(function(r){
+        var ck = r.checklist || {};
+        Object.keys(ck).forEach(function(k){ if (validos[k] && ck[k] && (ck[k].estado === 'cubierto' || ck[k].estado === 'no_aplica')) cub[k] = 1; });
+      });
+    });
+    return Object.keys(cub).filter(function(k){ return validos[k]; }).length;
+  }
   // Cobertura de un proceso. Respondido: alguien completó el checklist de los 3 bloques. En curso: alguien lo
   // tomó o empezó a responder. Ya no se hace: solo hay marcas de "ya no se hace". Sin cobertura: nadie lo tomó.
   function cobertura(pid){
@@ -654,10 +725,13 @@
     var candidatos = Object.keys(IX.todas[pid] || {});
     Object.keys(personas).forEach(function(eid){ if (candidatos.indexOf(eid) < 0) candidatos.push(eid); });
     var completos = candidatos.filter(function(eid){ return avancePersona(pid, eid).completo; }).length;
+    // Cobertura combinada: si ninguna persona lo completó sola pero entre todas cubren todos los puntos, el proceso cuenta como respondido.
+    var combinada = false;
+    if (!completos && candidatos.length && totalPuntos() > 0 && puntosUnidos(pid) === totalPuntos()){ completos = 1; combinada = true; }
     var noExiste = revs.filter(function(r){ return r.estado === 'no_existe'; }).length;
     var n = Object.keys(personas).length;
     var estado = completos ? 'respondido' : n ? 'en_curso' : noExiste ? 'no_vigente' : 'sin_cobertura';
-    return {estado: estado, personas: n, completos: completos, noExiste: noExiste,
+    return {estado: estado, personas: n, completos: completos, combinada: combinada, noExiste: noExiste,
       confirmado: revs.filter(function(r){ return r.estado === 'no_participo'; }).length};
   }
   function contar(procs){
@@ -693,6 +767,9 @@
     var s = {};
     C.procesos.forEach(function(p){ s[p.gerencia] = 1; });
     C.encuestados.forEach(function(e){ s[e.gerencia] = 1; });
+    var selP = $('#fPersona'), antesP = selP.value;
+    selP.innerHTML = '<option value="">Todas</option>' + C.encuestados.slice().sort(function(a, b){ return a.nombre.localeCompare(b.nombre, 'es'); }).map(function(e){ return '<option value="' + esc(e.id) + '">' + esc(e.nombre) + '</option>'; }).join('');
+    if (antesP && IX.enc[antesP]) selP.value = antesP;
     var sel = $('#fGer'), antes = sel.value;
     sel.innerHTML = '<option value="">Todas</option>' + Object.keys(s).sort(function(a, b){ return a.localeCompare(b, 'es'); }).map(function(g){ return '<option>' + esc(g) + '</option>'; }).join('');
     if (antes && s[antes]) sel.value = antes;
@@ -705,6 +782,7 @@
   $('#fTexto').addEventListener('input', pintarMapa);
   $('#fGer').addEventListener('change', pintarMapa);
   $('#fEst').addEventListener('change', pintarMapa);
+  $('#fPersona').addEventListener('change', pintarMapa);
   $('#btnExpMapa').addEventListener('click', function(){
     var l = listaMapa();
     if (!l.length){ alert('Ningún proceso coincide con el filtro.'); return; }
@@ -719,10 +797,16 @@
   }
 
   // Procesos del mapa con los filtros aplicados (lo que se ve y lo que se exporta).
+  // La persona completó algo de ese proceso o lo tomó como suyo.
+  function tienePersona(pid, eid){
+    if (((IX.resp[pid] || {})[eid] || []).length) return true;
+    return (IX.rev[pid] || []).some(function(r){ return r.encuestado_id === eid && (r.estado === 'vigente' || r.estado === 'cambio'); });
+  }
   function listaMapa(){
-    var texto = sinTildes($('#fTexto').value.trim()), fG = $('#fGer').value, fE = $('#fEst').value;
+    var texto = sinTildes($('#fTexto').value.trim()), fG = $('#fGer').value, fE = $('#fEst').value, fP = $('#fPersona').value;
     return C.procesos.filter(function(p){
       if (fG && p.gerencia !== fG) return false;
+      if (fP && !tienePersona(p.id, fP)) return false;
       if (texto && sinTildes([p.codigo, p.macroproceso, p.proceso, p.subproceso, p.seccion, p.personas || '', participantesDe(p.id)].join(' ')).indexOf(texto) < 0) return false;
       if (fE === 'nuevo') return p.fuente === 'nuevo';
       if (fE === 'ia_pend') return pendienteIA(p.id);
@@ -2105,6 +2189,22 @@
       h += '<h3 style="font-size:14px;margin-top:16px">Preguntas para la reunión de validación</h3><ol>' + (d.preguntas_validacion || []).map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>';
     }
 
+    // Quién cubrió cada punto del checklist (las personas y el equipo con documentos).
+    var cubrio = {}, nombreDe = function(eid){ return (IX.enc[eid] || {}).nombre || ''; };
+    Object.keys(IX.todas[pid] || {}).forEach(function(eid){
+      IX.todas[pid][eid].forEach(function(r){ Object.keys(r.checklist || {}).forEach(function(k){
+        var x = r.checklist[k]; if (x && (x.estado === 'cubierto' || x.estado === 'no_aplica') && nombreDe(eid)) (cubrio[k] = cubrio[k] || []).push(nombreDe(eid));
+      }); });
+    });
+    Object.keys(IX.pre[pid] || {}).forEach(function(k){ (cubrio[k] = cubrio[k] || []).push('Administrador / IA (documentos)'); });
+    if (Object.keys(cubrio).length){
+      var cb2 = cobertura(pid);
+      h += '<h3 style="font-size:14px;margin-top:18px">Quién cubrió cada punto del checklist' + (cb2.combinada ? ' <span class="chip c-ok">cobertura combinada: entre varias personas completan el proceso</span>' : '') + '</h3><div class="tblwrap"><table><thead><tr><th scope="col">Punto</th><th scope="col">Cubierto por</th></tr></thead><tbody>';
+      (C.bloques || []).forEach(function(b){ b.puntos.forEach(function(pt){
+        h += '<tr><td>' + esc(pt[1]) + '</td><td>' + (cubrio[pt[0]] ? esc(cubrio[pt[0]].join(', ')) : '<span class="muted">—</span>') + '</td></tr>';
+      }); });
+      h += '</tbody></table></div>';
+    }
     // También se muestran los bloques sin texto que tienen marcas de la persona (p. ej. "no aplica" en indicadores).
     var conMarcas = function(r){ return Object.keys(r.checklist || {}).some(function(k){ return k.charAt(0) !== '_'; }); };
     var contaron = {};
@@ -2119,7 +2219,7 @@
         h += '<div style="margin-top:10px"><b>' + esc(en.nombre) + '</b> <span class="muted">' + esc([en.rol, en.gerencia + ' · ' + en.seccion].filter(Boolean).join(' · ')) + '</span> ' + '<button class="btn-link" data-borrar-resp="' + esc(eid) + '">Borrar sus respuestas</button>' + '</div>';
         contaron[eid].slice().sort(function(a,b){ return a.pregunta.localeCompare(b.pregunta); }).forEach(function(r){
           var ckr = resumenChecklist(r);
-          h += '<div class="resp"><b>' + esc(PREG[r.pregunta] || r.pregunta) + '</b>\n' + (esc(r.texto) || '<span class="muted">(sin texto)</span>') + (r.sistemas.length ? '\nSistemas marcados: ' + esc(r.sistemas.join(', ')) : '') +
+          h += '<div class="resp"><b>' + esc(PREG[r.pregunta] || r.pregunta) + '</b> <span class="muted">' + esc(fecha(r.actualizado)) + '</span>\n' + (esc(r.texto) || '<span class="muted">(sin texto)</span>') + (r.sistemas.length ? '\nSistemas marcados: ' + esc(r.sistemas.join(', ')) : '') +
             (ckr ? '\n<span class="muted">' + esc(ckr) + '</span>' : '') + '</div>';
         });
       });
@@ -2175,45 +2275,87 @@
   }
 
   // ------------------------------------------------------------ plan de barrido
-  function enlaceAbierto(g){ return URL_ENCUESTA + '?c=' + encodeURIComponent(C.campana.codigo_publico || '') + (g ? '&g=' + encodeURIComponent(g) : ''); }
-  function invitacion(g){
-    return 'Asunto: Relevamiento de procesos ' + C.campana.cliente + (g ? ' · ' + g : '') + '\n\n' +
-      'Hola:\n\nComo parte del inventario de procesos de ' + C.campana.cliente + ', te pedimos contarnos cómo funcionan los procesos en los que participas.\n\n' +
-      '1. Entra a este enlace: ' + enlaceAbierto(g) + '\n' +
-      '2. Escribe unas letras del nombre de tu proceso (o tu nombre y apellido, para ver los procesos donde figuras en el inventario anterior) y elígelos. Si alguno no aparece, puedes agregarlo.\n' +
-      '3. Cuéntanos cada proceso en 3 bloques, hablando o por escrito. Cada bloque te muestra lo que necesitamos saber y te avisa si falta algo. Todo se guarda solo y puedes volver cuando quieras.\n\n' +
-      'Tus respuestas se usan solo para el inventario de procesos. Después te buscaremos para una reunión corta de validación.\n\nGracias,\nEquipo consultor';
+  var MESES_C = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'set', 'oct', 'nov', 'dic'];
+  var MESES_L = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'setiembre', 'octubre', 'noviembre', 'diciembre'];
+  var DIAS_L = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  function fechaCorta(iso){ var d = new Date(iso + 'T12:00:00Z'); return d.getUTCDate() + ' ' + MESES_C[d.getUTCMonth()]; }
+  function fechaLargaCl(iso){ var d = new Date(iso + 'T12:00:00Z'); return DIAS_L[d.getUTCDay()] + ' ' + d.getUTCDate() + ' de ' + MESES_L[d.getUTCMonth()]; }
+  // Las fechas cuentan por día en hora de Lima (UTC-5).
+  function hoyLima(){ return new Date(Date.now() - 5 * 3600 * 1000).toISOString().slice(0, 10); }
+  function ventanaDe(g, s){ return (C.ventanas || []).filter(function(v){ return mismaArea(v.gerencia, g) && mismaArea(v.seccion, s); })[0] || null; }
+  function estadoVentanaCl(v){
+    if (!v) return 'abierta';
+    var hoy = hoyLima();
+    return v.abre && hoy < v.abre ? 'antes' : v.cierra && hoy > v.cierra ? 'vencida' : 'abierta';
+  }
+  function etiquetaVentana(f){
+    var v = ventanaDe(f.gerencia, f.seccion); if (!v) return '';
+    var est = estadoVentanaCl(v), t = [];
+    if (v.abre) t.push(est === 'antes' ? 'Abre el ' + fechaCorta(v.abre) : 'Abrió el ' + fechaCorta(v.abre));
+    if (v.cierra) t.push(est === 'vencida' ? 'Plazo vencido el ' + fechaCorta(v.cierra) : 'Plazo hasta el ' + fechaCorta(v.cierra));
+    return t.length ? '<div class="muted">' + esc(t.join(' · ')) + '</div>' : '';
   }
 
+  // Enlace de una sección (con la sección en el enlace) o de una gerencia. No depende de ninguna persona.
+  function enlaceAbierto(g, s){ return URL_ENCUESTA + '?c=' + encodeURIComponent(C.campana.codigo_publico || '') + (g ? '&g=' + encodeURIComponent(g) : '') + (g && s ? '&s=' + encodeURIComponent(s) : ''); }
+  var BASE_INVITACION = 'Asunto: Relevamiento de procesos {cliente} · {area}\n\nHola:\n\n' +
+    'Como parte del inventario de procesos de {cliente}, te pedimos contarnos cómo funcionan los procesos de {area}.\n\n' +
+    '1. Entra a este enlace (es el mismo para todo tu equipo): {enlace}\n' +
+    '2. Elige tu nombre en la lista o escribe tu correo corporativo. Si no figuras, regístrate: tu sección ya viene marcada.\n' +
+    '3. Elige tus procesos y cuéntanos cada uno en 3 bloques, hablando o por escrito. Cada bloque te muestra lo que necesitamos saber y te avisa si falta algo. Todo se guarda solo y puedes volver cuando quieras, desde cualquier equipo, con el mismo enlace.\n' +
+    '{apertura}{plazo}\n' +
+    'No necesitas crear flujos nuevos: si ya existen SOP, flujos o procesos documentados, compártelos con el equipo consultor y los usamos para precargar la información.\n\n' +
+    'Tus respuestas se usan solo para el inventario de procesos. Después te buscaremos para una reunión corta de validación.\n\nGracias,\nEquipo consultor';
+  // Texto de invitación de la campaña (o el base) con las marcas reemplazadas para esa gerencia o sección.
+  function textoInvitacion(g, s){
+    var v = ventanaDe(g, s) || {};
+    var datos = {cliente: C.campana.cliente, gerencia: g || '', seccion: s || '', area: s || g || 'tu área', enlace: enlaceAbierto(g, s),
+      apertura: v.abre ? 'Disponible desde el ' + fechaLargaCl(v.abre) + '.\n' : '', plazo: v.cierra ? 'Plazo de referencia: hasta el ' + fechaLargaCl(v.cierra) + '.\n' : ''};
+    var t = (C.campana.invitacion || '').trim() || BASE_INVITACION;
+    return t.replace(/\{(\w+)\}/g, function(m, k){ return k in datos ? datos[k] : m; }).replace(/\n{3,}/g, '\n\n');
+  }
+  function invitacion(g, s){ return textoInvitacion(g, s); }
+
   // Prioridad de cada sección o gerencia: dónde hay que intervenir primero (la señal nunca depende solo del color).
-  var PRIO = {urgente: {t: 'Acción urgente', r: 0}, seguimiento: {t: 'En seguimiento', r: 1}, controlado: {t: 'Controlado', r: 2}};
+  var PRIO = {urgente: {t: 'Acción urgente', r: 0}, seguimiento: {t: 'En seguimiento', r: 1}, controlado: {t: 'Controlado', r: 2}, programada: {t: 'Programada', r: 3}};
   var ICO = function(d){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>'; };
-  var PRIO_ICO = {urgente: ICO('<path d="M12 3 2 21h20L12 3z"/><path d="M12 10v5M12 18v.4"/>'), seguimiento: ICO('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), controlado: ICO('<circle cx="12" cy="12" r="9"/><path d="m8 12.5 3 3 5-6"/>')};
+  var PRIO_ICO = {urgente: ICO('<path d="M12 3 2 21h20L12 3z"/><path d="M12 10v5M12 18v.4"/>'), seguimiento: ICO('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), controlado: ICO('<circle cx="12" cy="12" r="9"/><path d="m8 12.5 3 3 5-6"/>'), programada: ICO('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>')};
   function insignia(p){ return '<span class="prio prio-' + p + '">' + PRIO_ICO[p] + PRIO[p].t + '</span>'; }
   // Urgente: sin responsables y con procesos sin cobertura, personas sin empezar con la cobertura incompleta, o personas sin procesos en el mapa.
   // Controlado: todos los procesos vigentes respondidos. En seguimiento: el resto (hay personas trabajando y falta cobertura).
   function prioridadSeccion(s){
+    var est = estadoVentanaCl(ventanaDe(s.gerencia, s.seccion));
+    if (est === 'antes') return 'programada';   // aún no abre: no es urgente
     var incompleta = s.sinCobertura > 0 || s.enCurso > 0;
     if (!s.procesos && !s.noVigentes && s.personas) return 'urgente';
     if (s.sinCobertura && !s.personas) return 'urgente';
     if (incompleta && s.sinEmpezar) return 'urgente';
+    if (incompleta && est === 'vencida') return 'urgente';   // plazo vencido con procesos pendientes
     return incompleta ? 'seguimiento' : 'controlado';
   }
   // Siguiente paso en cada sección para que todos sus procesos queden cubiertos.
   function accion(s){
-    if (!s.procesos && !s.noVigentes && s.personas) return 'Hay personas pero ningún proceso en el mapa: revisar si falta esta área en el inventario.';
-    if (s.sinCobertura && !s.personas) return 'No hay responsables asignados. Envía el enlace de la gerencia o solicita un líder y un soporte.';
+    var v = ventanaDe(s.gerencia, s.seccion), est = estadoVentanaCl(v);
+    if (est === 'antes') return 'Disponible desde el ' + fechaLargaCl(v.abre) + '. Aún no requiere acción.';
     var incompleta = s.sinCobertura > 0 || s.enCurso > 0;
-    if (incompleta && s.sinEmpezar) return 'Recordar a ' + s.sinEmpezar + (s.sinEmpezar === 1 ? ' persona que aún no ha iniciado el relevamiento.' : ' personas que aún no han iniciado el relevamiento.');
-    if (s.sinCobertura) return s.sinCobertura + (s.sinCobertura === 1 ? ' proceso sin cobertura: pide a alguien que lo tome o confirma si existe.' : ' procesos sin cobertura: pide a alguien que los tome o confirma si existen.');
-    if (s.enCurso) return 'Esperando respuesta de responsables asignados.';
-    return 'No requiere acción.' + (s.respondidos ? ' Lista para estructurar y validar.' : '');
+    var pre = est === 'vencida' && incompleta ? 'Plazo vencido el ' + fechaCorta(v.cierra) + '. ' : '';
+    var resto;
+    if (!s.procesos && !s.noVigentes && s.personas) resto = 'Hay personas pero ningún proceso en el mapa: revisar si falta esta área en el inventario.';
+    else if (s.sinCobertura && !s.personas) resto = 'No hay responsables asignados. Envía el enlace de la gerencia o solicita un líder y un soporte.';
+    else if (incompleta && s.sinEmpezar) resto = 'Recordar a ' + s.sinEmpezar + (s.sinEmpezar === 1 ? ' persona que aún no ha iniciado el relevamiento.' : ' personas que aún no han iniciado el relevamiento.');
+    else if (s.sinCobertura) resto = s.sinCobertura + (s.sinCobertura === 1 ? ' proceso sin cobertura: pide a alguien que lo tome o confirma si existe.' : ' procesos sin cobertura: pide a alguien que los tome o confirma si existen.');
+    else if (s.enCurso) resto = 'Esperando respuesta de responsables asignados.';
+    else resto = 'No requiere acción.' + (s.respondidos ? ' Lista para estructurar y validar.' : '');
+    // Si el equipo está asignando procesos en la sección, se avisa cuántos siguen sin responsable.
+    var extra = incompleta && s.conAsig > 0 && s.sinResp > 0 ? ' Quedan ' + s.sinResp + (s.sinResp === 1 ? ' proceso sin responsable asignado.' : ' procesos sin responsable asignado.') : '';
+    return pre + resto + extra;
   }
   function textoGer(G){
     var c = G.cuentaPrio, p = [];
     if (c.urgente) p.push(c.urgente + (c.urgente === 1 ? ' sección urgente' : ' secciones urgentes'));
     if (c.seguimiento) p.push(c.seguimiento + ' en seguimiento');
     if (c.controlado) p.push(c.controlado + (c.controlado === 1 ? ' controlada' : ' controladas'));
+    if (c.programada) p.push(c.programada + (c.programada === 1 ? ' programada' : ' programadas'));
     return p.join(' · ') || 'Sin secciones';
   }
 
@@ -2221,12 +2363,15 @@
     var m = {};
     var obtener = function(g, s){
       var k = g + '\u0000' + s;
-      return m[k] = m[k] || {gerencia: g, seccion: s, procesos: 0, respondidos: 0, enCurso: 0, sinCobertura: 0, noVigentes: 0, personas: 0, sinEmpezar: 0, terminaron: 0, correosPend: []};
+      return m[k] = m[k] || {gerencia: g, seccion: s, procesos: 0, respondidos: 0, enCurso: 0, sinCobertura: 0, noVigentes: 0, personas: 0, sinEmpezar: 0, terminaron: 0, correosPend: [], conAsig: 0, sinResp: 0};
     };
+    var asigCons = {};
+    C.asignaciones.forEach(function(a){ if (a.origen === 'consultor') asigCons[a.proceso_id] = 1; });
     C.procesos.forEach(function(p){
       var s = obtener(p.gerencia, p.seccion), cb = cobertura(p.id).estado;
       if (cb === 'no_vigente'){ s.noVigentes++; return; }
       s.procesos++;
+      if (asigCons[p.id]) s.conAsig++; else s.sinResp++;
       if (cb === 'respondido') s.respondidos++; else if (cb === 'en_curso') s.enCurso++; else s.sinCobertura++;
     });
     C.encuestados.forEach(function(e){
@@ -2240,10 +2385,10 @@
   }
   // Suma de varias secciones (una gerencia). Su prioridad es la de su sección más crítica.
   function sumarFilas(fs, g, s){
-    var t = {gerencia: g, seccion: s || '', nSecciones: fs.length, correosPend: [], cuentaPrio: {urgente: 0, seguimiento: 0, controlado: 0}, prio: 'controlado'};
-    ['procesos', 'respondidos', 'enCurso', 'sinCobertura', 'noVigentes', 'personas', 'sinEmpezar', 'terminaron'].forEach(function(k){ t[k] = 0; });
+    var t = {gerencia: g, seccion: s || '', nSecciones: fs.length, correosPend: [], cuentaPrio: {urgente: 0, seguimiento: 0, controlado: 0, programada: 0}, prio: 'programada'};
+    ['procesos', 'respondidos', 'enCurso', 'sinCobertura', 'noVigentes', 'personas', 'sinEmpezar', 'terminaron', 'conAsig', 'sinResp'].forEach(function(k){ t[k] = 0; });
     fs.forEach(function(f){
-      ['procesos', 'respondidos', 'enCurso', 'sinCobertura', 'noVigentes', 'personas', 'sinEmpezar', 'terminaron'].forEach(function(k){ t[k] += f[k]; });
+      ['procesos', 'respondidos', 'enCurso', 'sinCobertura', 'noVigentes', 'personas', 'sinEmpezar', 'terminaron', 'conAsig', 'sinResp'].forEach(function(k){ t[k] += f[k]; });
       t.correosPend = t.correosPend.concat(f.correosPend);
       t.cuentaPrio[f.prio]++;
       if (PRIO[f.prio].r < PRIO[t.prio].r) t.prio = f.prio;
@@ -2272,7 +2417,7 @@
   function accionesFila(g, s, activo){
     var que = g + (s ? ' · ' + s : '');
     return '<div class="row" style="flex-wrap:nowrap">' +
-      '<button type="button" class="btn btn-ghost btn-xs" data-enlace="' + esc(g) + '"' + (activo ? '' : ' disabled title="Activa el enlace abierto de la campaña para copiar el enlace"') + ' aria-label="Copiar el enlace de la gerencia ' + esc(g) + '">Enlace</button>' +
+      '<button type="button" class="btn btn-ghost btn-xs" data-enlace="' + esc(g) + '" data-s="' + esc(s) + '"' + (activo ? '' : ' disabled title="Activa el enlace abierto de la campaña para copiar el enlace"') + ' aria-label="Copiar el enlace ' + (s ? 'de la sección ' + esc(s) : 'de la gerencia ' + esc(g)) + '">Enlace</button>' +
       '<button type="button" class="btn btn-xs" data-invitar="' + esc(g) + '" data-s="' + esc(s) + '" aria-label="Invitar responsables de ' + esc(que) + '">Invitar</button>' +
       '<button type="button" class="btn btn-ghost btn-xs" data-menu="' + esc(g) + '" data-s="' + esc(s) + '" aria-haspopup="menu" aria-expanded="false" aria-label="Más acciones de ' + esc(que) + '" title="Más acciones"><span aria-hidden="true">⋮</span></button></div>';
   }
@@ -2309,7 +2454,7 @@
       '<div><label for="bbPrio">Prioridad</label><select id="bbPrio"><option value="">Todas</option>' + Object.keys(PRIO).map(function(k){ return '<option value="' + k + '"' + (k === FB.prio ? ' selected' : '') + '>' + PRIO[k].t + '</option>'; }).join('') + '</select></div>' +
       '<div><label for="bbGer">Gerencia</label><select id="bbGer"><option value="">Todas</option>' + Object.keys(gers).sort(function(a, b){ return a.localeCompare(b, 'es'); }).map(function(g){ return '<option' + (g === FB.ger ? ' selected' : '') + '>' + esc(g) + '</option>'; }).join('') + '</select></div>' +
       '<div><label for="bbOrden">Ordenar por</label><select id="bbOrden">' + [['prioridad', 'Prioridad (lo urgente primero)'], ['nombre', 'Nombre (A–Z)'], ['sincob', 'Más procesos sin cobertura']].map(function(o){ return '<option value="' + o[0] + '"' + (o[0] === FB.orden ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' +
-      '<div class="row"><button type="button" class="btn btn-ghost btn-xs" id="bbAbrir">Expandir todo</button><button type="button" class="btn btn-ghost btn-xs" id="bbCerrar">Contraer todo</button></div></div>';
+      '<div class="row"><button type="button" class="btn btn-ghost btn-xs" id="bbAbrir">Expandir todo</button><button type="button" class="btn btn-ghost btn-xs" id="bbCerrar">Contraer todo</button><button type="button" class="btn btn-ghost btn-xs" id="bbEnlaces" title="Descarga un Excel con el enlace de cada sección, sus fechas y sus responsables">Enlaces por sección (Excel)</button></div></div>';
     h += '<p class="muted" id="bbCuenta" aria-live="polite" style="margin:10px 0 6px"></p><p class="msg ok hidden" id="bbMsg" role="status"></p><div class="tblwrap" id="bbTabla"></div>';
     if (!activo) h += '<p class="muted">Activa el enlace abierto para copiar los enlaces e invitaciones por gerencia.</p>';
     $('#tBarrido').innerHTML = h;
@@ -2326,6 +2471,7 @@
     $('#bbGer').addEventListener('change', function(){ FB.ger = this.value; guardarPrefBarrido(); pintarTablaBarrido(); });
     $('#bbOrden').addEventListener('change', function(){ FB.orden = this.value; guardarPrefBarrido(); pintarTablaBarrido(); });
     $('#bbAbrir').addEventListener('click', function(){ FB.plegadas = {}; guardarPrefBarrido(); pintarTablaBarrido(); });
+    $('#bbEnlaces').addEventListener('click', exportarEnlacesSeccion);
     $('#bbCerrar').addEventListener('click', function(){ Object.keys(gers).forEach(function(g){ FB.plegadas[g] = 1; }); guardarPrefBarrido(); pintarTablaBarrido(); });
   }
 
@@ -2361,7 +2507,7 @@
       secs.forEach(function(f){
         visSecc++; if (f.prio === 'urgente') urg++;
         html += '<tr' + (plegada ? ' class="hidden"' : '') + ' data-hija="' + esc(G.gerencia) + '"><td>' + insignia(f.prio) + '</td><td style="padding-left:22px">' + esc(f.seccion) +
-          (f.noVigentes ? '<div class="muted">' + f.noVigentes + ' marcados como que ya no se hacen</div>' : '') + '</td>' +
+          etiquetaVentana(f) + (f.noVigentes ? '<div class="muted">' + f.noVigentes + ' marcados como que ya no se hacen</div>' : '') + '</td>' +
           celdasNum(f) + '<td>' + esc(accion(f)) + '</td><td>' + accionesFila(G.gerencia, f.seccion, activo) + '</td></tr>';
       });
     });
@@ -2370,6 +2516,21 @@
     html += '</tbody></table>';
     $('#bbTabla').innerHTML = html;
     $('#bbCuenta').textContent = filas.length ? 'Mostrando ' + visSecc + ' de ' + filas.length + (filas.length === 1 ? ' sección' : ' secciones') + (urg ? ' · ' + urg + (urg === 1 ? ' requiere acción urgente' : ' requieren acción urgente') : '') : '';
+  }
+
+  // Excel con el enlace de cada sección para pegarlo en las actas (una fila por sección).
+  function exportarEnlacesSeccion(){
+    if (!C.campana.codigo_publico || !C.campana.abierta){ alert('Activa el enlace abierto de la campaña para generar los enlaces de las secciones.'); return; }
+    var filas = resumenSecciones().filter(function(f){ return f.procesos || f.personas || f.noVigentes; }).map(function(f){
+      var v = ventanaDe(f.gerencia, f.seccion) || {};
+      return {Gerencia: f.gerencia, 'Sección': f.seccion, Enlace: enlaceAbierto(f.gerencia, f.seccion), 'Disponible desde': v.abre || '', 'Plazo (referencia)': v.cierra || '',
+        Responsables: C.encuestados.filter(function(e){ return mismaArea(e.gerencia, f.gerencia) && mismaArea(e.seccion, f.seccion); }).map(function(e){ return e.nombre; }).join(', ')};
+    });
+    if (!filas.length){ alert('No hay secciones para exportar.'); return; }
+    var ws = XLSX.utils.json_to_sheet(filas);
+    ws['!cols'] = [{wch:22},{wch:26},{wch:90},{wch:16},{wch:18},{wch:60}];
+    var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Enlaces por sección');
+    XLSX.writeFile(wb, nombreArchivo('Enlaces por sección - ' + C.campana.nombre));
   }
 
   // Menú ⋮ de cada fila: un solo menú a la vez, con teclado (flechas, Inicio, Fin, Esc) y foco que regresa al botón.
@@ -2390,12 +2551,14 @@
         var m = $('#bbMsg'); m.textContent = f.correosPend.length + (f.correosPend.length === 1 ? ' correo copiado' : ' correos copiados') + ' (personas que aún no han iniciado: ' + g + (s ? ' · ' + s : '') + ').'; m.classList.remove('hidden');
         setTimeout(function(){ m.classList.add('hidden'); }, 4000);
       }, !f.correosPend.length],
+      s ? ['Disponibilidad y plazo…', function(){ dialogoVentana(g, s); }] : null,
       ['Exportar información', function(){
         var ps = procesosDe(g, s);
         if (!ps.length){ alert('Esta área no tiene procesos en el mapa para exportar.'); return; }
         guardarLibro(libroInventario(ps, false), g + (s ? ' - ' + s : ''));
       }]
     ];
+    items = items.filter(Boolean);
     var m = document.createElement('div');
     m.className = 'menu-f'; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', 'Acciones de ' + g + (s ? ' · ' + s : ''));
     items.forEach(function(it){
@@ -2435,28 +2598,109 @@
     if ($('#dlg').open) $('#dlg').close();
     pintarEncuestados(); irAPestana('encuestados');
   }
-  // «Ver detalle»: los procesos del área con su estado; cada uno abre su ficha.
+  // Cuadro de «Disponibilidad y plazo» de una sección: la apertura bloquea; el plazo es solo una referencia.
+  function dialogoVentana(g, s){
+    var v = ventanaDe(g, s) || {abre: '', cierra: '', mensaje: ''};
+    $('#dlgT').textContent = 'Disponibilidad y plazo';
+    $('#dlgS').textContent = g + ' · ' + s;
+    $('#dlgB').onclick = null; $('#dlgB').onchange = null;
+    $('#dlgB').innerHTML = '<p class="muted" style="margin-top:0">La <b>fecha de apertura</b> bloquea la sección hasta ese día: quien entre antes verá el mensaje. El <b>plazo</b> es solo una referencia: pasada esa fecha no se bloquea nada y los resultados se siguen guardando. Sin fechas, la sección está siempre disponible. Las fechas cuentan por día, en hora de Lima.</p>' +
+      '<div class="grid2"><div><label for="vAbre">Disponible desde</label><input type="date" id="vAbre" value="' + esc(v.abre) + '"></div>' +
+      '<div><label for="vCierra">Plazo (referencia)</label><input type="date" id="vCierra" value="' + esc(v.cierra) + '"></div></div>' +
+      '<label for="vMsg">Mensaje para quien entre antes (opcional)</label><input type="text" id="vMsg" maxlength="300" value="' + esc(v.mensaje) + '" placeholder="Ej. Control de Inventarios estará disponible desde el lunes 9 de noviembre.">' +
+      '<div class="row" style="margin-top:12px"><button type="button" class="btn" id="vGuardar">Guardar</button><button type="button" class="btn btn-ghost" id="vQuitar">Quitar las fechas</button><span class="muted" id="vEstado" role="status"></span></div>';
+    if (!$('#dlg').open) $('#dlg').showModal();
+    var guardar = function(abre, cierra, msg, boton){
+      boton.disabled = true; $('#vEstado').textContent = 'Guardando…';
+      api('/a/ventana', {campana_id: C.campana.id, gerencia: g, seccion: s, abre: abre, cierra: cierra, mensaje: msg})
+        .then(function(){ return abrir(C.campana.id); }).then(function(){ $('#dlg').close(); })
+        .catch(function(err){ boton.disabled = false; $('#vEstado').textContent = err.message; });
+    };
+    $('#vGuardar').addEventListener('click', function(){ guardar($('#vAbre').value, $('#vCierra').value, $('#vMsg').value, this); });
+    $('#vQuitar').addEventListener('click', function(){ guardar('', '', '', this); });
+  }
+
+  var MSG_RESP = '';   // resultado del último alta de responsables (sobrevive al repintado del cuadro)
+  // «Ver detalle»: los procesos del área con su estado; en una sección, además, sus responsables y la asignación de procesos.
   function detalleAmbito(g, s){
     var ps = procesosDe(g, s), f = ambito(g, s);
+    var scroll = $('#dlgB').scrollTop;
     $('#dlgT').textContent = g + (s ? ' · ' + s : '');
     $('#dlgS').textContent = ps.length + (ps.length === 1 ? ' proceso' : ' procesos') + ' · ' + f.personas + (f.personas === 1 ? ' persona' : ' personas');
     var cls = {respondido: 'c-ok', en_curso: 'c-inf', sin_cobertura: 'c-warn', no_vigente: 'c-mut'};
+    var resp = s ? C.encuestados.filter(function(e){ return mismaArea(e.gerencia, g) && mismaArea(e.seccion, s); }) : [];
+    var info = s ? infoPersonas() : {};
+    var asig = {};   // «persona|proceso» asignado por el equipo
+    C.asignaciones.forEach(function(a){ if (a.origen === 'consultor') asig[a.encuestado_id + '|' + a.proceso_id] = 1; });
     var h = '<div class="row" style="margin-bottom:10px">' + insignia(f.prio) + '<span>' + esc(s ? accion(f) : textoGer(f)) + '</span>' +
-      '<button type="button" class="btn btn-ghost btn-xs" data-dv-resp="1">Ver responsables</button></div>' +
-      '<div class="tblwrap"><table><thead><tr><th scope="col">Proceso</th>' + (s ? '' : '<th scope="col">Sección</th>') + '<th scope="col">Estado</th><th scope="col" class="num">Personas</th><th scope="col"><span class="sr-only">Abrir</span></th></tr></thead><tbody>' +
+      '<button type="button" class="btn btn-ghost btn-xs" data-dv-resp="1">Ver responsables en Personas y enlaces</button></div>';
+    if (s){
+      h += '<h3 style="font-size:14px;margin:6px 0">Responsables de la sección (' + resp.length + ')</h3>';
+      if (resp.length){
+        h += '<div class="tblwrap"><table><thead><tr><th scope="col">Nombre</th><th scope="col">Cargo</th><th scope="col">Estado</th><th scope="col" class="num">Avance</th><th scope="col">Última actividad</th><th scope="col" class="num">Procesos asignados</th></tr></thead><tbody>' +
+          resp.map(function(e){
+            var i = info[e.id], ep = ESTADO_P[i.estado], n = ps.filter(function(p){ return asig[e.id + '|' + p.id]; }).length;
+            return '<tr' + (i.inactiva ? ' class="inactivo"' : '') + '><td><b>' + esc(e.nombre) + '</b>' + (e.correo ? '<div class="muted">' + esc(e.correo) + '</div>' : '<div class="muted">sin correo</div>') + (e.origen === 'abierto' ? ' <span class="chip c-mut" title="Se registró ella misma desde el enlace de la sección">agregada por la persona</span>' : '') + '</td>' +
+              '<td>' + esc(e.rol) + '</td><td><span class="chip ' + ep[1] + '">' + ep[0] + '</span></td>' +
+              '<td class="num">' + (i.av.total ? i.av.pct + '% <span class="muted">(' + i.av.hechos + ' de ' + i.av.total + ')</span>' : '—') + '</td>' +
+              '<td>' + esc(e.actualizado ? fecha(e.actualizado) : (e.creado ? 'Sin actividad · cargado el ' + String(e.creado).slice(0, 10) : '—')) + '</td><td class="num">' + n + '</td></tr>';
+          }).join('') + '</tbody></table></div>';
+      } else h += '<p class="muted">Todavía no hay responsables registrados en esta sección. Agrégalos aquí: entran por el enlace de la sección eligiendo su nombre.</p>';
+      h += '<details style="margin:10px 0"' + (resp.length && !MSG_RESP ? '' : ' open') + '><summary style="cursor:pointer;font-weight:700;font-size:13.5px">Agregar responsables</summary>' +
+        '<p class="muted">Un responsable por línea: <code>Nombre Apellido, correo (opcional), cargo (opcional)</code>. No se les envía ningún enlace personal.</p>' +
+        '<textarea id="rpLista" rows="3" aria-label="Responsables a agregar" placeholder="Jaira Pérez, jaira.perez@empresa.com, Soporte de importaciones"></textarea>' +
+        '<div class="row" style="margin-top:6px"><button type="button" class="btn btn-xs" id="rpAgregar">Agregar</button><span class="muted" id="rpMsg" role="status">' + esc(MSG_RESP) + '</span></div></details>';
+      if (resp.length && ps.length){
+        var sinResp = ps.filter(function(p){ return !resp.some(function(e){ return asig[e.id + '|' + p.id]; }); }).length;
+        h += '<h3 style="font-size:14px;margin:14px 0 4px">Asignación de procesos <span class="muted" style="font-weight:600">· ' + (sinResp ? '<span class="sin-resp">' + sinResp + (sinResp === 1 ? ' proceso sin responsable asignado' : ' procesos sin responsable asignado') + '</span>' : 'todos tienen responsable') + '</span></h3>' +
+          '<p class="muted" style="margin-top:0">Marca quién completa cada proceso. Cada responsable lo verá primero con «Asignado a ti» y los demás verán su nombre como sugerido. Un proceso puede tener más de un responsable; cada uno conserva sus propias respuestas.</p>' +
+          '<div class="tblwrap"><table><thead><tr><th scope="col">Proceso</th>' + resp.map(function(e){ return '<th scope="col" title="' + esc(e.nombre) + '">' + esc(e.nombre.split(' ')[0]) + '</th>'; }).join('') + '<th scope="col">Estado</th></tr></thead><tbody>' +
+          ps.map(function(p){
+            var cb = cobertura(p.id), alguno = resp.some(function(e){ return asig[e.id + '|' + p.id]; });
+            return '<tr><td>' + (p.codigo ? '<span class="muted">' + esc(p.codigo) + '</span> ' : '') + esc(nombreProc(p)) + (alguno ? '' : ' <span class="sin-resp">· sin responsable</span>') + '</td>' +
+              resp.map(function(e){ return '<td style="text-align:center"><input type="checkbox" data-asg="' + esc(e.id) + '|' + esc(p.id) + '"' + (asig[e.id + '|' + p.id] ? ' checked' : '') + ' aria-label="Asignar «' + esc(nombreProc(p)) + '» a ' + esc(e.nombre) + '"></td>'; }).join('') +
+              '<td><span class="chip ' + (cls[cb.estado] || 'c-mut') + '">' + esc(ESTADO_TXT[cb.estado]) + '</span></td></tr>';
+          }).join('') + '</tbody></table></div>';
+      }
+    }
+    h += '<h3 style="font-size:14px;margin:14px 0 4px">Procesos del área</h3><div class="tblwrap"><table><thead><tr><th scope="col">Proceso</th>' + (s ? '' : '<th scope="col">Sección</th>') + '<th scope="col">Estado</th><th scope="col" class="num">Personas</th><th scope="col"><span class="sr-only">Abrir</span></th></tr></thead><tbody>' +
       (ps.length ? ps.map(function(p){
         var cb = cobertura(p.id);
         return '<tr><td>' + (p.codigo ? '<span class="muted">' + esc(p.codigo) + '</span> ' : '') + esc(nombreProc(p)) + '</td>' + (s ? '' : '<td>' + esc(p.seccion) + '</td>') +
-          '<td><span class="chip ' + (cls[cb.estado] || 'c-mut') + '">' + esc(ESTADO_TXT[cb.estado]) + '</span></td><td class="num">' + cb.personas + '</td>' +
+          '<td><span class="chip ' + (cls[cb.estado] || 'c-mut') + '">' + esc(ESTADO_TXT[cb.estado]) + '</span>' + (cb.combinada ? ' <span class="chip c-inf" title="Ninguna persona lo completó sola: entre varias cubren todos los puntos">combinada</span>' : '') + '</td><td class="num">' + cb.personas + '</td>' +
           '<td><button type="button" class="btn btn-ghost btn-xs" data-dv-p="' + esc(p.id) + '">Abrir ficha</button></td></tr>';
       }).join('') : '<tr><td colspan="5" class="muted">No hay procesos en el mapa para esta área.</td></tr>') + '</tbody></table></div>';
     $('#dlgB').innerHTML = h;
     $('#dlgB').onclick = function(ev){
       var b = ev.target.closest('[data-dv-p]');
       if (b) return detalle(b.dataset.dvP);
-      if (ev.target.closest('[data-dv-resp]')) verResponsables(g, s);
+      if (ev.target.closest('[data-dv-resp]')) return verResponsables(g, s);
+      if (ev.target.closest('#rpAgregar')){
+        var personas = String($('#rpLista').value || '').split('\n').map(function(l){ return l.trim(); }).filter(Boolean).map(function(l){
+          var partes = l.split(/[,;\t]/).map(function(x){ return x.trim(); }).filter(Boolean), correo = '', resto = [];
+          partes.forEach(function(x, i){ if (i > 0 && x.indexOf('@') > 0 && !correo) correo = x; else resto.push(x); });
+          return {nombre: resto[0] || '', correo: correo, rol: resto.slice(1).join(', '), gerencia: g, seccion: s};
+        });
+        if (!personas.length){ $('#rpMsg').textContent = 'Escribe al menos un nombre.'; return; }
+        var bt = ev.target.closest('#rpAgregar'); bt.disabled = true; $('#rpMsg').textContent = 'Agregando…';
+        api('/a/encuestado', {campana_id: C.campana.id, personas: personas}).then(function(j){
+          MSG_RESP = j.creados + (j.creados === 1 ? ' responsable agregado' : ' responsables agregados') + (j.existentes.length ? '; ya estaban: ' + j.existentes.join(', ') : '') + '.';
+          return abrir(C.campana.id);
+        }).then(function(){ detalleAmbito(g, s); MSG_RESP = ''; }).catch(function(err){ bt.disabled = false; $('#rpMsg').textContent = err.message; });
+      }
+    };
+    $('#dlgB').onchange = function(ev){
+      var c = ev.target.closest('[data-asg]'); if (!c) return;
+      var par = c.dataset.asg.split('|'), eid = par[0], pid = par[1], poner = c.checked;
+      c.disabled = true;
+      api('/a/asignar', poner ? {encuestado_id: eid, agregar: [pid]} : {encuestado_id: eid, desasignar: [pid]}).then(function(){
+        C.asignaciones = C.asignaciones.filter(function(a){ return !(a.encuestado_id === eid && a.proceso_id === pid && (a.origen === 'consultor' || a.origen === 'excluido' || poner)); });
+        if (poner) C.asignaciones.push({encuestado_id: eid, proceso_id: pid, origen: 'consultor'});
+        indexar(); pintarBarrido(); detalleAmbito(g, s);
+      }).catch(function(err){ c.disabled = false; c.checked = !poner; alert(err.message); });
     };
     if (!$('#dlg').open) $('#dlg').showModal();
+    $('#dlgB').scrollTop = scroll;
   }
   // «Invitar»: texto de invitación, enlace y correos de quienes aún no han iniciado, para esa gerencia (o sección).
   function invitar(g, s){
@@ -2466,7 +2710,7 @@
     var h = '';
     if (!activo) h += '<p class="msg warn">El enlace abierto de la campaña está desactivado: la invitación no llevará un enlace que funcione. <button type="button" class="btn btn-xs" data-inv-activar="1">Activar enlace abierto</button></p>';
     h += '<p class="muted" style="margin-top:0">Copia el texto y envíalo por correo a los responsables de ' + esc(g) + '. Quien lo recibe busca su proceso, lo elige y responde; a las personas ya cargadas puedes mandarles su enlace personal desde «Personas y enlaces».</p>' +
-      '<textarea readonly rows="11" id="invTexto" aria-label="Texto de la invitación">' + esc(invitacion(g)) + '</textarea>' +
+      '<textarea readonly rows="11" id="invTexto" aria-label="Texto de la invitación">' + esc(textoInvitacion(g, s)) + '</textarea>' +
       '<div class="row" style="margin-top:10px"><button type="button" class="btn btn-xs" data-inv="texto">Copiar invitación</button>' +
       '<button type="button" class="btn btn-ghost btn-xs" data-inv="enlace"' + (activo ? '' : ' disabled') + '>Copiar enlace</button>' +
       '<button type="button" class="btn btn-ghost btn-xs" data-inv="correos"' + (f.correosPend.length ? '' : ' disabled') + '>Copiar correos de quienes no han iniciado (' + f.correosPend.length + ')</button>' +
@@ -2482,8 +2726,8 @@
         }).catch(function(err){ a.disabled = false; alert(err.message); });
       }
       if (!b) return;
-      if (b.dataset.inv === 'texto') copiar(invitacion(g), b);
-      else if (b.dataset.inv === 'enlace') copiar(enlaceAbierto(g), b);
+      if (b.dataset.inv === 'texto') copiar(textoInvitacion(g, s), b);
+      else if (b.dataset.inv === 'enlace') copiar(enlaceAbierto(g, s), b);
       else if (b.dataset.inv === 'correos') copiar(f.correosPend.join('; '), b);
       else if (b.dataset.inv === 'personas'){ $('#dlg').close(); irAPestana('carga'); }
     };
@@ -2501,7 +2745,7 @@
     var b;
     if ((b = e.target.closest('[data-copiar-enlace]'))) return copiar(enlaceAbierto(b.dataset.copiarEnlace), b);
     if ((b = e.target.closest('[data-copiar-inv]'))) return copiar(invitacion(b.dataset.copiarInv), b);
-    if ((b = e.target.closest('[data-enlace]'))) return copiar(enlaceAbierto(b.dataset.enlace), b);
+    if ((b = e.target.closest('[data-enlace]'))) return copiar(enlaceAbierto(b.dataset.enlace, b.dataset.s || ''), b);
     if ((b = e.target.closest('[data-invitar]'))) return invitar(b.dataset.invitar, b.dataset.s || '');
     if ((b = e.target.closest('[data-menu]'))) return (MENU.btn === b ? cerrarMenu(false) : abrirMenu(b));
     if ((b = e.target.closest('[data-pleg]'))){
@@ -2956,6 +3200,41 @@
     api('/a/campana/glosario', {campana_id: C.campana.id, glosario: $('#inGlosario').value}).then(function(){ $('#msgGlosario').textContent = 'Guardado'; })
       .catch(function(err){ $('#msgGlosario').textContent = err.message; });
   });
+  // Texto de invitación de la campaña (las marcas se reemplazan por gerencia o sección).
+  $('#btnInvitacion').addEventListener('click', function(){
+    var t = $('#inInvitacion').value.trim(), b = this;
+    b.disabled = true; $('#msgInvitacion').textContent = 'Guardando…';
+    api('/a/campana/invitacion', {campana_id: C.campana.id, invitacion: t === BASE_INVITACION ? '' : t}).then(function(){
+      C.campana.invitacion = t === BASE_INVITACION ? '' : t; b.disabled = false; $('#msgInvitacion').textContent = 'Guardado: las invitaciones nuevas usan este texto.';
+    }).catch(function(err){ b.disabled = false; $('#msgInvitacion').textContent = err.message; });
+  });
+  $('#btnInvitacionBase').addEventListener('click', function(){ $('#inInvitacion').value = BASE_INVITACION; $('#msgInvitacion').textContent = 'Texto base cargado: pulsa «Guardar texto».'; });
+
+  // Acceso del cliente (solo lectura): código propio, renovar y desactivar.
+  function enlaceCliente(){ return location.origin + location.pathname + '?cliente=1'; }
+  function pintarAccesoCliente(){
+    var c = C.campana, activo = !!c.cliente_activo && !!c.codigo_cliente;
+    $('#clAcceso').innerHTML = '<div class="row"><span class="chip ' + (activo ? 'c-ok' : 'c-mut') + '">' + (activo ? 'Activo' : (c.codigo_cliente ? 'Desactivado' : 'Sin generar')) + '</span>' +
+      (c.cliente_ultimo ? '<span class="muted">Último ingreso: ' + esc(fecha(c.cliente_ultimo)) + '</span>' : (activo ? '<span class="muted">Todavía no ha ingresado</span>' : '')) + '</div>' +
+      (activo ? '<div class="grid2" style="margin-top:8px"><div><label for="clEnlace">Dirección</label><input type="text" id="clEnlace" readonly value="' + esc(enlaceCliente()) + '"></div>' +
+        '<div><label for="clCodigo">Código de acceso</label><input type="text" id="clCodigo" readonly value="' + esc(c.codigo_cliente) + '"></div></div>' : '') +
+      '<div class="row" style="margin-top:8px">' +
+        (activo ? '<button type="button" class="btn btn-xs" data-cl="copiar">Copiar dirección y código</button><button type="button" class="btn btn-ghost btn-xs" data-cl="renovar">Renovar el código</button><button type="button" class="btn btn-ghost btn-xs" data-cl="desactivar">Desactivar</button>'
+          : '<button type="button" class="btn btn-xs" data-cl="generar">' + (c.codigo_cliente ? 'Activar de nuevo' : 'Generar acceso del cliente') + '</button>') +
+        '<span class="muted" id="msgCliente" role="status"></span></div>';
+  }
+  $('#clAcceso').addEventListener('click', function(ev){
+    var b = ev.target.closest('[data-cl]'); if (!b) return;
+    var acc = b.dataset.cl;
+    if (acc === 'copiar') return copiar('Panel de seguimiento: ' + enlaceCliente() + '\nCódigo de acceso: ' + C.campana.codigo_cliente, b);
+    if (acc === 'renovar' && !confirm('Se generará un código nuevo y el actual dejará de funcionar de inmediato: tendrás que enviar el nuevo a la administradora del cliente. ¿Continuar?')) return;
+    if (acc === 'desactivar' && !confirm('El acceso del cliente se desactivará y su sesión se cerrará de inmediato. ¿Continuar?')) return;
+    b.disabled = true; $('#msgCliente').textContent = 'Guardando…';
+    api('/a/campana/cliente', {campana_id: C.campana.id, accion: acc}).then(function(j){
+      C.campana.codigo_cliente = j.codigo; C.campana.cliente_activo = j.activo; pintarAccesoCliente();
+    }).catch(function(err){ b.disabled = false; $('#msgCliente').textContent = err.message; });
+  });
+
   $('#btnSistemas').addEventListener('click', function(){
     var t = $('#inSistemas').value.trim(), b = this;
     if (!t){ $('#msgSistemas').textContent = 'Escribe al menos una aplicación.'; return; }
@@ -2977,6 +3256,138 @@
     api('/a/borrar-campana', {campana_id: C.campana.id, confirmar: $('#inBorrar').value}).then(function(){
       alert('Campaña borrada.'); location.href = location.pathname;
     }).catch(function(err){ $('#msgBorrar').textContent = err.message; });
+  });
+
+
+  // ------------------------------------------------------------ panel del cliente (HU-14, solo lectura)
+  // Usa el volcado reducido de /c/campana: avance, personas y procesos; nunca respuestas, correos ni enlaces personales.
+  var FCL = {texto: '', ger: ''};
+  try { var PCL = JSON.parse(localStorage.getItem('relev-cliente-filtros') || 'null'); if (PCL){ if (typeof PCL.texto === 'string') FCL.texto = PCL.texto; if (typeof PCL.ger === 'string') FCL.ger = PCL.ger; } } catch(e){}
+  function guardarFiltrosCl(){ try { localStorage.setItem('relev-cliente-filtros', JSON.stringify(FCL)); } catch(e){} }
+  function cargarCliente(j){
+    C = j; C.asignaciones = C.asignaciones || [];
+    C.fuera = C.procesos.filter(function(p){ return p.fuera_alcance; });
+    C.procesos = C.procesos.filter(function(p){ return !p.fuera_alcance; });
+    indexar();
+    $('#clTitulo').textContent = 'Seguimiento · ' + C.campana.nombre;
+    ver('vCliente');
+    pintarPanelCliente();
+  }
+  function resumenCliente(){
+    var m = {}, info = infoPersonas();
+    var obt = function(g, sec){ var k = g + '\u0000' + sec; return m[k] = m[k] || {gerencia: g, seccion: sec, procs: [], personas: [], resp: 0, valid: 0, puntos: 0, noVigentes: 0, sinResp: 0}; };
+    var asigCons = {};
+    C.asignaciones.forEach(function(a){ if (a.origen === 'consultor') (asigCons[a.proceso_id] = asigCons[a.proceso_id] || []).push(a.encuestado_id); });
+    C.procesos.forEach(function(p){
+      var s = obt(p.gerencia, p.seccion), cb = cobertura(p.id);
+      if (cb.estado === 'no_vigente'){ s.noVigentes++; return; }
+      var asignados = (asigCons[p.id] || []).map(function(id){ return (IX.enc[id] || {}).nombre; }).filter(Boolean);
+      var tomado = [];
+      (IX.rev[p.id] || []).forEach(function(r){ if ((r.estado === 'vigente' || r.estado === 'cambio') && IX.enc[r.encuestado_id]) tomado.push(IX.enc[r.encuestado_id].nombre); });
+      var pts = puntosUnidos(p.id);
+      s.procs.push({p: p, cb: cb, puntos: pts, asignados: asignados, tomado: tomado, validado: p.validacion === 'validado'});
+      if (cb.estado === 'respondido') s.resp++;
+      if (p.validacion === 'validado') s.valid++;
+      s.puntos += pts;
+      if (!asignados.length && !tomado.length) s.sinResp++;
+    });
+    C.encuestados.forEach(function(e){ obt(e.gerencia, e.seccion).personas.push({e: e, i: info[e.id]}); });
+    return Object.keys(m).map(function(k){ return m[k]; });
+  }
+  function barraCl(n, total, texto){
+    var pc = total ? Math.round(100 * n / total) : 0;
+    return '<span class="pbar grande" role="img" aria-label="' + esc(texto || (pc + '%, ' + n + ' de ' + total)) + '"><i style="width:' + pc + '%"></i></span>';
+  }
+  function pintarPanelCliente(){
+    var secs = resumenCliente(), tp = totalPuntos();
+    var vig = 0, resp = 0, valid = 0, pts = 0, noVig = 0, gers = {};
+    secs.forEach(function(s){ vig += s.procs.length; resp += s.resp; valid += s.valid; pts += s.puntos; noVig += s.noVigentes; gers[s.gerencia] = 1; });
+    var pc = function(a, b){ return b ? Math.round(100 * a / b) : 0; };
+    $('#clSub').textContent = 'Actualizado: ' + fecha(C.generado) + ' · ' + C.campana.cliente;
+    $('#clResumen').innerHTML = '<div class="kpis" style="margin-bottom:12px">' +
+      [[Object.keys(gers).length, 'gerencias'], [secs.length, 'secciones'], [vig, 'procesos vigentes'], [C.encuestados.length, 'personas asignadas']].map(function(k){ return '<div class="kpi"><b>' + k[0] + '</b><span>' + k[1] + '</span></div>'; }).join('') + '</div>' +
+      '<div class="row" style="align-items:stretch">' +
+      '<div class="cl-barra"><b>Información completada</b>' + ayuda('Procesos respondidos ÷ procesos vigentes. Un proceso está respondido cuando su checklist de los 3 bloques está completo (una persona o varias entre todas, con lo que aportó el equipo consultor). La cifra de puntos mide cuántos de los puntos del checklist de todos los procesos ya están cubiertos.') +
+        '<div style="font-size:26px;font-family:Montserrat,sans-serif;font-weight:800;color:var(--heading)">' + pc(resp, vig) + '%</div>' + barraCl(resp, vig) +
+        '<div class="muted">' + resp + ' de ' + vig + ' procesos respondidos · puntos del checklist cubiertos: ' + pc(pts, vig * tp) + '%</div></div>' +
+      '<div class="cl-barra"><b>Procesos validados</b>' + ayuda('Procesos marcados como validados en la matriz (conformidad de la gerencia registrada por el equipo consultor) ÷ procesos vigentes. Los que solo están «actualizados» no cuentan como validados.') +
+        '<div style="font-size:26px;font-family:Montserrat,sans-serif;font-weight:800;color:var(--heading)">' + pc(valid, vig) + '%</div>' + barraCl(valid, vig) +
+        '<div class="muted">' + valid + ' de ' + vig + ' procesos validados</div></div></div>' +
+      (noVig || C.fuera.length ? '<p class="muted" style="margin:10px 0 0">No cuentan en los porcentajes: ' + [noVig ? noVig + ' proceso(s) que ya no se hacen' : '', C.fuera.length ? C.fuera.length + ' fuera de alcance' : ''].filter(Boolean).join(' y ') + '.</p>' : '');
+    var gs = {}; secs.forEach(function(s){ gs[s.gerencia] = 1; });
+    if (FCL.ger && !gs[FCL.ger]) FCL.ger = '';
+    $('#clGer').innerHTML = '<option value="">Todas</option>' + Object.keys(gs).sort(function(a, b){ return a.localeCompare(b, 'es'); }).map(function(g){ return '<option' + (g === FCL.ger ? ' selected' : '') + '>' + esc(g) + '</option>'; }).join('');
+    $('#clTexto').value = FCL.texto;
+    pintarListaCliente(secs);
+  }
+  function pintarListaCliente(secs){
+    secs = secs || resumenCliente();
+    var t = sinTildes(FCL.texto.trim()), pc = function(a, b){ return b ? Math.round(100 * a / b) : 0; };
+    var coincide = function(s){
+      if (!t) return true;
+      if (sinTildes(s.gerencia + ' ' + s.seccion).indexOf(t) >= 0) return true;
+      return s.personas.some(function(x){ return sinTildes(x.e.nombre).indexOf(t) >= 0; }) || s.procs.some(function(x){ return sinTildes([x.p.codigo, nombreProc(x.p), x.p.macroproceso, x.p.proceso].join(' ')).indexOf(t) >= 0; });
+    };
+    var porG = {};
+    secs.filter(function(s){ return (!FCL.ger || s.gerencia === FCL.ger) && coincide(s); }).forEach(function(s){ (porG[s.gerencia] = porG[s.gerencia] || []).push(s); });
+    var avance = function(s){ return pc(s.resp, s.procs.length); };
+    var gerencias = Object.keys(porG).map(function(g){
+      var fs = porG[g], vig = 0, resp = 0, valid = 0, pts = 0, per = 0;
+      fs.forEach(function(s){ vig += s.procs.length; resp += s.resp; valid += s.valid; pts += s.puntos; per += s.personas.length; });
+      return {g: g, secs: fs.sort(function(a, b){ return (avance(a) - avance(b)) || a.seccion.localeCompare(b.seccion, 'es'); }), vig: vig, resp: resp, valid: valid, pts: pts, per: per};
+    }).sort(function(a, b){ return (pc(a.resp, a.vig) - pc(b.resp, b.vig)) || a.g.localeCompare(b.g, 'es'); });
+    var tp = totalPuntos();
+    var cifras = function(vig, resp, valid, per, sinResp){
+      return '<span class="cl-cifras"><span>' + vig + (vig === 1 ? ' proceso' : ' procesos') + '</span><span>' + per + (per === 1 ? ' persona' : ' personas') + '</span>' +
+        '<span>Información <b>' + pc(resp, vig) + '%</b> (' + resp + ' de ' + vig + ')</span><span>Validado <b>' + pc(valid, vig) + '%</b> (' + valid + ' de ' + vig + ')</span>' +
+        (sinResp ? '<span class="sin-resp">' + sinResp + ' sin responsable</span>' : '') + '</span>';
+    };
+    var html = gerencias.map(function(G){
+      var sinG = 0; G.secs.forEach(function(s){ sinG += s.sinResp; });
+      return '<details class="cl cl-ger" open><summary>' + esc(G.g) + cifras(G.vig, G.resp, G.valid, G.per, sinG) + '</summary><div class="cl-cuerpo">' +
+        G.secs.map(function(s){
+          var v = ventanaDe(s.gerencia, s.seccion), est = estadoVentanaCl(v);
+          var personas = s.personas.length ? '<div class="tblwrap"><table><thead><tr><th scope="col">Persona</th><th scope="col">Cargo</th><th scope="col">Estado</th><th scope="col" class="num">Avance</th><th scope="col">Última actividad</th></tr></thead><tbody>' +
+            s.personas.map(function(x){
+              var ep = ESTADO_P[x.i.estado];
+              return '<tr' + (x.i.inactiva ? ' class="inactivo"' : '') + '><td><b>' + esc(x.e.nombre) + '</b></td><td>' + esc(x.e.rol) + '</td><td><span class="chip ' + ep[1] + '">' + ep[0] + '</span>' +
+                (x.i.inactiva ? ' <span class="chip c-warn"><span aria-hidden="true">⚠ </span>' + x.i.dias + ' días sin actividad</span>' : '') + '</td>' +
+                '<td class="num">' + (x.i.av.total ? x.i.av.pct + '% <span class="muted">(' + x.i.av.hechos + ' de ' + x.i.av.total + ')</span>' : '—') + '</td>' +
+                '<td>' + esc(x.e.actualizado ? fecha(x.e.actualizado) : 'Sin actividad') + '</td></tr>';
+            }).join('') + '</tbody></table></div>' : '<p class="muted">Esta sección todavía no tiene personas asignadas.</p>';
+          var cls = {respondido: 'c-ok', en_curso: 'c-inf', sin_cobertura: 'c-warn'};
+          var procesos = s.procs.length ? '<div class="tblwrap"><table><thead><tr><th scope="col">Proceso</th><th scope="col">Responsables</th><th scope="col">Estado</th><th scope="col" class="num">Información</th><th scope="col">Validado</th></tr></thead><tbody>' +
+            s.procs.map(function(x){
+              var quienes = x.asignados.length ? x.asignados : x.tomado;
+              return '<tr><td>' + (x.p.codigo ? '<span class="muted">' + esc(x.p.codigo) + '</span> ' : '') + esc(nombreProc(x.p)) + '</td>' +
+                '<td>' + (quienes.length ? esc(quienes.join(', ')) : '<span class="sin-resp">Sin responsable asignado</span>') + '</td>' +
+                '<td><span class="chip ' + (cls[x.cb.estado] || 'c-mut') + '">' + esc(ESTADO_TXT[x.cb.estado]) + '</span></td>' +
+                '<td class="num">' + x.puntos + ' de ' + tp + ' <span class="muted">(' + pc(x.puntos, tp) + '%)</span></td>' +
+                '<td>' + (x.validado ? '<span class="chip c-ok"><span aria-hidden="true">✓ </span>Validado</span>' : '<span class="chip c-mut">Pendiente</span>') + '</td></tr>';
+            }).join('') + '</tbody></table></div>' : '<p class="muted">Esta sección no tiene procesos vigentes en el mapa.</p>';
+          return '<details class="cl cl-sec"' + (t ? ' open' : '') + '><summary><b>' + esc(s.seccion) + '</b>' + cifras(s.procs.length, s.resp, s.valid, s.personas.length, s.sinResp) +
+            (est === 'antes' ? '<span class="prio prio-programada">' + PRIO_ICO.programada + 'Disponible desde el ' + esc(fechaCorta(v.abre)) + '</span>' : '') + '</summary><div class="cl-cuerpo">' +
+            '<h4 style="font-size:13px;margin:6px 0 4px">Personas asignadas</h4>' + personas +
+            '<h4 style="font-size:13px;margin:12px 0 4px">Procesos y responsables</h4>' + procesos + '</div></details>';
+        }).join('') + '</div></details>';
+    }).join('');
+    $('#clLista').innerHTML = html || '<p class="muted">Ninguna gerencia ni sección coincide con el filtro.</p>';
+  }
+  $('#clTexto').addEventListener('input', function(){ FCL.texto = this.value; guardarFiltrosCl(); pintarListaCliente(); });
+  $('#clGer').addEventListener('change', function(){ FCL.ger = this.value; guardarFiltrosCl(); pintarListaCliente(); });
+  $('#clActualizar').addEventListener('click', function(){ $('#clSub').textContent = 'Actualizando…'; entrarCliente(); });
+  $('#clSalir').addEventListener('click', function(){ try { sessionStorage.removeItem('relev-cliente'); } catch(e){} CODIGO = ''; ver('vLogin'); });
+  $('#clExportar').addEventListener('click', function(){
+    var tp = totalPuntos(), pc = function(a, b){ return b ? Math.round(100 * a / b) : 0; };
+    var filas = resumenCliente().sort(function(a, b){ return a.gerencia.localeCompare(b.gerencia, 'es') || a.seccion.localeCompare(b.seccion, 'es'); }).map(function(s){
+      return {Gerencia: s.gerencia, 'Sección': s.seccion, 'Procesos vigentes': s.procs.length, Personas: s.personas.length, 'Procesos respondidos': s.resp, '% información completada': pc(s.resp, s.procs.length) + '%',
+        '% puntos del checklist cubiertos': pc(s.puntos, s.procs.length * tp) + '%', 'Procesos validados': s.valid, '% validados': pc(s.valid, s.procs.length) + '%', 'Procesos sin responsable': s.sinResp,
+        Responsables: s.personas.map(function(x){ return x.e.nombre; }).join(', ')};
+    });
+    var ws = XLSX.utils.json_to_sheet(filas.length ? filas : [{'(sin datos)': ''}]);
+    ws['!cols'] = [{wch:22},{wch:26},{wch:12},{wch:10},{wch:12},{wch:14},{wch:16},{wch:12},{wch:11},{wch:12},{wch:70}];
+    var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Avance por sección');
+    XLSX.writeFile(wb, nombreArchivo('Avance del relevamiento - ' + C.campana.nombre));
   });
 
   // ------------------------------------------------------------ exportar
@@ -3001,6 +3412,8 @@
       fila['Resumen'] = d ? d.resumen : '';
       fila['Contradicciones'] = d ? (d.contradicciones || []).join(' | ') : '';
       fila['Respuestas recibidas'] = respuestasDe(p.id).length;
+      fila['Completado por'] = Object.keys(IX.resp[p.id] || {}).map(function(eid){ return (IX.enc[eid] || {}).nombre; }).filter(Boolean).join(', ');
+      fila['Asignado a'] = C.asignaciones.filter(function(a){ return a.proceso_id === p.id && a.origen === 'consultor'; }).map(function(a){ return (IX.enc[a.encuestado_id] || {}).nombre; }).filter(Boolean).join(', ');
       fila['Estructurado'] = e ? fecha(e.generado) + (desactualizado(p.id) ? ' (desactualizado)' : '') : '';
       inv.push(fila); est.push(filaE);
       if (d) (d.preguntas_validacion || []).forEach(function(q, i){ preg.push({'Código': p.codigo, Gerencia: p.gerencia, 'Sección': p.seccion, Proceso: nombreProc(p), '#': i+1, Pregunta: q}); });
