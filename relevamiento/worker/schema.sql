@@ -137,3 +137,4 @@ CREATE TABLE IF NOT EXISTS ventanas (
   mensaje TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (campana_id, gerencia, seccion)
 );
+-- campanas.cliente_alias (nombre de la dirección del panel del cliente) se agrega con migracion-012.sql.

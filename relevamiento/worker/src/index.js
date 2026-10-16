@@ -53,7 +53,7 @@
  *   POST /a/encuestado           {campana_id, personas[{nombre, correo?, gerencia, seccion, rol?}]}   (alta rápida de responsables, sin enlace personal)
  *   POST /a/ventana              {campana_id, gerencia, seccion, abre?, cierra?, mensaje?}   (disponibilidad de una sección: abre bloquea antes; cierra es solo plazo)
  *   POST /a/campana/invitacion   {campana_id, invitacion}   (texto de invitación; vacío = texto base)
- *   POST /a/campana/cliente      {campana_id, accion: generar|renovar|desactivar}   (acceso de solo lectura de la administradora del cliente)
+ *   POST /a/campana/cliente      {campana_id, accion: generar|renovar|desactivar|definir, codigo?, alias?}   (acceso de solo lectura de la administradora del cliente; definir = la clave y el nombre de la dirección los elige el consultor)
  *   GET  /c/campana              cabecera x-client-code: volcado SIN respuestas, correos ni enlaces personales (panel del cliente)
  *   POST /a/campana/logo         {campana_id, logo}   (data URI; vacío lo quita)
  *   POST /a/campana/ia           {campana_id, ia_auto}   (la tarea programada completa la matriz con la IA)
@@ -2160,16 +2160,35 @@ async function rutaInvitacion(env, b) {
 
 // Acceso de la administradora del cliente: un código propio por campaña (solo lectura). Renovarlo o desactivarlo lo invalida al instante.
 async function rutaClienteAcceso(env, b) {
-  const camp = await env.DB.prepare('SELECT id, codigo_cliente, cliente_activo, cliente_ultimo FROM campanas WHERE id=?').bind(b.campana_id).first();
+  const camp = await env.DB.prepare('SELECT id, nombre, cliente, codigo_cliente, cliente_activo, cliente_ultimo, cliente_alias FROM campanas WHERE id=?').bind(b.campana_id).first();
   if (!camp) throw new HttpError(404, 'Campaña no encontrada');
   const accion = String(b.accion || '');
-  if (!['generar', 'renovar', 'desactivar'].includes(accion)) throw new HttpError(400, 'Acción inválida');
-  let codigo = camp.codigo_cliente || '', activo = camp.cliente_activo ? 1 : 0;
+  if (!['generar', 'renovar', 'desactivar', 'definir'].includes(accion)) throw new HttpError(400, 'Acción inválida');
+  let codigo = camp.codigo_cliente || '', activo = camp.cliente_activo ? 1 : 0, alias = camp.cliente_alias || '';
+  // Nombre de la dirección (cosmético): solo letras minúsculas, números y guiones. Vacío = dirección genérica.
+  if (b.alias !== undefined) {
+    alias = String(b.alias || '').trim().toLowerCase();
+    if (alias && !/^[a-z0-9-]{2,30}$/.test(alias)) throw new HttpError(400, 'El nombre de la dirección debe tener de 2 a 30 caracteres: solo letras minúsculas, números y guiones.');
+  }
   if (accion === 'desactivar') activo = 0;
-  else { if (accion === 'renovar' || !codigo) codigo = tokenNuevo().slice(0, 14); activo = 1; }
-  await env.DB.prepare('UPDATE campanas SET codigo_cliente=?, cliente_activo=? WHERE id=?').bind(codigo, activo, camp.id).run();
+  else if (accion === 'definir') {
+    // La clave la elige el consultor: debe ser difícil de adivinar y única entre campañas (es lo que identifica la campaña).
+    const k = String(b.codigo || '').trim();
+    if (k.length < 10 || k.length > 40) throw new HttpError(400, 'La clave debe tener de 10 a 40 caracteres.');
+    if (!/^[A-Za-z0-9._\-!@#$%&*+=]+$/.test(k)) throw new HttpError(400, 'La clave solo puede llevar letras, números y estos signos: . _ - ! @ # $ % & * + =');
+    if (!/[A-Za-z]/.test(k) || !/\d/.test(k)) throw new HttpError(400, 'La clave debe combinar letras y números.');
+    const sin = x => normal(x).replace(/[^a-z0-9]/g, '');
+    const n = sin(k);
+    if (/^(.)\1+$/.test(n) || /(password|contrasena|123456|qwerty|abcdef)/.test(n)) throw new HttpError(400, 'Esa clave es demasiado fácil de adivinar: elige otra.');
+    if ((sin(camp.cliente).length > 3 && n.includes(sin(camp.cliente))) || (sin(camp.nombre).length > 3 && n.includes(sin(camp.nombre)))) throw new HttpError(400, 'La clave no debe contener el nombre del cliente ni de la campaña.');
+    if (igualSeguro(k, (env.ADMIN_CODE || '').trim())) throw new HttpError(400, 'Esa clave no se puede usar.');
+    const otra = await env.DB.prepare('SELECT id FROM campanas WHERE codigo_cliente=? AND id<>?').bind(k, camp.id).first();
+    if (otra) throw new HttpError(409, 'Esa clave ya está en uso en otra campaña: elige otra.');
+    codigo = k; activo = 1;
+  } else { if (accion === 'renovar' || !codigo) codigo = tokenNuevo().slice(0, 14); activo = 1; }
+  await env.DB.prepare('UPDATE campanas SET codigo_cliente=?, cliente_activo=?, cliente_alias=? WHERE id=?').bind(codigo, activo, alias, camp.id).run();
   log('cliente_acceso', { campana: camp.id, accion });
-  return { ok: true, codigo, activo, ultimo: camp.cliente_ultimo || '' };
+  return { ok: true, codigo, activo, alias, ultimo: camp.cliente_ultimo || '' };
 }
 
 async function campanaDeCliente(env, req) {

@@ -520,7 +520,7 @@
   function sinTildes(s){ return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
   function fecha(s){ return String(s || '').slice(0,16).replace('T',' '); }
   // Con ?cliente=1 la misma página es el panel de la administradora del cliente: su propio código, solo lectura (/c/campana).
-  var CLIENTE = new URLSearchParams(location.search).get('cliente') === '1';
+  var CLIENTE = !!new URLSearchParams(location.search).get('cliente');   // ?cliente=1 o ?cliente=nombre (el nombre es solo estético)
   if (CLIENTE){
     document.querySelector('header .sub').textContent = 'Voz MBC · seguimiento del relevamiento (acceso del cliente)';
     document.querySelector('#vLogin p.muted').textContent = 'Ingresa el código de acceso que te entregó el equipo consultor.';
@@ -3211,27 +3211,35 @@
   $('#btnInvitacionBase').addEventListener('click', function(){ $('#inInvitacion').value = BASE_INVITACION; $('#msgInvitacion').textContent = 'Texto base cargado: pulsa «Guardar texto».'; });
 
   // Acceso del cliente (solo lectura): código propio, renovar y desactivar.
-  function enlaceCliente(){ return location.origin + location.pathname + '?cliente=1'; }
+  function enlaceCliente(alias){ return location.origin + location.pathname + '?cliente=' + encodeURIComponent((alias == null ? (C.campana.cliente_alias || '') : alias).trim().toLowerCase() || '1'); }
   function pintarAccesoCliente(){
     var c = C.campana, activo = !!c.cliente_activo && !!c.codigo_cliente;
     $('#clAcceso').innerHTML = '<div class="row"><span class="chip ' + (activo ? 'c-ok' : 'c-mut') + '">' + (activo ? 'Activo' : (c.codigo_cliente ? 'Desactivado' : 'Sin generar')) + '</span>' +
       (c.cliente_ultimo ? '<span class="muted">Último ingreso: ' + esc(fecha(c.cliente_ultimo)) + '</span>' : (activo ? '<span class="muted">Todavía no ha ingresado</span>' : '')) + '</div>' +
-      (activo ? '<div class="grid2" style="margin-top:8px"><div><label for="clEnlace">Dirección</label><input type="text" id="clEnlace" readonly value="' + esc(enlaceCliente()) + '"></div>' +
-        '<div><label for="clCodigo">Código de acceso</label><input type="text" id="clCodigo" readonly value="' + esc(c.codigo_cliente) + '"></div></div>' : '') +
-      '<div class="row" style="margin-top:8px">' +
-        (activo ? '<button type="button" class="btn btn-xs" data-cl="copiar">Copiar dirección y código</button><button type="button" class="btn btn-ghost btn-xs" data-cl="renovar">Renovar el código</button><button type="button" class="btn btn-ghost btn-xs" data-cl="desactivar">Desactivar</button>'
-          : '<button type="button" class="btn btn-xs" data-cl="generar">' + (c.codigo_cliente ? 'Activar de nuevo' : 'Generar acceso del cliente') + '</button>') +
+      '<div class="grid2" style="margin-top:8px">' +
+        '<div><label for="clAlias">Nombre de la dirección (opcional)</label><input type="text" id="clAlias" maxlength="30" autocomplete="off" placeholder="tdp" value="' + esc(c.cliente_alias || '') + '"><span class="muted">Solo letras minúsculas, números y guiones. Es solo estético: igual se pide la clave.</span></div>' +
+        '<div><label for="clClave">Clave de acceso</label><input type="text" id="clClave" maxlength="40" autocomplete="off" placeholder="De 10 a 40 caracteres" value="' + esc(c.codigo_cliente || '') + '"><span class="muted">Mínimo 10 caracteres, con letras y números, sin el nombre del cliente. Debe ser única.</span></div></div>' +
+      '<div class="muted" style="margin-top:6px">Dirección: <code id="clEnlaceTxt">' + esc(enlaceCliente()) + '</code></div>' +
+      '<div class="row" style="margin-top:8px"><button type="button" class="btn btn-xs" data-cl="definir">' + (activo ? 'Guardar clave y dirección' : 'Activar con esta clave') + '</button>' +
+        (activo ? '<button type="button" class="btn btn-ghost btn-xs" data-cl="copiar">Copiar dirección y clave</button><button type="button" class="btn btn-ghost btn-xs" data-cl="renovar">Generar otra al azar</button><button type="button" class="btn btn-ghost btn-xs" data-cl="desactivar">Desactivar</button>'
+          : '<button type="button" class="btn btn-ghost btn-xs" data-cl="generar">Generar una al azar</button>') +
         '<span class="muted" id="msgCliente" role="status"></span></div>';
+    $('#clAlias').addEventListener('input', function(){ $('#clEnlaceTxt').textContent = enlaceCliente(this.value); });
   }
   $('#clAcceso').addEventListener('click', function(ev){
     var b = ev.target.closest('[data-cl]'); if (!b) return;
     var acc = b.dataset.cl;
-    if (acc === 'copiar') return copiar('Panel de seguimiento: ' + enlaceCliente() + '\nCódigo de acceso: ' + C.campana.codigo_cliente, b);
-    if (acc === 'renovar' && !confirm('Se generará un código nuevo y el actual dejará de funcionar de inmediato: tendrás que enviar el nuevo a la administradora del cliente. ¿Continuar?')) return;
+    if (acc === 'copiar') return copiar('Panel de seguimiento: ' + enlaceCliente() + '\nClave de acceso: ' + C.campana.codigo_cliente, b);
+    if (acc === 'renovar' && !confirm('Se generará una clave nueva al azar y la actual dejará de funcionar de inmediato: tendrás que enviar la nueva a la administradora del cliente. ¿Continuar?')) return;
     if (acc === 'desactivar' && !confirm('El acceso del cliente se desactivará y su sesión se cerrará de inmediato. ¿Continuar?')) return;
+    if (acc === 'definir' && C.campana.cliente_activo && C.campana.codigo_cliente && $('#clClave').value.trim() !== C.campana.codigo_cliente &&
+      !confirm('Cambiar la clave cierra la sesión de quien esté usando la actual: tendrás que enviarle la nueva. ¿Continuar?')) return;
+    var cuerpo = {campana_id: C.campana.id, accion: acc, alias: $('#clAlias').value};
+    if (acc === 'definir') cuerpo.codigo = $('#clClave').value;
     b.disabled = true; $('#msgCliente').textContent = 'Guardando…';
-    api('/a/campana/cliente', {campana_id: C.campana.id, accion: acc}).then(function(j){
-      C.campana.codigo_cliente = j.codigo; C.campana.cliente_activo = j.activo; pintarAccesoCliente();
+    api('/a/campana/cliente', cuerpo).then(function(j){
+      C.campana.codigo_cliente = j.codigo; C.campana.cliente_activo = j.activo; C.campana.cliente_alias = j.alias; pintarAccesoCliente();
+      $('#msgCliente').textContent = j.activo ? 'Guardado. Ya puedes copiar la dirección y la clave.' : 'Acceso desactivado.';
     }).catch(function(err){ b.disabled = false; $('#msgCliente').textContent = err.message; });
   });
 
