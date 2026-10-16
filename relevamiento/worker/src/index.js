@@ -2174,7 +2174,7 @@ async function rutaClienteAcceso(env, b) {
   else if (accion === 'definir') {
     // La clave la elige el consultor: debe ser difícil de adivinar y única entre campañas (es lo que identifica la campaña).
     const k = String(b.codigo || '').trim();
-    if (k.length < 10 || k.length > 40) throw new HttpError(400, 'La clave debe tener de 10 a 40 caracteres.');
+    if (k.length < 8 || k.length > 40) throw new HttpError(400, 'La clave debe tener de 8 a 40 caracteres.');
     if (!/^[A-Za-z0-9._\-!@#$%&*+=]+$/.test(k)) throw new HttpError(400, 'La clave solo puede llevar letras, números y estos signos: . _ - ! @ # $ % & * + =');
     if (!/[A-Za-z]/.test(k) || !/\d/.test(k)) throw new HttpError(400, 'La clave debe combinar letras y números.');
     const sin = x => normal(x).replace(/[^a-z0-9]/g, '');
@@ -2193,7 +2193,7 @@ async function rutaClienteAcceso(env, b) {
 
 async function campanaDeCliente(env, req) {
   const k = (req.headers.get('x-client-code') || '').trim();
-  if (k.length < 10) throw new HttpError(401, 'Código de acceso incorrecto');
+  if (k.length < 8) throw new HttpError(401, 'Código de acceso incorrecto');
   const camp = await env.DB.prepare('SELECT * FROM campanas WHERE codigo_cliente=? AND cliente_activo=1').bind(k).first();
   if (!camp || !igualSeguro(k, camp.codigo_cliente)) throw new HttpError(401, 'Código de acceso incorrecto o desactivado');
   return camp;
