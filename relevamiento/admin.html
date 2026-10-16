@@ -416,6 +416,8 @@
     <div class="row" style="justify-content:space-between"><h2 id="clTitulo">Seguimiento del relevamiento</h2>
       <div class="row"><button class="btn btn-ghost btn-xs" id="clActualizar">Actualizar</button><button class="btn btn-navy btn-xs" id="clExportar">Exportar avance (Excel)</button><button class="btn btn-ghost btn-xs" id="clSalir">Salir</button></div></div>
     <p class="muted" id="clSub" aria-live="polite"></p>
+    <p class="muted" style="margin-top:0">En cada sección puedes <b>agregar responsables</b>, <b>asignarles procesos</b> y <b>copiar los enlaces</b> (de la sección o personales). Todo lo demás es de solo lectura.</p>
+    <p class="msg ok hidden" id="clAviso" role="status"></p>
     <div id="clResumen"></div>
     <div class="filtros filtros-cl" role="search" style="margin-top:14px">
       <div><label for="clTexto">Buscar gerencia, sección, persona o proceso</label><input type="search" id="clTexto" placeholder="Escribe para filtrar…"></div>
@@ -3270,6 +3272,7 @@
   // ------------------------------------------------------------ panel del cliente (HU-14, solo lectura)
   // Usa el volcado reducido de /c/campana: avance, personas y procesos; nunca respuestas, correos ni enlaces personales.
   var FCL = {texto: '', ger: ''};
+  var CLOPEN = {};   // gerencias y secciones abiertas o cerradas por la persona: sobrevive al repintado tras agregar o asignar
   try { var PCL = JSON.parse(localStorage.getItem('relev-cliente-filtros') || 'null'); if (PCL){ if (typeof PCL.texto === 'string') FCL.texto = PCL.texto; if (typeof PCL.ger === 'string') FCL.ger = PCL.ger; } } catch(e){}
   function guardarFiltrosCl(){ try { localStorage.setItem('relev-cliente-filtros', JSON.stringify(FCL)); } catch(e){} }
   function cargarCliente(j){
@@ -3332,6 +3335,162 @@
     $('#clTexto').value = FCL.texto;
     pintarListaCliente(secs);
   }
+  // ---- lo único que puede editar el cliente: responsables de la sección, asignación de procesos y enlaces
+  function apiCl(path, body){
+    return fetch(API + path, {method: 'POST', headers: {'x-client-code': CODIGO, 'content-type': 'application/json'}, body: JSON.stringify(body || {})}).then(function(r){
+      return r.json().catch(function(){ return {ok: false, error: 'Respuesta inesperada'}; }).then(function(j){
+        if (!r.ok || !j.ok) throw new Error(j.error || ('Error ' + r.status));
+        return j;
+      });
+    });
+  }
+  function recargarCl(aviso){
+    var y = window.scrollY;
+    return fetch(API + '/c/campana?recarga=1', {headers: {'x-client-code': CODIGO}}).then(function(r){ return r.json(); }).then(function(j){
+      if (!j.ok) throw new Error(j.error || 'No se pudo actualizar');
+      cargarCliente(j); window.scrollTo(0, y);
+      if (aviso) avisoCl(aviso);
+    });
+  }
+  function avisoCl(t, mal){
+    var a = $('#clAviso'); a.textContent = t; a.classList.remove('hidden'); a.classList.toggle('ok', !mal); a.classList.toggle('warn', !!mal);
+  }
+  var mismaAreaCl = function(a, b){ return sinTildes(String(a || '').trim()) === sinTildes(String(b || '').trim()); };
+  function procsSeccionCl(g, s){
+    return C.procesos.filter(function(p){ return mismaAreaCl(p.gerencia, g) && mismaAreaCl(p.seccion, s) && cobertura(p.id).estado !== 'no_vigente'; });
+  }
+  function asignadosCl(eid){   // procesos que el equipo (consultor o cliente) le asignó
+    return C.asignaciones.filter(function(a){ return a.encuestado_id === eid && a.origen === 'consultor'; }).map(function(a){ return a.proceso_id; });
+  }
+  function barraSeccionCl(s){
+    var activo = !!C.campana.abierta && !!C.campana.codigo_publico, d = ' data-g="' + esc(s.gerencia) + '" data-s="' + esc(s.seccion) + '"';
+    var ids = s.personas.map(function(x){ return x.e.id; }).join(',');
+    return '<div class="row acc-cl" style="margin:4px 0 8px">' +
+      (activo ? '<button type="button" class="btn btn-xs" data-ca="enlace-sec"' + d + '>Copiar enlace de la sección</button><button type="button" class="btn btn-ghost btn-xs" data-ca="invitacion"' + d + '>Copiar invitación</button>'
+              : '<button type="button" class="btn btn-xs" data-ca="activar"' + d + '>Activar el enlace de la sección</button>') +
+      (s.personas.length ? '<button type="button" class="btn btn-ghost btn-xs" data-ca="enlaces-sec" data-ids="' + esc(ids) + '">Copiar enlaces personales (' + s.personas.length + ')</button>' : '') +
+      '<button type="button" class="btn btn-ghost btn-xs" data-ca="agregar"' + d + '>+ Agregar responsables</button></div>';
+  }
+  function copiarAsyncCl(texto, boton){
+    var ok = function(){ var antes = boton.dataset.t || boton.textContent; boton.dataset.t = antes; boton.textContent = 'Copiado ✓'; setTimeout(function(){ boton.textContent = antes; }, 1600); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(texto).then(ok, function(){ window.prompt('Copia el texto:', texto); });
+    else window.prompt('Copia el texto:', texto);
+  }
+  function copiarEnlacesCl(ids, boton, conNombre){
+    boton.disabled = true;
+    apiCl('/c/enlaces', {encuestado_ids: ids}).then(function(j){
+      copiarAsyncCl(j.enlaces.map(function(x){ return (conNombre ? x.nombre + ': ' : '') + URL_ENCUESTA + '?k=' + x.token; }).join('\n'), boton);
+    }).catch(function(err){ avisoCl(err.message, true); }).then(function(){ boton.disabled = false; });
+  }
+  function abrirDlgCl(titulo, sub, html){
+    $('#dlgT').textContent = titulo; $('#dlgS').textContent = sub || '';
+    $('#dlgB').onclick = null; $('#dlgB').onchange = null; $('#dlgB').oninput = null;
+    $('#dlgB').innerHTML = html;
+    if (!$('#dlg').open) $('#dlg').showModal();
+  }
+  // Responsables de la sección: una persona por línea («Nombre, correo, cargo»); quedan asignados a los procesos de la sección.
+  function dialogoPersonaCl(g, s){
+    var n = procsSeccionCl(g, s).length;
+    abrirDlgCl('Agregar responsables · ' + s, g + ' · ' + s,
+      '<p class="muted" style="margin-top:0">Escribe una persona por línea: <b>Nombre completo, correo, cargo</b> (el correo y el cargo son opcionales). Podrán entrar con el enlace de la sección o con su enlace personal.</p>' +
+      '<label for="cpTexto">Personas</label><textarea id="cpTexto" rows="6" placeholder="Ana Pérez, ana.perez@empresa.com, Jefa de la sección"></textarea>' +
+      '<label style="display:flex;gap:8px;align-items:center;font-weight:500;margin-top:8px"><input type="checkbox" id="cpAsig" style="width:auto" checked> Asignarles los ' + n + (n === 1 ? ' proceso' : ' procesos') + ' de la sección</label>' +
+      '<div class="row" style="margin-top:12px"><button type="button" class="btn" id="cpOk">Agregar</button><span class="muted" id="cpMsg" role="status"></span></div>');
+    $('#cpOk').addEventListener('click', function(){
+      var b = this, personas = [], mal = '';
+      $('#cpTexto').value.split('\n').forEach(function(l){
+        l = l.trim(); if (!l) return;
+        var partes = l.split(/[,;\t]/).map(function(x){ return x.trim(); }).filter(Boolean);
+        var correo = partes.filter(function(x){ return x.indexOf('@') >= 0; })[0] || '';
+        var resto = partes.filter(function(x){ return x !== correo; });
+        if (!resto[0] || resto[0].length < 3){ mal = 'Revisa la línea «' + l + '»: falta el nombre.'; return; }
+        personas.push({nombre: resto[0], correo: correo, rol: resto[1] || '', gerencia: g, seccion: s});
+      });
+      if (mal){ $('#cpMsg').textContent = mal; return; }
+      if (!personas.length){ $('#cpMsg').textContent = 'Escribe al menos una persona.'; return; }
+      b.disabled = true; $('#cpMsg').textContent = 'Guardando…';
+      apiCl('/c/personas', {personas: personas, asignar_seccion: $('#cpAsig').checked}).then(function(j){
+        var t = j.creados + (j.creados === 1 ? ' persona agregada' : ' personas agregadas') + (j.existentes.length ? ' · ya estaban: ' + j.existentes.join(', ') : '') + '.';
+        CLOPEN['s:' + g + '\u0001' + s] = true;
+        return recargarCl(t).then(function(){ $('#dlg').close(); });
+      }).catch(function(err){ b.disabled = false; $('#cpMsg').textContent = err.message; });
+    });
+  }
+  // Una persona o un proceso: lista de casillas con buscador; al guardar se aplican solo las diferencias.
+  function dialogoAsignarCl(titulo, sub, items, marcados, guardar, vacio){
+    if (!items.length){ abrirDlgCl(titulo, sub, '<p class="muted">' + esc(vacio) + '</p>'); return; }
+    var ini = {}; marcados.forEach(function(id){ ini[id] = 1; });
+    abrirDlgCl(titulo, sub,
+      '<label for="asBus">Buscar</label><input type="search" id="asBus" placeholder="Escribe para filtrar…" autocomplete="off">' +
+      '<div class="row" style="margin:8px 0"><button type="button" class="btn btn-ghost btn-xs" id="asTodos">Marcar todos los visibles</button><button type="button" class="btn btn-ghost btn-xs" id="asNinguno">Desmarcar todos los visibles</button></div>' +
+      '<div id="asLista" role="group" aria-label="Opciones" style="max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:6px 10px">' +
+      items.map(function(it){
+        return '<label class="as-it" data-t="' + esc(sinTildes(it.texto + ' ' + (it.sub || ''))) + '" style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-weight:500"><input type="checkbox" value="' + esc(it.id) + '" style="width:auto;margin-top:3px"' + (ini[it.id] ? ' checked' : '') + '><span>' + esc(it.texto) + (it.sub ? ' <span class="muted">· ' + esc(it.sub) + '</span>' : '') + '</span></label>';
+      }).join('') + '</div>' +
+      '<div class="row" style="margin-top:12px"><button type="button" class="btn" id="asOk">Guardar</button><span class="muted" id="asMsg" role="status"></span></div>');
+    var visibles = function(){ return Array.prototype.filter.call(document.querySelectorAll('#asLista .as-it'), function(l){ return !l.hidden; }); };
+    $('#asBus').addEventListener('input', function(){
+      var t = sinTildes(this.value.trim());
+      Array.prototype.forEach.call(document.querySelectorAll('#asLista .as-it'), function(l){ l.hidden = !!t && l.dataset.t.indexOf(t) < 0; l.style.display = l.hidden ? 'none' : 'flex'; });
+    });
+    $('#asTodos').addEventListener('click', function(){ visibles().forEach(function(l){ l.querySelector('input').checked = true; }); });
+    $('#asNinguno').addEventListener('click', function(){ visibles().forEach(function(l){ l.querySelector('input').checked = false; }); });
+    $('#asOk').addEventListener('click', function(){
+      var b = this, agregar = [], quitar = [];
+      Array.prototype.forEach.call(document.querySelectorAll('#asLista input'), function(i){
+        if (i.checked && !ini[i.value]) agregar.push(i.value); else if (!i.checked && ini[i.value]) quitar.push(i.value);
+      });
+      if (!agregar.length && !quitar.length){ $('#dlg').close(); return; }
+      b.disabled = true; $('#asMsg').textContent = 'Guardando…';
+      guardar(agregar, quitar).then(function(){ return recargarCl('Asignación guardada.'); }).then(function(){ $('#dlg').close(); })
+        .catch(function(err){ b.disabled = false; $('#asMsg').textContent = err.message; });
+    });
+  }
+  function dialogoAsignarProcesoCl(pid){
+    var p = C.procesos.filter(function(x){ return x.id === pid; })[0]; if (!p) return;
+    var marcados = C.asignaciones.filter(function(a){ return a.proceso_id === pid && a.origen === 'consultor'; }).map(function(a){ return a.encuestado_id; });
+    var items = C.encuestados.slice().sort(function(a, b){
+      var sa = mismaAreaCl(a.seccion, p.seccion) && mismaAreaCl(a.gerencia, p.gerencia) ? 0 : 1, sb = mismaAreaCl(b.seccion, p.seccion) && mismaAreaCl(b.gerencia, p.gerencia) ? 0 : 1;
+      return (sa - sb) || a.nombre.localeCompare(b.nombre, 'es');
+    }).map(function(e){ return {id: e.id, texto: e.nombre, sub: [e.rol, e.seccion].filter(Boolean).join(' · ')}; });
+    dialogoAsignarCl('Asignar personas al proceso', nombreProc(p) + ' · ' + p.gerencia + ' · ' + p.seccion, items, marcados, function(agregar, quitar){
+      var seq = Promise.resolve();
+      agregar.forEach(function(eid){ seq = seq.then(function(){ return apiCl('/c/asignar', {encuestado_id: eid, agregar: [pid]}); }); });
+      quitar.forEach(function(eid){ seq = seq.then(function(){ return apiCl('/c/asignar', {encuestado_id: eid, desasignar: [pid]}); }); });
+      return seq;
+    }, 'Todavía no hay personas cargadas. Primero agrega a los responsables desde su sección («+ Agregar responsables»).');
+  }
+  function dialogoProcesosPersonaCl(eid){
+    var e = C.encuestados.filter(function(x){ return x.id === eid; })[0]; if (!e) return;
+    var marcados = asignadosCl(eid), vistos = {};
+    var lista = procsSeccionCl(e.gerencia, e.seccion);
+    lista.forEach(function(p){ vistos[p.id] = 1; });
+    marcados.forEach(function(id){ if (!vistos[id]){ var p = C.procesos.filter(function(x){ return x.id === id; })[0]; if (p) lista.push(p); } });
+    var items = lista.map(function(p){ return {id: p.id, texto: nombreProc(p), sub: mismaAreaCl(p.seccion, e.seccion) ? (p.codigo || '') : p.gerencia + ' · ' + p.seccion}; });
+    dialogoAsignarCl('Asignar procesos a ' + e.nombre, e.gerencia + ' · ' + e.seccion, items, marcados, function(agregar, quitar){
+      var cuerpo = {encuestado_id: eid}; if (agregar.length) cuerpo.agregar = agregar; if (quitar.length) cuerpo.desasignar = quitar;
+      return apiCl('/c/asignar', cuerpo);
+    }, 'Esta sección no tiene procesos vigentes en el mapa.');
+  }
+  $('#clLista').addEventListener('toggle', function(ev){ var d = ev.target; if (d && d.dataset && d.dataset.k) CLOPEN[d.dataset.k] = d.open; }, true);
+  $('#clLista').addEventListener('click', function(ev){
+    var b = ev.target.closest('[data-ca]'); if (!b) return;
+    var a = b.dataset.ca, g = b.dataset.g, s = b.dataset.s, id = b.dataset.id;
+    if (a === 'agregar') dialogoPersonaCl(g, s);
+    else if (a === 'asignar') dialogoAsignarProcesoCl(id);
+    else if (a === 'procesos-per') dialogoProcesosPersonaCl(id);
+    else if (a === 'enlace-sec') copiarAsyncCl(enlaceAbierto(g, s), b);
+    else if (a === 'invitacion') copiarAsyncCl(textoInvitacion(g, s), b);
+    else if (a === 'enlace-per') copiarEnlacesCl([id], b, false);
+    else if (a === 'enlaces-sec') copiarEnlacesCl(b.dataset.ids.split(','), b, true);
+    else if (a === 'activar'){
+      b.disabled = true;
+      apiCl('/c/enlace-abierto', {}).then(function(j){
+        C.campana.codigo_publico = j.codigo_publico; C.campana.abierta = j.abierta; CLOPEN['s:' + g + '\u0001' + s] = true; pintarListaCliente(); avisoCl('Enlace activado: ya puedes copiarlo.');
+      }).catch(function(err){ b.disabled = false; avisoCl(err.message, true); });
+    }
+  });
+
   function pintarListaCliente(secs){
     secs = secs || resumenCliente();
     var t = sinTildes(FCL.texto.trim()), pc = function(a, b){ return b ? Math.round(100 * a / b) : 0; };
@@ -3356,30 +3515,34 @@
     };
     var html = gerencias.map(function(G){
       var sinG = 0; G.secs.forEach(function(s){ sinG += s.sinResp; });
-      return '<details class="cl cl-ger" open><summary>' + esc(G.g) + cifras(G.vig, G.resp, G.valid, G.per, sinG) + '</summary><div class="cl-cuerpo">' +
+      return '<details class="cl cl-ger" data-k="' + esc('g:' + G.g) + '"' + (CLOPEN['g:' + G.g] === false ? '' : ' open') + '><summary>' + esc(G.g) + cifras(G.vig, G.resp, G.valid, G.per, sinG) + '</summary><div class="cl-cuerpo">' +
         G.secs.map(function(s){
           var v = ventanaDe(s.gerencia, s.seccion), est = estadoVentanaCl(v);
-          var personas = s.personas.length ? '<div class="tblwrap"><table><thead><tr><th scope="col">Persona</th><th scope="col">Cargo</th><th scope="col">Estado</th><th scope="col" class="num">Avance</th><th scope="col">Última actividad</th></tr></thead><tbody>' +
+          var personas = s.personas.length ? '<div class="tblwrap"><table><thead><tr><th scope="col">Persona</th><th scope="col">Cargo</th><th scope="col">Estado</th><th scope="col" class="num">Avance</th><th scope="col">Última actividad</th><th scope="col">Acciones</th></tr></thead><tbody>' +
             s.personas.map(function(x){
               var ep = ESTADO_P[x.i.estado];
               return '<tr' + (x.i.inactiva ? ' class="inactivo"' : '') + '><td><b>' + esc(x.e.nombre) + '</b></td><td>' + esc(x.e.rol) + '</td><td><span class="chip ' + ep[1] + '">' + ep[0] + '</span>' +
                 (x.i.inactiva ? ' <span class="chip c-warn"><span aria-hidden="true">⚠ </span>' + x.i.dias + ' días sin actividad</span>' : '') + '</td>' +
                 '<td class="num">' + (x.i.av.total ? x.i.av.pct + '% <span class="muted">(' + x.i.av.hechos + ' de ' + x.i.av.total + ')</span>' : '—') + '</td>' +
-                '<td>' + esc(x.e.actualizado ? fecha(x.e.actualizado) : 'Sin actividad') + '</td></tr>';
+                '<td>' + esc(x.e.actualizado ? fecha(x.e.actualizado) : 'Sin actividad') + '</td>' +
+                '<td class="acc-cl"><button type="button" class="btn btn-ghost btn-xs" data-ca="enlace-per" data-id="' + esc(x.e.id) + '" aria-label="Copiar el enlace personal de ' + esc(x.e.nombre) + '">Copiar enlace</button> ' +
+                '<button type="button" class="btn btn-ghost btn-xs" data-ca="procesos-per" data-id="' + esc(x.e.id) + '" aria-label="Asignar procesos a ' + esc(x.e.nombre) + '">Procesos…</button></td></tr>';
             }).join('') + '</tbody></table></div>' : '<p class="muted">Esta sección todavía no tiene personas asignadas.</p>';
           var cls = {respondido: 'c-ok', en_curso: 'c-inf', sin_cobertura: 'c-warn'};
-          var procesos = s.procs.length ? '<div class="tblwrap"><table><thead><tr><th scope="col">Proceso</th><th scope="col">Responsables</th><th scope="col">Estado</th><th scope="col" class="num">Información</th><th scope="col">Validado</th></tr></thead><tbody>' +
+          var procesos = s.procs.length ? '<div class="tblwrap"><table><thead><tr><th scope="col">Proceso</th><th scope="col">Responsables</th><th scope="col">Estado</th><th scope="col" class="num">Información</th><th scope="col">Validado</th><th scope="col">Asignar</th></tr></thead><tbody>' +
             s.procs.map(function(x){
               var quienes = x.asignados.length ? x.asignados : x.tomado;
               return '<tr><td>' + (x.p.codigo ? '<span class="muted">' + esc(x.p.codigo) + '</span> ' : '') + esc(nombreProc(x.p)) + '</td>' +
                 '<td>' + (quienes.length ? esc(quienes.join(', ')) : '<span class="sin-resp">Sin responsable asignado</span>') + '</td>' +
                 '<td><span class="chip ' + (cls[x.cb.estado] || 'c-mut') + '">' + esc(ESTADO_TXT[x.cb.estado]) + '</span></td>' +
                 '<td class="num">' + x.puntos + ' de ' + tp + ' <span class="muted">(' + pc(x.puntos, tp) + '%)</span></td>' +
-                '<td>' + (x.validado ? '<span class="chip c-ok"><span aria-hidden="true">✓ </span>Validado</span>' : '<span class="chip c-mut">Pendiente</span>') + '</td></tr>';
+                '<td>' + (x.validado ? '<span class="chip c-ok"><span aria-hidden="true">✓ </span>Validado</span>' : '<span class="chip c-mut">Pendiente</span>') + '</td>' +
+                '<td><button type="button" class="btn btn-ghost btn-xs" data-ca="asignar" data-id="' + esc(x.p.id) + '" aria-label="Asignar personas al proceso ' + esc(nombreProc(x.p)) + '">Asignar…</button></td></tr>';
             }).join('') + '</tbody></table></div>' : '<p class="muted">Esta sección no tiene procesos vigentes en el mapa.</p>';
-          return '<details class="cl cl-sec"' + (t ? ' open' : '') + '><summary><b>' + esc(s.seccion) + '</b>' + cifras(s.procs.length, s.resp, s.valid, s.personas.length, s.sinResp) +
+          var kS = 's:' + s.gerencia + '\u0001' + s.seccion;
+          return '<details class="cl cl-sec" data-k="' + esc(kS) + '"' + ((t || CLOPEN[kS] === true) ? ' open' : '') + '><summary><b>' + esc(s.seccion) + '</b>' + cifras(s.procs.length, s.resp, s.valid, s.personas.length, s.sinResp) +
             (est === 'antes' ? '<span class="prio prio-programada">' + PRIO_ICO.programada + 'Disponible desde el ' + esc(fechaCorta(v.abre)) + '</span>' : '') + '</summary><div class="cl-cuerpo">' +
-            '<h4 style="font-size:13px;margin:6px 0 4px">Personas asignadas</h4>' + personas +
+            '<h4 style="font-size:13px;margin:6px 0 4px">Personas asignadas</h4>' + barraSeccionCl(s) + personas +
             '<h4 style="font-size:13px;margin:12px 0 4px">Procesos y responsables</h4>' + procesos + '</div></details>';
         }).join('') + '</div></details>';
     }).join('');

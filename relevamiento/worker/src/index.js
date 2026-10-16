@@ -54,6 +54,7 @@
  *   POST /a/ventana              {campana_id, gerencia, seccion, abre?, cierra?, mensaje?}   (disponibilidad de una sección: abre bloquea antes; cierra es solo plazo)
  *   POST /a/campana/invitacion   {campana_id, invitacion}   (texto de invitación; vacío = texto base)
  *   POST /a/campana/cliente      {campana_id, accion: generar|renovar|desactivar|definir, codigo?, alias?}   (acceso de solo lectura de la administradora del cliente; definir = la clave y el nombre de la dirección los elige el consultor)
+ *   POST /c/personas | /c/asignar | /c/enlaces | /c/enlace-abierto   cabecera x-client-code: ÚNICA escritura del cliente (agregar responsables a una sección, asignar procesos, copiar enlaces; sin tocar respuestas, matriz ni validación)
  *   GET  /c/campana              cabecera x-client-code: volcado SIN respuestas, correos ni enlaces personales (panel del cliente)
  *   POST /a/campana/logo         {campana_id, logo}   (data URI; vacío lo quita)
  *   POST /a/campana/ia           {campana_id, ia_auto}   (la tarea programada completa la matriz con la IA)
@@ -2113,7 +2114,7 @@ async function rutaEncuestadoAlta(env, b) {
   };
   const ya = (await env.DB.prepare('SELECT nombre, lower(correo) AS correo, gerencia, seccion FROM encuestados WHERE campana_id=?').bind(camp.id).all()).results;
   const correos = new Set(ya.map(x => x.correo).filter(Boolean));
-  const t = ahora(), st = [], creados = [], existentes = [];
+  const t = ahora(), st = [], creados = [], existentes = [], nuevos = [];
   for (const x of lista) {
     const nombre = txt(x && x.nombre, 150), correo = txt(x && x.correo, 150).toLowerCase();
     const [gerencia, seccion] = canonica(txt(x && x.gerencia, 150), txt(x && x.seccion, 150));
@@ -2124,13 +2125,14 @@ async function rutaEncuestadoAlta(env, b) {
     if (repetida) { existentes.push(nombre); continue; }
     if (correo) correos.add(correo);
     ya.push({ nombre, correo, gerencia, seccion });
+    const nuevoId = uid();
     st.push(env.DB.prepare('INSERT INTO encuestados (id, campana_id, token, nombre, correo, gerencia, seccion, rol, creado) VALUES (?,?,?,?,?,?,?,?,?)')
-      .bind(uid(), camp.id, tokenNuevo(), nombre, correo, gerencia, seccion, txt(x.rol, 60), t));
-    creados.push(nombre);
+      .bind(nuevoId, camp.id, tokenNuevo(), nombre, correo, gerencia, seccion, txt(x.rol, 60), t));
+    creados.push(nombre); nuevos.push({ id: nuevoId, gerencia, seccion });
   }
   for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
   log('encuestado_alta', { campana: camp.id, creados: creados.length, existentes: existentes.length });
-  return { ok: true, creados: creados.length, existentes };
+  return { ok: true, creados: creados.length, existentes, nuevos };
 }
 
 async function rutaVentana(env, b) {
@@ -2202,7 +2204,7 @@ async function campanaDeCliente(env, req) {
 // Volcado para el panel del cliente: avance, personas y procesos. NUNCA incluye lo que respondieron las personas (ni transcripciones),
 // el análisis de la IA, la matriz, el texto de la precarga, los correos ni los enlaces personales. Los textos se reemplazan por una marca
 // («•») para que el panel sepa si hay respuesta sin ver su contenido.
-async function rutaClienteCampana(env, camp) {
+async function rutaClienteCampana(env, camp, recarga) {
   const q = sql => env.DB.prepare(sql).bind(camp.id).all().then(r => r.results);
   const [encuestados, procesos, revisiones, respuestas, asignaciones, precarga, ventanas] = await Promise.all([
     q('SELECT id, nombre, rol, gerencia, seccion, estado, actualizado, origen, creado FROM encuestados WHERE campana_id=? ORDER BY gerencia, seccion, nombre'),
@@ -2219,10 +2221,64 @@ async function rutaClienteCampana(env, camp) {
     return { encuestado_id: r.encuestado_id, proceso_id: r.proceso_id, pregunta: r.pregunta, actualizado: r.actualizado,
       texto: String(r.texto || '').trim() ? '•' : '', sistemas: (r.sistemas && r.sistemas !== '[]') ? ['•'] : [], checklist: sano };
   });
-  await env.DB.prepare('UPDATE campanas SET cliente_ultimo=? WHERE id=?').bind(ahora(), camp.id).run();
-  log('cliente_ingreso', { campana: camp.id });
-  return { ok: true, campana: { id: camp.id, nombre: camp.nombre, cliente: camp.cliente, logo: camp.logo || '', creada: camp.creada },
+  if (!recarga) {   // volver a pedir el volcado tras agregar o asignar no es un ingreso nuevo
+    await env.DB.prepare('UPDATE campanas SET cliente_ultimo=? WHERE id=?').bind(ahora(), camp.id).run();
+    log('cliente_ingreso', { campana: camp.id });
+  }
+  return { ok: true, campana: { id: camp.id, nombre: camp.nombre, cliente: camp.cliente, logo: camp.logo || '', creada: camp.creada,
+      codigo_publico: camp.codigo_publico || '', abierta: camp.abierta ? 1 : 0, invitacion: camp.invitacion || '' },
     encuestados, procesos, revisiones, respuestas: limpias, asignaciones, precarga, ventanas, estructurado: [], sistemas: [], bloques: BLOQUES, generado: ahora() };
+}
+
+// ---------------------------------------------------------------- escritura acotada del panel del cliente
+// El cliente puede: agregar responsables a una sección que YA existe, asignar procesos a personas de su campaña, pedir los enlaces personales
+// de sus personas y activar el enlace abierto. Nada más: no ve respuestas, no toca la matriz, la validación, las fechas ni los accesos.
+async function rutaClientePersonas(env, camp, b) {
+  const lista = (Array.isArray(b.personas) ? b.personas : []).slice(0, 50);
+  if (!lista.length) throw new HttpError(400, 'Indica al menos una persona');
+  const areas = await areasDeCampana(env, camp.id);
+  lista.forEach(x => {
+    const g = txt(x && x.gerencia, 150), sec = txt(x && x.seccion, 150), a = areas.find(y => mismaArea(y.gerencia, g));
+    if (!a || !a.secciones.some(z => mismaArea(z, sec))) throw new HttpError(400, 'La sección indicada no existe en el mapa de procesos.');
+  });
+  const r = await rutaEncuestadoAlta(env, { campana_id: camp.id, personas: lista });
+  let asignados = 0;
+  // Responsable de la sección: queda asignado a todos los procesos vigentes de esa sección.
+  if (b.asignar_seccion && r.nuevos.length) {
+    const procs = (await env.DB.prepare('SELECT id, gerencia, seccion FROM procesos WHERE campana_id=? AND fuera_alcance=0').bind(camp.id).all()).results;
+    for (const n of r.nuevos) {
+      const ids = procs.filter(p => mismaArea(p.gerencia, n.gerencia) && mismaArea(p.seccion, n.seccion)).map(p => p.id);
+      if (ids.length) asignados += (await asignarProcesos(env, { id: n.id, campana_id: camp.id }, ids, 'consultor')).length;
+    }
+  }
+  log('cliente_personas', { campana: camp.id, creados: r.creados, asignados });
+  return { ok: true, creados: r.creados, existentes: r.existentes, asignados };
+}
+
+async function rutaClienteAsignar(env, camp, b) {
+  const e = await env.DB.prepare('SELECT id FROM encuestados WHERE id=? AND campana_id=?').bind(txt(b.encuestado_id, 60), camp.id).first();
+  if (!e) throw new HttpError(404, 'Persona no encontrada');
+  // Solo agregar o desasignar lo que el equipo asigna: quitar/restaurar borran respuestas y quedan para el consultor.
+  const r = await rutaAsignar(env, { encuestado_id: e.id, agregar: b.agregar, desasignar: b.desasignar });
+  log('cliente_asignar', { campana: camp.id, agregados: r.agregados, desasignados: r.desasignados });
+  return { ok: true, agregados: r.agregados, desasignados: r.desasignados };
+}
+
+async function rutaClienteEnlaces(env, camp, b) {
+  const ids = [...new Set((Array.isArray(b.encuestado_ids) ? b.encuestado_ids : []).map(x => txt(x, 60)).filter(Boolean))].slice(0, 300);
+  const enlaces = [];
+  for (let i = 0; i < ids.length; i += 30) {
+    const tanda = ids.slice(i, i + 30);
+    (await env.DB.prepare(`SELECT id, nombre, token FROM encuestados WHERE campana_id=? AND id IN (${tanda.map(() => '?').join(',')})`).bind(camp.id, ...tanda).all())
+      .results.forEach(r => enlaces.push({ id: r.id, nombre: r.nombre, token: r.token }));
+  }
+  log('cliente_enlaces', { campana: camp.id, enlaces: enlaces.length });
+  return { ok: true, enlaces };
+}
+
+async function rutaClienteEnlaceAbierto(env, camp) {
+  const r = await rutaEnlace(env, { campana_id: camp.id, abierta: true });   // solo activar: no regenera el código ni cambia el dominio
+  return { ok: true, codigo_publico: r.codigo_publico, abierta: r.abierta };
 }
 
 // ---------------------------------------------------------------- router
@@ -2270,7 +2326,15 @@ export default {
       // Panel del cliente (solo lectura, solo su campaña): su propio código; nunca da acceso a /a/.
       if (url.pathname.startsWith('/c/') && req.method === 'GET') {
         const camp = await campanaDeCliente(env, req);
-        if (url.pathname === '/c/campana') return json(await rutaClienteCampana(env, camp), 200, h);
+        if (url.pathname === '/c/campana') return json(await rutaClienteCampana(env, camp, url.searchParams.get('recarga') === '1'), 200, h);
+      }
+      if (url.pathname.startsWith('/c/') && req.method === 'POST') {
+        const camp = await campanaDeCliente(env, req);
+        const b = await cuerpo(req);
+        if (url.pathname === '/c/personas') return json(await rutaClientePersonas(env, camp, b), 200, h);
+        if (url.pathname === '/c/asignar') return json(await rutaClienteAsignar(env, camp, b), 200, h);
+        if (url.pathname === '/c/enlaces') return json(await rutaClienteEnlaces(env, camp, b), 200, h);
+        if (url.pathname === '/c/enlace-abierto') return json(await rutaClienteEnlaceAbierto(env, camp), 200, h);
       }
 
       if (url.pathname.startsWith('/a/')) {
