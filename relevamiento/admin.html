@@ -277,7 +277,7 @@
 </style>
 </head>
 <body>
-<header><div class="hin"><div><h1>Consola de relevamiento de procesos</h1><div class="sub">Voz MBC · uso interno del equipo consultor</div></div></div></header>
+<header><div class="hin"><div><h1>Consola de relevamiento de procesos</h1><div class="sub">Voz MBC · uso interno del equipo consultor</div></div><img id="hdLogo" class="hidden" alt="" style="margin-left:auto;height:44px;width:auto;background:#fff;border-radius:9px;padding:6px 12px;box-sizing:content-box"></div></header>
 
 <main class="wrap">
   <section class="card" id="vLogin" style="max-width:420px">
@@ -3278,6 +3278,10 @@
     C.procesos = C.procesos.filter(function(p){ return !p.fuera_alcance; });
     indexar();
     $('#clTitulo').textContent = 'Seguimiento · ' + C.campana.nombre;
+    // El logo del cliente va en la franja superior, siempre visible, junto a la marca de la consola.
+    var hl = $('#hdLogo');
+    if (C.campana.logo){ hl.src = C.campana.logo; hl.alt = C.campana.cliente || 'Logo del cliente'; hl.classList.remove('hidden'); }
+    else { hl.removeAttribute('src'); hl.classList.add('hidden'); }
     ver('vCliente');
     pintarPanelCliente();
   }
@@ -3384,7 +3388,7 @@
   $('#clTexto').addEventListener('input', function(){ FCL.texto = this.value; guardarFiltrosCl(); pintarListaCliente(); });
   $('#clGer').addEventListener('change', function(){ FCL.ger = this.value; guardarFiltrosCl(); pintarListaCliente(); });
   $('#clActualizar').addEventListener('click', function(){ $('#clSub').textContent = 'Actualizando…'; entrarCliente(); });
-  $('#clSalir').addEventListener('click', function(){ try { sessionStorage.removeItem('relev-cliente'); } catch(e){} CODIGO = ''; ver('vLogin'); });
+  $('#clSalir').addEventListener('click', function(){ try { sessionStorage.removeItem('relev-cliente'); } catch(e){} CODIGO = ''; $('#hdLogo').classList.add('hidden'); ver('vLogin'); });
   $('#clExportar').addEventListener('click', function(){
     var tp = totalPuntos(), pc = function(a, b){ return b ? Math.round(100 * a / b) : 0; };
     var filas = resumenCliente().sort(function(a, b){ return a.gerencia.localeCompare(b.gerencia, 'es') || a.seccion.localeCompare(b.seccion, 'es'); }).map(function(s){
