@@ -49,9 +49,15 @@
  *   POST /a/campana/sistemas     {campana_id, sistemas: ["Nombre" | "Nombre | tipo"] o texto con una por línea}   (catálogo de aplicaciones: reemplaza lo cargado por el equipo)
  *   POST /a/precarga/extraer?proceso_id=&nombre=   cuerpo: archivo JPG/PNG/PDF/DOCX (bytes) -> {puntos[{id, texto, cita}]}   (la IA extrae solo lo explícito; no guarda)
  *   POST /a/precarga             {proceso_id, puntos[{punto, texto, archivos[]}]}   (guarda la precarga; texto vacío la quita del punto)
+ *   POST /r/identificar          {c, g?, s?, id | correo}   (enlace de sección: la persona elige su nombre o escribe su correo y entra a su registro)
+ *   POST /a/encuestado           {campana_id, personas[{nombre, correo?, gerencia, seccion, rol?}]}   (alta rápida de responsables, sin enlace personal)
+ *   POST /a/ventana              {campana_id, gerencia, seccion, abre?, cierra?, mensaje?}   (disponibilidad de una sección: abre bloquea antes; cierra es solo plazo)
+ *   POST /a/campana/invitacion   {campana_id, invitacion}   (texto de invitación; vacío = texto base)
+ *   POST /a/campana/cliente      {campana_id, accion: generar|renovar|desactivar}   (acceso de solo lectura de la administradora del cliente)
+ *   GET  /c/campana              cabecera x-client-code: volcado SIN respuestas, correos ni enlaces personales (panel del cliente)
  *   POST /a/campana/logo         {campana_id, logo}   (data URI; vacío lo quita)
  *   POST /a/campana/ia           {campana_id, ia_auto}   (la tarea programada completa la matriz con la IA)
- *   POST /a/asignar              {encuestado_id, agregar[], quitar[], restaurar[]}   (lista de procesos de una persona;
+ *   POST /a/asignar              {encuestado_id, agregar[], desasignar[], quitar[], restaurar[]}   (lista de procesos de una persona; desasignar quita solo la asignación del equipo;
  *                                quitar un proceso de su sección lo marca «excluido» y restaurar lo devuelve)
  *   POST /a/asignar-por-inventario {campana_id}   (asigna por el nombre en el inventario anterior)
  *   POST /a/matriz               {proceso_id, matriz?, validacion?, validado_por?}   (fila de la matriz y check de validación)
@@ -147,7 +153,7 @@ function cors(req, env) {
   if (lista.includes(origen)) {
     h['Access-Control-Allow-Origin'] = origen;
     h['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
-    h['Access-Control-Allow-Headers'] = 'content-type, x-admin-code';
+    h['Access-Control-Allow-Headers'] = 'content-type, x-admin-code, x-client-code';
     h['Access-Control-Max-Age'] = '86400';
   }
   return h;
@@ -287,10 +293,36 @@ function publico(p) {
 }
 
 // ---------------------------------------------------------------- encuestado
+// Disponibilidad por fecha de una sección: «abre» bloquea mientras no llega la fecha; «cierra» es solo el plazo (no bloquea).
+// Las fechas se evalúan por día en hora de Lima (UTC-5, sin horario de verano).
+const hoyLima = () => new Date(Date.now() - 5 * 3600 * 1000).toISOString().slice(0, 10);
+const DIAS_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const MESES_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'setiembre', 'octubre', 'noviembre', 'diciembre'];
+function fechaLarga(iso) {
+  const d = new Date(iso + 'T12:00:00Z');
+  return DIAS_ES[d.getUTCDay()] + ' ' + d.getUTCDate() + ' de ' + MESES_ES[d.getUTCMonth()];
+}
+async function ventanaDe(env, campId, gerencia, seccion) {
+  const r = await env.DB.prepare('SELECT gerencia, seccion, abre, cierra, mensaje FROM ventanas WHERE campana_id=?').bind(campId).all();
+  return r.results.find(v => mismaArea(v.gerencia, gerencia) && mismaArea(v.seccion, seccion)) || null;
+}
+function estadoVentana(v) {
+  if (!v) return { estado: 'abierta', abre: '', cierra: '', mensaje: '' };
+  const hoy = hoyLima();
+  const estado = v.abre && hoy < v.abre ? 'antes' : v.cierra && hoy > v.cierra ? 'vencida' : 'abierta';
+  return { estado, abre: v.abre, cierra: v.cierra, mensaje: v.mensaje };
+}
+const mensajeAntes = v => v.mensaje || 'Esta sección estará disponible desde el ' + fechaLarga(v.abre) + '.';
+async function exigirVentanaAbierta(env, campId, gerencia, seccion) {
+  const v = await ventanaDe(env, campId, gerencia, seccion);
+  if (v && estadoVentana(v).estado === 'antes') throw new HttpError(423, mensajeAntes(v));
+}
+
 async function encuestadoPorToken(env, k) {
   if (!k || k.length < 12) throw new HttpError(401, 'Enlace inválido');
   const e = await env.DB.prepare('SELECT * FROM encuestados WHERE token = ?').bind(k).first();
   if (!e) throw new HttpError(401, 'Enlace inválido o vencido');
+  await exigirVentanaAbierta(env, e.campana_id, e.gerencia, e.seccion);   // sección que aún no abre: 423 con el mensaje
   return e;
 }
 
@@ -316,7 +348,7 @@ async function procesoPermitido(env, e, procesoId) {
 
 async function rutaSesion(env, url) {
   const e = await encuestadoPorToken(env, url.searchParams.get('k'));
-  const [camp, procs, asig, revs, resps, sis, pre] = await Promise.all([
+  const [camp, procs, asig, revs, resps, sis, pre, asigCons, respOtros] = await Promise.all([
     env.DB.prepare('SELECT nombre, cliente, logo FROM campanas WHERE id=?').bind(e.campana_id).first(),
     env.DB.prepare(`SELECT id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente, creado_por, orden
       FROM procesos WHERE campana_id=? AND fuera_alcance=0`).bind(e.campana_id).all(),
@@ -324,7 +356,10 @@ async function rutaSesion(env, url) {
     env.DB.prepare('SELECT proceso_id, estado, comentario FROM revisiones WHERE encuestado_id=?').bind(e.id).all(),
     env.DB.prepare('SELECT proceso_id, pregunta, texto, sistemas, checklist FROM respuestas WHERE encuestado_id=?').bind(e.id).all(),
     env.DB.prepare('SELECT nombre, tipo FROM sistemas WHERE campana_id=? ORDER BY nombre').bind(e.campana_id).all(),
-    env.DB.prepare('SELECT pc.proceso_id, pc.punto FROM precarga pc JOIN procesos p ON p.id=pc.proceso_id WHERE p.campana_id=?').bind(e.campana_id).all()
+    env.DB.prepare('SELECT pc.proceso_id, pc.punto FROM precarga pc JOIN procesos p ON p.id=pc.proceso_id WHERE p.campana_id=?').bind(e.campana_id).all(),
+    // Responsables asignados por el equipo (nombres sugeridos) y personas que ya empezaron a responder un proceso.
+    env.DB.prepare("SELECT a.proceso_id, a.encuestado_id, x.nombre FROM asignaciones a JOIN encuestados x ON x.id=a.encuestado_id WHERE x.campana_id=? AND a.origen='consultor'").bind(e.campana_id).all(),
+    env.DB.prepare("SELECT DISTINCT r.proceso_id, x.nombre FROM respuestas r JOIN encuestados x ON x.id=r.encuestado_id WHERE x.campana_id=? AND x.id<>? AND (trim(r.texto)<>'' OR r.sistemas<>'[]')").bind(e.campana_id, e.id).all()
   ]);
   // «excluido»: el equipo quitó de su lista un proceso de su sección (no le corresponde).
   const excluidos = new Set(asig.results.filter(a => a.origen === 'excluido').map(a => a.proceso_id));
@@ -337,17 +372,40 @@ async function rutaSesion(env, url) {
   const enSeccion = p => p.fuente !== 'nuevo' && mismaArea(p.gerencia, e.gerencia) && mismaArea(p.seccion, e.seccion);
   const orden = (a, b) => (a.orden - b.orden) || normal(a.macroproceso).localeCompare(normal(b.macroproceso))
     || normal(a.proceso).localeCompare(normal(b.proceso)) || normal(a.subproceso).localeCompare(normal(b.subproceso));
+  const mios = new Set(asig.results.filter(a => a.origen === 'consultor').map(a => a.proceso_id));
+  const sugeridosPor = {}, completandoPor = {};
+  asigCons.results.forEach(x => { if (x.encuestado_id !== e.id) (sugeridosPor[x.proceso_id] = sugeridosPor[x.proceso_id] || []).push(x.nombre); });
+  respOtros.results.forEach(x => { (completandoPor[x.proceso_id] = completandoPor[x.proceso_id] || []).push(x.nombre); });
   const procesos = procs.results.filter(p => (enSeccion(p) && !excluidos.has(p.id)) || p.creado_por === e.id || elegidos.has(p.id)).sort(orden)
     .map(p => Object.assign(publico(p), {
       enSeccion: enSeccion(p),
       propio: p.fuente === 'nuevo' && p.creado_por === e.id,
       elegido: elegidos.has(p.id),
-      asignado: asignadoPor[p.id] || ''
+      asignado: asignadoPor[p.id] || '',
+      mio: mios.has(p.id),                              // el equipo se lo asignó a esta persona
+      sugeridos: sugeridosPor[p.id] || [],              // otras personas a quienes el equipo se lo asignó (solo nombres)
+      completando: completandoPor[p.id] || []           // otras personas que ya empezaron a responderlo (solo nombres, nunca lo que dijeron)
     }));
   log('sesion', { campana: e.campana_id, origen: e.origen, estado: e.estado, procesos: procesos.length, k: mascara(e.token) });
   // Puntos del checklist que el equipo ya cubrió con documentos: solo sus ids (el texto es interno).
   const precarga = {}, visibles = new Set(procesos.map(x => x.id));
   pre.results.forEach(x => { if (visibles.has(x.proceso_id)) (precarga[x.proceso_id] = precarga[x.proceso_id] || []).push(x.punto); });
+  // Puntos del checklist que otras personas ya cubrieron en los procesos que esta persona responde: solo sus nombres, nunca su texto.
+  const activos = revs.results.filter(r => (r.estado === 'vigente' || r.estado === 'cambio') && visibles.has(r.proceso_id)).map(r => r.proceso_id);
+  const otros = {};
+  for (let i = 0; i < activos.length; i += 30) {
+    const tanda = activos.slice(i, i + 30);
+    const rs = await env.DB.prepare(`SELECT r.proceso_id, r.checklist, x.nombre FROM respuestas r JOIN encuestados x ON x.id=r.encuestado_id
+      WHERE x.campana_id=? AND x.id<>? AND r.proceso_id IN (${tanda.map(() => '?').join(',')})`).bind(e.campana_id, e.id, ...tanda).all();
+    rs.results.forEach(r => {
+      const ck = leerMatriz(r.checklist);
+      Object.keys(ck).forEach(k => {
+        if (k[0] === '_' || !ck[k] || ck[k].estado !== 'cubierto') return;
+        const o = (otros[r.proceso_id] = otros[r.proceso_id] || {}), l = (o[k] = o[k] || []);
+        if (!l.includes(r.nombre)) l.push(r.nombre);
+      });
+    });
+  }
   const revisiones = {};
   revs.results.forEach(r => { revisiones[r.proceso_id] = { estado: r.estado, comentario: r.comentario }; });
   const respuestas = {};
@@ -360,7 +418,7 @@ async function rutaSesion(env, url) {
     ok: true,
     campana: camp,
     encuestado: { nombre: e.nombre, gerencia: e.gerencia, seccion: e.seccion, rol: e.rol, estado: e.estado, origen: e.origen },
-    procesos, revisiones, respuestas, precarga,
+    procesos, revisiones, respuestas, precarga, otros,
     sistemas: sis.results,
     bloques: BLOQUES,
     fuera_alcance: (await env.DB.prepare('SELECT COUNT(*) AS n FROM procesos WHERE campana_id=? AND fuera_alcance=1').bind(e.campana_id).first()).n,
@@ -608,8 +666,39 @@ async function areasDeCampana(env, campId) {
 
 async function rutaAbierta(env, url) {
   const camp = await campanaAbierta(env, url.searchParams.get('c'));
-  log('abierta', { campana: camp.id, g: !!url.searchParams.get('g') });
-  return { ok: true, campana: { nombre: camp.nombre, cliente: camp.cliente, logo: camp.logo || '' }, dominio: camp.dominio || '', areas: await areasDeCampana(env, camp.id) };
+  const g = txt(url.searchParams.get('g'), 150), sec = txt(url.searchParams.get('s'), 150);
+  log('abierta', { campana: camp.id, g: !!g, s: !!sec });
+  const areas = await areasDeCampana(env, camp.id);
+  const salida = { ok: true, campana: { nombre: camp.nombre, cliente: camp.cliente, logo: camp.logo || '' }, dominio: camp.dominio || '', areas };
+  if (sec) {
+    // Enlace de sección: la sección viene en el enlace y debe existir en el mapa.
+    const area = areas.find(a => mismaArea(a.gerencia, g));
+    const nombreSec = area && area.secciones.find(x => mismaArea(x, sec));
+    if (!nombreSec) throw new HttpError(404, 'Este enlace ya no es válido. Pide uno nuevo al equipo consultor.');
+    const v = estadoVentana(await ventanaDe(env, camp.id, area.gerencia, nombreSec));
+    const bloqueada = v.estado === 'antes';
+    const resp = bloqueada ? [] : (await env.DB.prepare('SELECT id, nombre, rol, gerencia, seccion FROM encuestados WHERE campana_id=? ORDER BY nombre').bind(camp.id).all()).results
+      .filter(x => mismaArea(x.gerencia, area.gerencia) && mismaArea(x.seccion, nombreSec)).map(x => ({ id: x.id, nombre: x.nombre, rol: x.rol }));
+    salida.seccion = { gerencia: area.gerencia, seccion: nombreSec, bloqueada, mensaje: bloqueada ? mensajeAntes(v) : '', responsables: resp };
+  }
+  return salida;
+}
+
+// Enlace de sección: la persona elige su nombre en la lista o escribe su correo corporativo y entra a su registro (sin verificación adicional).
+async function rutaIdentificar(env, b) {
+  const camp = await campanaAbierta(env, b.c);
+  let e = null;
+  if (b.id) {
+    e = await env.DB.prepare('SELECT * FROM encuestados WHERE id=? AND campana_id=?').bind(txt(b.id, 60), camp.id).first();
+  } else {
+    const correo = txt(b.correo, 150).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new HttpError(400, 'Escribe un correo válido.');
+    e = await env.DB.prepare('SELECT * FROM encuestados WHERE campana_id=? AND lower(correo)=?').bind(camp.id, correo).first();
+  }
+  if (!e) throw new HttpError(404, b.id ? 'No encontramos a esa persona. Actualiza la página y elige de nuevo.' : 'No encontramos ese correo en esta encuesta. Elige tu nombre en la lista o regístrate.');
+  await exigirVentanaAbierta(env, camp.id, e.gerencia, e.seccion);
+  log('identificar', { campana: camp.id, por: b.id ? 'nombre' : 'correo' });
+  return { ok: true, k: e.token, nombre: e.nombre };
 }
 
 async function rutaBuscar(env, url) {
@@ -653,9 +742,18 @@ async function rutaRegistro(env, b) {
   const dominio = (camp.dominio || '').trim().toLowerCase().replace(/^@/, '');
   if (dominio && !correo.endsWith('@' + dominio)) throw new HttpError(400, 'Usa tu correo corporativo (@' + dominio + ').');
   if (!gerencia || !seccion) throw new HttpError(400, 'Indica tu gerencia y tu sección.');
-  // Un correo, un registro: si ya existe, no se le entrega el enlace de otra persona.
-  const ya = await env.DB.prepare('SELECT id FROM encuestados WHERE campana_id=? AND lower(correo)=?').bind(camp.id, correo).first();
-  if (ya) throw new HttpError(409, 'Ese correo ya está registrado en esta encuesta. Entra con tu enlace personal (el que guardaste o te llegó por correo) o pide al equipo consultor que te lo reenvíe.');
+  // Un correo, una persona: si ya está registrada, entra a su registro (no se crea otro).
+  const ya = await env.DB.prepare('SELECT * FROM encuestados WHERE campana_id=? AND lower(correo)=?').bind(camp.id, correo).first();
+  if (ya) {
+    await exigirVentanaAbierta(env, camp.id, ya.gerencia, ya.seccion);
+    log('registro_existente', { campana: camp.id });
+    return { ok: true, k: ya.token, nombre: ya.nombre, existente: true };
+  }
+  await exigirVentanaAbierta(env, camp.id, gerencia, seccion);
+  if (b.fija) {   // enlace de sección: la sección debe existir en el mapa
+    const areas = await areasDeCampana(env, camp.id), area = areas.find(a => mismaArea(a.gerencia, gerencia));
+    if (!area || !area.secciones.some(x => mismaArea(x, seccion))) throw new HttpError(400, 'Esa sección no existe en esta encuesta.');
+  }
 
   const ids = [...new Set(Array.isArray(b.procesos) ? b.procesos.map(x => txt(x, 60)).filter(Boolean) : [])].slice(0, 60);
   const id = uid(), token = tokenNuevo(), t = ahora();
@@ -869,7 +967,7 @@ async function rutaCampana(env, url) {
   const camp = await env.DB.prepare('SELECT * FROM campanas WHERE id=?').bind(id).first();
   if (!camp) throw new HttpError(404, 'Campaña no encontrada');
   const q = s => env.DB.prepare(s).bind(id).all().then(r => r.results);
-  const [encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, precarga] = await Promise.all([
+  const [encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, precarga, ventanas] = await Promise.all([
     q('SELECT id, token, nombre, correo, gerencia, seccion, rol, estado, actualizado, origen, creado FROM encuestados WHERE campana_id=? ORDER BY gerencia, seccion, nombre'),
     q('SELECT * FROM procesos WHERE campana_id=? ORDER BY gerencia, seccion, orden, macroproceso, proceso, subproceso'),
     q('SELECT r.* FROM revisiones r JOIN encuestados e ON e.id=r.encuestado_id WHERE e.campana_id=?'),
@@ -877,13 +975,14 @@ async function rutaCampana(env, url) {
     q('SELECT a.* FROM asignaciones a JOIN encuestados e ON e.id=a.encuestado_id WHERE e.campana_id=?'),
     q('SELECT nombre, tipo FROM sistemas WHERE campana_id=? ORDER BY nombre'),
     q('SELECT proceso_id, datos, modelo, generado FROM estructurado WHERE campana_id=?'),
-    q('SELECT pc.proceso_id, pc.bloque, pc.punto, pc.texto, pc.archivos, pc.actualizado FROM precarga pc JOIN procesos p ON p.id=pc.proceso_id WHERE p.campana_id=?')
+    q('SELECT pc.proceso_id, pc.bloque, pc.punto, pc.texto, pc.archivos, pc.actualizado FROM precarga pc JOIN procesos p ON p.id=pc.proceso_id WHERE p.campana_id=?'),
+    q('SELECT gerencia, seccion, abre, cierra, mensaje FROM ventanas WHERE campana_id=?')
   ]);
   estructurado.forEach(x => { x.datos = JSON.parse(x.datos); });
   precarga.forEach(x => { x.archivos = JSON.parse(x.archivos || '[]'); });
   respuestas.forEach(x => { x.sistemas = JSON.parse(x.sistemas || '[]'); x.checklist = leerMatriz(x.checklist); });
   procesos.forEach(x => { x.matriz = leerMatriz(x.matriz); x.matriz_ia = leerMatriz(x.matriz_ia); });
-  return { ok: true, campana: camp, encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, precarga, bloques: BLOQUES, estandares_base: ESTANDARES_BASE };
+  return { ok: true, campana: camp, encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, precarga, ventanas, bloques: BLOQUES, estandares_base: ESTANDARES_BASE };
 }
 
 // Alta o edición de un proceso desde el mapa de la consola.
@@ -1559,7 +1658,7 @@ Para cada punto del checklist decide:
 - "no_aplica": la persona dijo claramente que eso no existe en su proceso ("no trabajamos con terceros", "no tenemos indicadores", "no manejamos datos de personas"). Cuenta como respondido. Los puntos que dependen de él también son "no_aplica" (si no manejan datos de personas, tampoco hay finalidad de su tratamiento; si no se relacionan con terceros, tampoco hay finalidad con terceros). Si dijeron que no dependen de la aprobación de nadie fuera de su área, las aprobaciones son "no_aplica". En "evidencia" cita la frase.
 - "falta": no lo mencionó, o lo dijo tan vago que no sirve para un inventario de procesos ("usamos varios sistemas" sin nombrarlos). "evidencia" queda vacía.
 Los sistemas marcados en la lista cuentan para el punto de qué sistemas usan, pero no para qué se usa cada uno.
-"sugerencia": una sola frase amable, en segunda persona (tú), que pida solo lo que falta, con un ejemplo corto si ayuda. Si no falta nada, cadena vacía. Si la entrada trae «PUNTOS YA CUBIERTOS POR EL EQUIPO», no los pidas en la sugerencia (la persona puede ampliarlos, pero no es obligatorio); márcalos igual según lo que diga la respuesta.
+"sugerencia": una sola frase amable, en segunda persona (tú), que pida solo lo que falta, con un ejemplo corto si ayuda. Si no falta nada, cadena vacía. Si la entrada trae «PUNTOS YA CUBIERTOS POR EL EQUIPO U OTRAS PERSONAS», no los pidas en la sugerencia (la persona puede ampliarlos, pero no es obligatorio); márcalos igual según lo que diga la respuesta.
 "sistemas": los sistemas, aplicaciones o herramientas informáticas que la respuesta dice que se usan en el proceso (un ERP, un Excel, un aplicativo del área, el correo, un portal, y también plataformas de otras empresas de las que dependen: Toyota Brasil, Kinto, el portal de SUNAT). Solo los que se nombran o se identifican con claridad en la respuesta: no incluyas equipos físicos, no deduzcas por el tipo de proceso y no repitas. Si el nombre dicho coincide con uno del CATÁLOGO de la campaña, escribe el nombre EXACTO del catálogo (corrige los errores de transcripción: «es a pe» es SAP, «quinto» o «kinto» es Kinto); si no está en el catálogo, escríbelo corto, tal como lo dijo. Si no menciona ninguno, lista vacía.
 Actividades: el punto de actividades es "cubierto" solo si la persona cuenta pasos concretos y dice cada cuánto se hacen (frecuencia); si falta la frecuencia, es "falta" y la sugerencia la pide. Manual o por sistema se valida en su propio punto.
 Estándares: hay dos puntos. "estandar_tdp" es "cubierto" cuando la persona nombra un estándar, política, procedimiento o instructivo OFICIAL de TDP, o dice claramente que no hay; no cuenta un diagrama de un proveedor sin estandarización. "estandar_global" es "cubierto" cuando nombra un estándar o lineamiento global de TMC (Toyota Motor Corporation) o de Mitsui & Company, o dice claramente que no hay; Mitsui Automotriz (MASA) es un concesionario y no cuenta. Cada uno es "falta" si solo habla de estándares en general sin nombrar ninguno.
@@ -1609,7 +1708,13 @@ async function rutaVerificar(env, b, ctx) {
   try { sistemas = JSON.parse((r && r.sistemas) || '[]'); } catch (x) { /* sin sistemas */ }
   // La huella incluye los puntos del bloque: si cambia el checklist, la respuesta se vuelve a revisar.
   const cubiertosEquipo = (await env.DB.prepare('SELECT punto FROM precarga WHERE proceso_id=? AND bloque=? ORDER BY punto').bind(p.id, bloque.id).all()).results.map(x => x.punto);
-  const firmaDe = lista => huella(texto + '|' + lista.join(',') + '|' + bloque.puntos.map(x => x[0]).join(',') + '|eq:' + cubiertosEquipo.join(','));
+  const otrosCubren = new Set();
+  (await env.DB.prepare('SELECT checklist FROM respuestas WHERE proceso_id=? AND pregunta=? AND encuestado_id<>?').bind(p.id, bloque.id, e.id).all()).results.forEach(r => {
+    const ck = leerMatriz(r.checklist);
+    bloque.puntos.forEach(([id]) => { if (ck[id] && ck[id].estado === 'cubierto') otrosCubren.add(id); });
+  });
+  const yaCubiertos = [...new Set([...cubiertosEquipo, ...otrosCubren])].sort();
+  const firmaDe = lista => huella(texto + '|' + lista.join(',') + '|' + bloque.puntos.map(x => x[0]).join(',') + '|eq:' + yaCubiertos.join(','));
   const firma = await firmaDe(sistemas);
   if (previo._huella === firma) return { ok: true, checklist: previo, sistemas, sistemas_nuevos: [] };
   const nuevo = { _huella: firma, _sugerencia: '' };
@@ -1640,7 +1745,7 @@ async function rutaVerificar(env, b, ctx) {
           'CHECKLIST:', ...bloque.puntos.map(([id, t]) => `- ${id}: ${t}`),
           '', 'RESPUESTA:', texto || '(sin texto)',
           sistemas.length ? '\nSISTEMAS MARCADOS EN LA LISTA: ' + sistemas.join(', ') : '',
-          cubiertosEquipo.length ? '\nPUNTOS YA CUBIERTOS POR EL EQUIPO (no los pidas): ' + cubiertosEquipo.join(', ') : '',
+          yaCubiertos.length ? '\nPUNTOS YA CUBIERTOS POR EL EQUIPO U OTRAS PERSONAS (no los pidas): ' + yaCubiertos.join(', ') : '',
           glosarioEst ? '\nGLOSARIO DE ESTÁNDARES DE LA CAMPAÑA: ' + glosarioEst : '',
           bloque.sistemas ? '\nCATÁLOGO DE SISTEMAS DE LA CAMPAÑA: ' + (catalogo.length ? catalogo.join('; ') : '(vacío)') : '(Este bloque no detecta sistemas: devuelve "sistemas" vacío.)'
         ].join('\n') }]
@@ -1924,9 +2029,19 @@ async function rutaAsignar(env, b) {
   const e = await env.DB.prepare('SELECT * FROM encuestados WHERE id=?').bind(b.encuestado_id).first();
   if (!e) throw new HttpError(404, 'Persona no encontrada');
   const lista = a => [...new Set((Array.isArray(a) ? a : []).map(x => txt(x, 60)).filter(Boolean))].slice(0, 300);
-  const agregar = lista(b.agregar), quitar = lista(b.quitar), restaurar = lista(b.restaurar);
+  const agregar = lista(b.agregar), quitar = lista(b.quitar), restaurar = lista(b.restaurar), desasignar = lista(b.desasignar);
   const agregados = agregar.length ? (await asignarProcesos(env, e, agregar, 'consultor')).length : 0;
   let quitados = 0, conRespuesta = 0;
+  // Lo que el equipo asigna pasa a ser «asignado por el equipo» aunque la persona ya lo tuviera por su nombre o lo hubiera elegido.
+  if (agregar.length) {
+    const st = agregar.map(pid => env.DB.prepare("UPDATE asignaciones SET origen='consultor' WHERE encuestado_id=? AND proceso_id=? AND origen IN ('inventario','encuestado')").bind(e.id, pid));
+    for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
+  }
+  // Desasignar quita solo la asignación del equipo: los procesos de su sección siguen en su lista.
+  if (desasignar.length) {
+    const st = desasignar.map(pid => env.DB.prepare("DELETE FROM asignaciones WHERE encuestado_id=? AND proceso_id=? AND origen='consultor'").bind(e.id, pid));
+    for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
+  }
   if (restaurar.length) {
     const st = restaurar.map(pid => env.DB.prepare("DELETE FROM asignaciones WHERE encuestado_id=? AND proceso_id=? AND origen='excluido'").bind(e.id, pid));
     for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
@@ -1958,8 +2073,8 @@ async function rutaAsignar(env, b) {
     });
     for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
   }
-  log('asignar', { campana: e.campana_id, agregados, quitados, restaurados: restaurar.length, con_respuesta: conRespuesta });
-  return { ok: true, agregados, quitados, restaurados: restaurar.length, con_respuesta: conRespuesta };
+  log('asignar', { campana: e.campana_id, agregados, quitados, restaurados: restaurar.length, desasignados: desasignar.length, con_respuesta: conRespuesta });
+  return { ok: true, agregados, quitados, restaurados: restaurar.length, desasignados: desasignar.length, con_respuesta: conRespuesta };
 }
 
 // Asigna a cada persona cargada los procesos donde figura con su nombre en el inventario anterior.
@@ -1982,6 +2097,113 @@ async function rutaAsignarInventario(env, b) {
   for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
   log('asignar_inventario', { campana: camp.id, personas, vinculos: st.length });
   return { ok: true, personas, vinculos: st.length, total_personas: enc.results.length };
+}
+
+// ---------------------------------------------------------------- responsables, ventanas, invitación y acceso del cliente
+// Alta rápida de responsables (PIC) de una sección, sin enlace personal: entran por el enlace de la sección eligiendo su nombre.
+async function rutaEncuestadoAlta(env, b) {
+  const camp = await env.DB.prepare('SELECT id FROM campanas WHERE id=?').bind(b.campana_id).first();
+  if (!camp) throw new HttpError(404, 'Campaña no encontrada');
+  const lista = Array.isArray(b.personas) ? b.personas.slice(0, 200) : [];
+  if (!lista.length) throw new HttpError(400, 'Indica al menos una persona');
+  const areas = await areasDeCampana(env, camp.id);
+  const canonica = (g, s) => {
+    const a = areas.find(x => mismaArea(x.gerencia, g));
+    return a ? [a.gerencia, a.secciones.find(x => mismaArea(x, s)) || s] : [g, s];
+  };
+  const ya = (await env.DB.prepare('SELECT nombre, lower(correo) AS correo, gerencia, seccion FROM encuestados WHERE campana_id=?').bind(camp.id).all()).results;
+  const correos = new Set(ya.map(x => x.correo).filter(Boolean));
+  const t = ahora(), st = [], creados = [], existentes = [];
+  for (const x of lista) {
+    const nombre = txt(x && x.nombre, 150), correo = txt(x && x.correo, 150).toLowerCase();
+    const [gerencia, seccion] = canonica(txt(x && x.gerencia, 150), txt(x && x.seccion, 150));
+    if (nombre.length < 3 || !gerencia || !seccion) continue;
+    if (correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new HttpError(400, 'El correo de ' + nombre + ' no es válido.');
+    const repetida = correo ? correos.has(correo)
+      : ya.some(y => mismaArea(y.gerencia, gerencia) && mismaArea(y.seccion, seccion) && normal(y.nombre) === normal(nombre));
+    if (repetida) { existentes.push(nombre); continue; }
+    if (correo) correos.add(correo);
+    ya.push({ nombre, correo, gerencia, seccion });
+    st.push(env.DB.prepare('INSERT INTO encuestados (id, campana_id, token, nombre, correo, gerencia, seccion, rol, creado) VALUES (?,?,?,?,?,?,?,?,?)')
+      .bind(uid(), camp.id, tokenNuevo(), nombre, correo, gerencia, seccion, txt(x.rol, 60), t));
+    creados.push(nombre);
+  }
+  for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
+  log('encuestado_alta', { campana: camp.id, creados: creados.length, existentes: existentes.length });
+  return { ok: true, creados: creados.length, existentes };
+}
+
+async function rutaVentana(env, b) {
+  const camp = await env.DB.prepare('SELECT id FROM campanas WHERE id=?').bind(b.campana_id).first();
+  if (!camp) throw new HttpError(404, 'Campaña no encontrada');
+  const gerencia = txt(b.gerencia, 150), seccion = txt(b.seccion, 150);
+  if (!gerencia || !seccion) throw new HttpError(400, 'Indica la gerencia y la sección');
+  const fecha = x => (/^\d{4}-\d{2}-\d{2}$/.test(String(x || '')) && !isNaN(Date.parse(x))) ? x : '';
+  const abre = fecha(b.abre), cierra = fecha(b.cierra), mensaje = txt(b.mensaje, 300);
+  if (b.abre && !abre) throw new HttpError(400, 'La fecha de apertura no es válida');
+  if (b.cierra && !cierra) throw new HttpError(400, 'La fecha de plazo no es válida');
+  if (abre && cierra && cierra < abre) throw new HttpError(400, 'El plazo no puede ser anterior a la apertura');
+  const previos = (await env.DB.prepare('SELECT gerencia, seccion FROM ventanas WHERE campana_id=?').bind(camp.id).all()).results
+    .filter(v => mismaArea(v.gerencia, gerencia) && mismaArea(v.seccion, seccion));
+  const st = previos.map(v => env.DB.prepare('DELETE FROM ventanas WHERE campana_id=? AND gerencia=? AND seccion=?').bind(camp.id, v.gerencia, v.seccion));
+  if (abre || cierra || mensaje) st.push(env.DB.prepare('INSERT INTO ventanas (campana_id, gerencia, seccion, abre, cierra, mensaje) VALUES (?,?,?,?,?,?)').bind(camp.id, gerencia, seccion, abre, cierra, mensaje));
+  if (st.length) await env.DB.batch(st);
+  log('ventana', { campana: camp.id, abre: !!abre, cierra: !!cierra });
+  return { ok: true, ventana: { gerencia, seccion, abre, cierra, mensaje } };
+}
+
+async function rutaInvitacion(env, b) {
+  const r = await env.DB.prepare('UPDATE campanas SET invitacion=? WHERE id=?').bind(txt(b.invitacion, 4000), b.campana_id).run();
+  if (!r.meta || !r.meta.changes) throw new HttpError(404, 'Campaña no encontrada');
+  return { ok: true };
+}
+
+// Acceso de la administradora del cliente: un código propio por campaña (solo lectura). Renovarlo o desactivarlo lo invalida al instante.
+async function rutaClienteAcceso(env, b) {
+  const camp = await env.DB.prepare('SELECT id, codigo_cliente, cliente_activo, cliente_ultimo FROM campanas WHERE id=?').bind(b.campana_id).first();
+  if (!camp) throw new HttpError(404, 'Campaña no encontrada');
+  const accion = String(b.accion || '');
+  if (!['generar', 'renovar', 'desactivar'].includes(accion)) throw new HttpError(400, 'Acción inválida');
+  let codigo = camp.codigo_cliente || '', activo = camp.cliente_activo ? 1 : 0;
+  if (accion === 'desactivar') activo = 0;
+  else { if (accion === 'renovar' || !codigo) codigo = tokenNuevo().slice(0, 14); activo = 1; }
+  await env.DB.prepare('UPDATE campanas SET codigo_cliente=?, cliente_activo=? WHERE id=?').bind(codigo, activo, camp.id).run();
+  log('cliente_acceso', { campana: camp.id, accion });
+  return { ok: true, codigo, activo, ultimo: camp.cliente_ultimo || '' };
+}
+
+async function campanaDeCliente(env, req) {
+  const k = (req.headers.get('x-client-code') || '').trim();
+  if (k.length < 10) throw new HttpError(401, 'Código de acceso incorrecto');
+  const camp = await env.DB.prepare('SELECT * FROM campanas WHERE codigo_cliente=? AND cliente_activo=1').bind(k).first();
+  if (!camp || !igualSeguro(k, camp.codigo_cliente)) throw new HttpError(401, 'Código de acceso incorrecto o desactivado');
+  return camp;
+}
+
+// Volcado para el panel del cliente: avance, personas y procesos. NUNCA incluye lo que respondieron las personas (ni transcripciones),
+// el análisis de la IA, la matriz, el texto de la precarga, los correos ni los enlaces personales. Los textos se reemplazan por una marca
+// («•») para que el panel sepa si hay respuesta sin ver su contenido.
+async function rutaClienteCampana(env, camp) {
+  const q = sql => env.DB.prepare(sql).bind(camp.id).all().then(r => r.results);
+  const [encuestados, procesos, revisiones, respuestas, asignaciones, precarga, ventanas] = await Promise.all([
+    q('SELECT id, nombre, rol, gerencia, seccion, estado, actualizado, origen, creado FROM encuestados WHERE campana_id=? ORDER BY gerencia, seccion, nombre'),
+    q('SELECT id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, fuente, creado_por, fuera_alcance, validacion, validado_por, validado_en FROM procesos WHERE campana_id=? ORDER BY gerencia, seccion, orden, macroproceso, proceso, subproceso'),
+    q('SELECT r.encuestado_id, r.proceso_id, r.estado FROM revisiones r JOIN encuestados e ON e.id=r.encuestado_id WHERE e.campana_id=?'),
+    q('SELECT r.encuestado_id, r.proceso_id, r.pregunta, r.texto, r.sistemas, r.checklist, r.actualizado FROM respuestas r JOIN encuestados e ON e.id=r.encuestado_id WHERE e.campana_id=?'),
+    q('SELECT a.encuestado_id, a.proceso_id, a.origen FROM asignaciones a JOIN encuestados e ON e.id=a.encuestado_id WHERE e.campana_id=?'),
+    q('SELECT pc.proceso_id, pc.bloque, pc.punto FROM precarga pc JOIN procesos p ON p.id=pc.proceso_id WHERE p.campana_id=?'),
+    q('SELECT gerencia, seccion, abre, cierra, mensaje FROM ventanas WHERE campana_id=?')
+  ]);
+  const limpias = respuestas.map(r => {
+    const ck = leerMatriz(r.checklist), sano = {};
+    Object.keys(ck).forEach(k => { if (k[0] !== '_' && ck[k]) sano[k] = { estado: ck[k].estado, fuente: ck[k].fuente }; });   // sin la evidencia (cita de la persona)
+    return { encuestado_id: r.encuestado_id, proceso_id: r.proceso_id, pregunta: r.pregunta, actualizado: r.actualizado,
+      texto: String(r.texto || '').trim() ? '•' : '', sistemas: (r.sistemas && r.sistemas !== '[]') ? ['•'] : [], checklist: sano };
+  });
+  await env.DB.prepare('UPDATE campanas SET cliente_ultimo=? WHERE id=?').bind(ahora(), camp.id).run();
+  log('cliente_ingreso', { campana: camp.id });
+  return { ok: true, campana: { id: camp.id, nombre: camp.nombre, cliente: camp.cliente, logo: camp.logo || '', creada: camp.creada },
+    encuestados, procesos, revisiones, respuestas: limpias, asignaciones, precarga, ventanas, estructurado: [], sistemas: [], bloques: BLOQUES, generado: ahora() };
 }
 
 // ---------------------------------------------------------------- router
@@ -2015,6 +2237,7 @@ export default {
       if (url.pathname.startsWith('/r/') && req.method === 'POST') {
         const b = await cuerpo(req);
         if (url.pathname === '/r/registro') return json(await rutaRegistro(env, b), 200, h);
+        if (url.pathname === '/r/identificar') return json(await rutaIdentificar(env, b), 200, h);
         if (url.pathname === '/r/elegir') return json(await rutaElegir(env, b), 200, h);
         if (url.pathname === '/r/soltar') return json(await rutaSoltar(env, b), 200, h);
         if (url.pathname === '/r/revision') return json(await rutaRevision(env, b), 200, h);
@@ -2023,6 +2246,12 @@ export default {
         if (url.pathname === '/r/verificar') return json(await rutaVerificar(env, b, ctx), 200, h);
         if (url.pathname === '/r/punto') return json(await rutaPunto(env, b), 200, h);
         if (url.pathname === '/r/enviar') return json(await rutaEnviar(env, b), 200, h);
+      }
+
+      // Panel del cliente (solo lectura, solo su campaña): su propio código; nunca da acceso a /a/.
+      if (url.pathname.startsWith('/c/') && req.method === 'GET') {
+        const camp = await campanaDeCliente(env, req);
+        if (url.pathname === '/c/campana') return json(await rutaClienteCampana(env, camp), 200, h);
       }
 
       if (url.pathname.startsWith('/a/')) {
@@ -2040,6 +2269,10 @@ export default {
           if (url.pathname === '/a/campana/estandares') return json(await rutaEstandares(env, b), 200, h);
           if (url.pathname === '/a/estandares/probar') return json(await rutaEstandaresProbar(env, b, ctx), 200, h);
           if (url.pathname === '/a/precarga') return json(await rutaPrecarga(env, b), 200, h);
+          if (url.pathname === '/a/encuestado') return json(await rutaEncuestadoAlta(env, b), 200, h);
+          if (url.pathname === '/a/ventana') return json(await rutaVentana(env, b), 200, h);
+          if (url.pathname === '/a/campana/invitacion') return json(await rutaInvitacion(env, b), 200, h);
+          if (url.pathname === '/a/campana/cliente') return json(await rutaClienteAcceso(env, b), 200, h);
           if (url.pathname === '/a/asignar') return json(await rutaAsignar(env, b), 200, h);
           if (url.pathname === '/a/asignar-por-inventario') return json(await rutaAsignarInventario(env, b), 200, h);
           if (url.pathname === '/a/enlace') return json(await rutaEnlace(env, b), 200, h);

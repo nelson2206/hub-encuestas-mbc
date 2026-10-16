@@ -125,3 +125,15 @@ CREATE TABLE IF NOT EXISTS precarga (
   PRIMARY KEY (proceso_id, punto)
 );
 CREATE INDEX IF NOT EXISTS ix_precarga_proceso ON precarga(proceso_id);
+
+-- Enlaces por sección (2026-10-16): disponibilidad por fecha de cada sección, texto de invitación y acceso del cliente (solo lectura).
+-- campanas.codigo_cliente / cliente_activo / cliente_ultimo / invitacion se agregan con migracion-011.sql.
+CREATE TABLE IF NOT EXISTS ventanas (
+  campana_id TEXT NOT NULL,
+  gerencia TEXT NOT NULL,
+  seccion TEXT NOT NULL,
+  abre TEXT NOT NULL DEFAULT '',
+  cierra TEXT NOT NULL DEFAULT '',
+  mensaje TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (campana_id, gerencia, seccion)
+);
