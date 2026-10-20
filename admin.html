@@ -844,7 +844,7 @@
   function demoApi(p){
     var op = p.op, res;
     var ejemplo = location.href.replace(/admin\.html.*$/, 'index.html?demo=1');
-    var soloLectura = ['save','toggle','encuesta_delete','respuesta_delete','usuarios_save','usuarios_delete','set_key','set_groq','set_admin','shorten','upload_image','publicar_adjuntos','export_xlsx'];
+    var soloLectura = ['save','toggle','encuesta_delete','encuesta_duplicar','respuesta_delete','usuarios_save','usuarios_delete','set_key','set_groq','set_admin','shorten','upload_image','publicar_adjuntos','export_xlsx'];
     if (soloLectura.indexOf(op) >= 0) res = {ok:false, error:'deshabilitado en la demo'};
     else if (op === 'ping') res = {ok:true, gemini:true, groq:true, rol:'owner', alcance:'*', usuario:'demo', nombre:'Demo'};
     else if (op === 'list') res = {ok:true, sheetUrl:'#', gemini:true, groq:true, rol:'owner', alcance:'*', encuestas:[
@@ -1022,7 +1022,7 @@
                 (puedeEditar() ? '<button data-a="edit">'+ico('lapiz')+'Editar preguntas</button>' : '')+
                 (puedeEditar() ? '<button data-a="short">'+ico('enlace')+'Generar link corto</button>' : '')+
                 '<button data-a="qr">'+ico('qr')+'Código QR</button>'+
-                (esOwner() ? '<button data-a="dup">'+ico('copia2')+'Duplicar encuesta</button>' : '')+
+                (puedeEditar() ? '<button data-a="dup">'+ico('copia2')+'Duplicar encuesta</button>' : '')+
                 (s.respuestasUrl ? '<hr><button data-a="sheet" data-url="'+esc(s.respuestasUrl)+'">'+ico('hoja')+'Abrir en Google Sheets</button>' : '')+
                 (esOwner() ? '<hr><button data-a="del" class="menu-danger">'+ico('papelera')+'Eliminar encuesta…</button>' : '')+
               '</div>'+
@@ -1086,7 +1086,20 @@
         mostrarPaso('manual');
       });
     } else if (a==='dup'){
-      duplicarEncuesta(id, function(t){ msg('#listMsg', 'warn', t); });
+      if (esOwner()){
+        duplicarEncuesta(id, function(t){ msg('#listMsg', 'warn', t); });
+      } else {
+        b.disabled = true;
+        api({op:'encuesta_duplicar', id:id}).then(function(r){
+          b.disabled = false;
+          if (r.ok){
+            msg('#listMsg', 'ok', 'Copia creada: «' + r.titulo + '». Ya aparece abajo; usa «Editar preguntas» para ajustarla. Acceso de la copia: usuario ' + r.usuario + ' · contraseña ' + r.password + ' (puedes cambiarlos al editar).');
+            loadList();
+          } else {
+            msg('#listMsg', 'warn', r.error === 'sin_permiso' ? 'Tu usuario no puede duplicar esa encuesta.' : 'No se pudo duplicar (' + r.error + ').');
+          }
+        }).catch(function(){ b.disabled = false; msg('#listMsg', 'warn', 'No se pudo conectar.'); });
+      }
     } else if (a==='stats'){
       anAbrir(id);
     } else if (a==='del'){
