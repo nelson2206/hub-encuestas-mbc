@@ -147,8 +147,8 @@
   .menu hr{border:none;border-top:1px solid var(--line-soft);margin:5px 2px}
   .menu button.menu-danger,.menu button.menu-danger svg{color:var(--danger)}
 
-  .opciones{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  @media (max-width:760px){ .opciones{grid-template-columns:1fr} }
+  .opciones{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  @media (max-width:900px){ .opciones{grid-template-columns:1fr} }
   .opcion{display:flex;flex-direction:column;align-items:flex-start;gap:8px;text-align:left;cursor:pointer;
     background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);padding:24px;
     font:inherit;color:var(--ink);box-shadow:var(--shadow);
@@ -383,7 +383,7 @@
   <div class="panel" id="tNew">
     <div id="pasoElegir">
       <h2 style="font-size:19px;margin-bottom:6px">¿Cómo quieres crear esta encuesta?</h2>
-      <p class="meta" style="margin:0 0 18px">Las dos llevan al mismo sitio: un cuestionario que revisas y publicas tú.</p>
+      <p class="meta" style="margin:0 0 18px">Todas llevan al mismo sitio: un cuestionario que revisas y publicas tú.</p>
       <div class="opciones">
         <button type="button" class="opcion" data-camino="asistente">
           <span class="opcion-ico" data-ico="cerebro"></span>
@@ -397,6 +397,24 @@
           <span class="opcion-txt">Escribes tú cada pregunta, eliges su tipo y sus opciones. Útil cuando ya tienes el cuestionario definido.</span>
           <span class="opcion-pie">Control total</span>
         </button>
+        <button type="button" class="opcion" data-camino="duplicar">
+          <span class="opcion-ico" data-ico="copia2"></span>
+          <span class="opcion-tit">Duplicar una existente</span>
+          <span class="opcion-txt">Partes de una encuesta que ya hiciste: se copian sus preguntas, textos, imágenes y estilo, y cambias lo que haga falta.</span>
+          <span class="opcion-pie">Lo más rápido</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="pasoDuplicar" class="hidden">
+      <button type="button" class="btn btn-ghost btn-xs volver" data-volver="1" style="margin-bottom:14px">← Elegir otra forma</button>
+      <div class="card">
+        <h2 style="font-size:17px;margin-bottom:4px">Duplicar una encuesta</h2>
+        <p class="meta" style="margin:0 0 14px">Elige la encuesta de la que quieres partir. Se copian preguntas, textos, imágenes y estilo. No se copian las respuestas, ni la fecha de cierre ni el cupo, y el usuario y la contraseña los asignas tú.</p>
+        <label for="dupSelect">Encuesta a duplicar</label>
+        <select id="dupSelect"></select>
+        <div class="row" style="margin-top:16px"><button class="btn" id="dupBtn" type="button">Duplicar y editar la copia</button></div>
+        <div class="msg" id="dupMsg"></div>
       </div>
     </div>
 
@@ -446,6 +464,7 @@
       <button type="button" class="btn btn-ghost btn-xs volver" data-volver="1" style="margin-bottom:14px">← Elegir otra forma</button>
     <div class="card">
       <h2 style="font-size:17px" id="bTitle">Nueva encuesta</h2>
+      <div class="msg" id="bAviso"></div>
       <input type="hidden" id="bId">
       <div class="grid2">
         <div>
@@ -1067,17 +1086,7 @@
         mostrarPaso('manual');
       });
     } else if (a==='dup'){
-      api({op:'get', id:id}).then(function(r){
-        if (!r.ok){ msg('#listMsg','warn','Error: '+r.error); return; }
-        var e = r.encuesta;
-        e.id = '';
-        e.titulo = e.titulo + ' (copia)';
-        e.usuario = '';
-        e.password = '';
-        fillBuilder(e);
-        document.querySelector('[data-tab="tNew"]').click();
-        msg('#bMsg','ok','Plantilla duplicada: asigna un usuario y contraseña nuevos y guarda.');
-      });
+      duplicarEncuesta(id, function(t){ msg('#listMsg', 'warn', t); });
     } else if (a==='stats'){
       anAbrir(id);
     } else if (a==='del'){
@@ -1655,16 +1664,58 @@
 
   /** La pestaña abre eligiendo camino; editar o duplicar entran directo al constructor. */
   function mostrarPaso(paso){
-    ['pasoElegir','pasoAsistente','pasoManual'].forEach(function(id){
+    ['pasoElegir','pasoAsistente','pasoManual','pasoDuplicar'].forEach(function(id){
       var el = document.getElementById(id);
       if (el) el.classList.toggle('hidden', id !== ('paso' + paso.charAt(0).toUpperCase() + paso.slice(1)));
     });
     if (paso !== 'elegir') window.scrollTo({top:0, behavior:'smooth'});
   }
+  /** Duplica una encuesta: carga una copia en el constructor (no se crea nada hasta pulsar Guardar). */
+  function duplicarEncuesta(id, avisar){
+    return Promise.all([api({op:'get', id:id}), api({op:'list'})]).then(function(par){
+      var r = par[0], lista = par[1];
+      if (!r.ok){ avisar('No se pudo duplicar (' + r.error + ').'); return; }
+      var e = r.encuesta, origen = e.titulo, usados = {};
+      ((lista && lista.encuestas) || []).forEach(function(s){ usados[String(s.usuario||'').toLowerCase()] = 1; });
+      var base = String(e.usuario || 'encuesta').replace(/_copia\d*$/, ''), cand = base + '_copia', n = 2;
+      while (usados[cand.toLowerCase()]) cand = base + '_copia' + (n++);
+      e.id = '';
+      e.titulo = origen + ' (copia)';
+      e.usuario = cand;
+      e.password = cand;
+      e.fecha_cierre = '';
+      e.cupo = '';
+      e.estado = 'activa';
+      fillBuilder(e);
+      VIENE_DE_EDITAR = true;
+      document.querySelector('[data-tab="tNew"]').click();
+      mostrarPaso('manual');
+      $('#bTitle').textContent = 'Duplicando «' + origen + '»';
+      msg('#bAviso', 'warn', 'Esta copia aún no existe: se crea cuando pulses «Guardar encuesta». Revisa el título, cambia el usuario y la contraseña que te sugerí (' + cand + ') y ajusta lo que quieras. No se copian las respuestas, la fecha de cierre ni el cupo.');
+    });
+  }
+  function cargarDuplicables(){
+    var sel = $('#dupSelect'); sel.textContent = '';
+    $('#dupMsg').className = 'msg';
+    api({op:'list'}).then(function(r){
+      if (!r.ok){ msg('#dupMsg', 'warn', 'No se pudo cargar la lista (' + r.error + ').'); return; }
+      r.encuestas.forEach(function(s){ var o = document.createElement('option'); o.value = s.id; o.textContent = s.titulo + ' (' + s.respuestas + ' resp.)'; sel.appendChild(o); });
+    });
+  }
+  $('#dupBtn').addEventListener('click', function(){
+    var id = $('#dupSelect').value; if (!id) return;
+    var b = $('#dupBtn'), txt = 'Duplicar y editar la copia';
+    b.disabled = true; b.textContent = 'Duplicando…';
+    duplicarEncuesta(id, function(t){ msg('#dupMsg', 'warn', t); })
+      .then(function(){ b.disabled = false; b.textContent = txt; },
+            function(){ b.disabled = false; b.textContent = txt; msg('#dupMsg', 'warn', 'No se pudo conectar.'); });
+  });
+
   Array.prototype.forEach.call(document.querySelectorAll('.opcion'), function(b){
     b.addEventListener('click', function(){
       var camino = b.getAttribute('data-camino');
       if (camino === 'manual'){ fillBuilder(null); $('#bTitle').textContent = 'Nueva encuesta'; }
+      if (camino === 'duplicar'){ cargarDuplicables(); }
       mostrarPaso(camino);
     });
   });
@@ -1888,6 +1939,7 @@
 
   function fillBuilder(e){
     $('#bTitle').textContent = e ? 'Editar encuesta: '+e.titulo : 'Nueva encuesta';
+    var av = $('#bAviso'); if (av) av.className = 'msg';
     $('#bId').value = e ? e.id : '';
     $('#bTitulo').value = e ? e.titulo : '';
     $('#bIntro').value = e ? (e.intro||'') : '';
@@ -1999,6 +2051,7 @@
       b.disabled=false; b.textContent='Guardar encuesta';
       if (r.ok){
         msg('#bMsg','ok','Encuesta guardada. Link: '+r.link);
+        $('#bAviso').className = 'msg';
         $('#bId').value = r.id;
         loadList();
       } else if (r.error==='credenciales_duplicadas'){
