@@ -919,13 +919,13 @@
 
   /** Las pestañas y botones se ocultan por rol; el permiso real lo decide el backend. */
   function aplicarRol(){
-    var soloOwner = ['tNew','tCfg','tUsers'];
+    var soloOwner = ['tCfg','tUsers'];
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(t){
       var destino = t.getAttribute('data-tab');
       t.classList.toggle('hidden', soloOwner.indexOf(destino) >= 0 && !esOwner());
     });
     $('#sheetLink').classList.toggle('hidden', !esOwner());
-    var ac = $('#asistenteCard'); if (ac) ac.classList.toggle('hidden', !esOwner());
+    var ac = $('#asistenteCard'); if (ac) ac.classList.toggle('hidden', !puedeEditar());
     var etiqueta = {owner:'Propietario', editor:'Editor', analista:'Analista'}[ADMIN.rol] || ADMIN.rol;
     var quien = ADMIN.nombre || ADMIN.usuario;
     $('#adminWho').textContent = (quien === etiqueta) ? (ADMIN.usuario + ' · ' + etiqueta) : (quien + ' · ' + etiqueta);
