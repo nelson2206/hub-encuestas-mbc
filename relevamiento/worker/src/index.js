@@ -54,7 +54,10 @@
  *   POST /a/ventana              {campana_id, gerencia, seccion, abre?, cierra?, mensaje?}   (disponibilidad de una sección: abre bloquea antes; cierra es solo plazo)
  *   POST /a/campana/invitacion   {campana_id, invitacion}   (texto de invitación; vacío = texto base)
  *   POST /a/campana/cliente      {campana_id, accion: generar|renovar|desactivar|definir, codigo?, alias?}   (acceso de solo lectura de la administradora del cliente; definir = la clave y el nombre de la dirección los elige el consultor)
- *   POST /c/personas | /c/asignar | /c/enlaces | /c/enlace-abierto   cabecera x-client-code: ÚNICA escritura del cliente (agregar responsables a una sección, asignar procesos, copiar enlaces; sin tocar respuestas, matriz ni validación)
+ *   POST /c/personas | /c/asignar | /c/enlaces | /c/enlace-abierto   cabecera x-client-code: ÚNICA escritura del cliente (agregar responsables a una sección, asignar procesos, copiar enlaces; sin tocar respuestas, matriz ni validación).
+ *        La clave puede ser la del administrador del cliente o la de un Supervisor (alcance limitado a sus secciones o procesos; toda delegación queda registrada).
+ *   POST /c/supervisores         {accion: crear|editar|activar|desactivar|clave, id?, nombre?, correo?, clave?, alcance?}   solo el administrador del cliente
+ *   GET  /c/trazabilidad  |  GET /a/campana/trazabilidad?id=   delegaciones, acciones de supervisores y lista de supervisores
  *   GET  /c/campana              cabecera x-client-code: volcado SIN respuestas, correos ni enlaces personales (panel del cliente)
  *   POST /a/campana/logo         {campana_id, logo}   (data URI; vacío lo quita)
  *   POST /a/campana/ia           {campana_id, ia_auto}   (la tarea programada completa la matriz con la IA)
@@ -1271,6 +1274,10 @@ async function rutaBorrarCampana(env, b) {
     env.DB.prepare('DELETE FROM precarga WHERE proceso_id IN (SELECT id FROM procesos WHERE campana_id=?)').bind(camp.id),
     env.DB.prepare('DELETE FROM procesos WHERE campana_id=?').bind(camp.id),
     env.DB.prepare('DELETE FROM sistemas WHERE campana_id=?').bind(camp.id),
+    env.DB.prepare('DELETE FROM ventanas WHERE campana_id=?').bind(camp.id),
+    env.DB.prepare('DELETE FROM delegaciones WHERE campana_id=?').bind(camp.id),
+    env.DB.prepare('DELETE FROM acciones WHERE campana_id=?').bind(camp.id),
+    env.DB.prepare('DELETE FROM supervisores WHERE campana_id=?').bind(camp.id),
     env.DB.prepare('DELETE FROM encuestados WHERE campana_id=?').bind(camp.id),
     env.DB.prepare('DELETE FROM campanas WHERE id=?').bind(camp.id)
   ]);
@@ -2186,6 +2193,7 @@ async function rutaClienteAcceso(env, b) {
     if (igualSeguro(k, (env.ADMIN_CODE || '').trim())) throw new HttpError(400, 'Esa clave no se puede usar.');
     const otra = await env.DB.prepare('SELECT id FROM campanas WHERE codigo_cliente=? AND id<>?').bind(k, camp.id).first();
     if (otra) throw new HttpError(409, 'Esa clave ya está en uso en otra campaña: elige otra.');
+    if (await env.DB.prepare('SELECT id FROM supervisores WHERE clave_hash=?').bind(await hashClaveSup(k)).first()) throw new HttpError(409, 'Esa clave ya está en uso: elige otra.');
     codigo = k; activo = 1;
   } else { if (accion === 'renovar' || !codigo) codigo = tokenNuevo().slice(0, 14); activo = 1; }
   await env.DB.prepare('UPDATE campanas SET codigo_cliente=?, cliente_activo=?, cliente_alias=? WHERE id=?').bind(codigo, activo, alias, camp.id).run();
@@ -2193,20 +2201,96 @@ async function rutaClienteAcceso(env, b) {
   return { ok: true, codigo, activo, alias, ultimo: camp.cliente_ultimo || '' };
 }
 
-async function campanaDeCliente(env, req) {
-  const k = (req.headers.get('x-client-code') || '').trim();
-  if (k.length < 8) throw new HttpError(401, 'Código de acceso incorrecto');
-  const camp = await env.DB.prepare('SELECT * FROM campanas WHERE codigo_cliente=? AND cliente_activo=1').bind(k).first();
-  if (!camp || !igualSeguro(k, camp.codigo_cliente)) throw new HttpError(401, 'Código de acceso incorrecto o desactivado');
-  return camp;
+// ---------------------------------------------------------------- panel del cliente: administrador del cliente y Supervisores
+const sha256Hex = async x => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(x)))].map(n => n.toString(16).padStart(2, '0')).join('');
+const hashClaveSup = k => sha256Hex('voz-sup:' + k);   // la clave del Supervisor no se guarda: solo su huella
+const claveArea = (g, sec) => normal(g) + '|' + normal(sec);
+const generarClave = () => { for (;;) { const k = tokenNuevo().slice(0, 12); if (/[A-Za-z]/.test(k) && /\d/.test(k)) return k; } };
+
+// Quién entra con la clave del encabezado: el administrador del cliente (clave de la campaña) o un Supervisor (clave propia).
+// Las claves incorrectas se cuentan por IP: pasado el límite se bloquea unos minutos.
+async function actorCliente(env, req) {
+  const ip = (req.headers.get('cf-connecting-ip') || 'sin-ip').slice(0, 60), k = (req.headers.get('x-client-code') || '').trim();
+  const ventana = Math.floor(Date.now() / 600000), limite = Number(env.LIMITE_INTENTOS) || 15;
+  const fila = await env.DB.prepare('SELECT n FROM login_intentos WHERE ip=? AND ventana=?').bind(ip, ventana).first();
+  if (fila && fila.n >= limite) throw new HttpError(429, 'Demasiados intentos con una clave incorrecta. Espera unos minutos y vuelve a intentar.');
+  let camp = null, sup = null;
+  if (k.length >= 8) {
+    camp = await env.DB.prepare('SELECT * FROM campanas WHERE codigo_cliente=? AND cliente_activo=1').bind(k).first();
+    if (camp && !igualSeguro(k, camp.codigo_cliente)) camp = null;
+    if (!camp) {
+      sup = await env.DB.prepare('SELECT s.* FROM supervisores s JOIN campanas c ON c.id=s.campana_id WHERE s.clave_hash=? AND s.activo=1 AND c.cliente_activo=1').bind(await hashClaveSup(k)).first();
+      if (sup) camp = await env.DB.prepare('SELECT * FROM campanas WHERE id=?').bind(sup.campana_id).first();
+    }
+  }
+  if (!camp) {
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO login_intentos (ip, ventana, n) VALUES (?,?,1) ON CONFLICT(ip, ventana) DO UPDATE SET n=n+1').bind(ip, ventana),
+      env.DB.prepare('DELETE FROM login_intentos WHERE ventana < ?').bind(ventana - 6)
+    ]);
+    throw new HttpError(401, 'Código de acceso incorrecto o desactivado');
+  }
+  return sup ? { camp, rol: 'supervisor', sup, nombre: sup.nombre } : { camp, rol: 'cliente', sup: null, nombre: 'Administrador del cliente' };
+}
+function soloAdminCliente(actor) {
+  if (actor.rol !== 'cliente') throw new HttpError(403, 'Esta acción es solo del administrador del cliente.');
+}
+
+// Qué procesos y secciones puede ver y gestionar quien entra. El administrador del cliente: todo (secs = null).
+async function ambitoDe(env, actor) {
+  const filas = (await env.DB.prepare('SELECT id, gerencia, seccion FROM procesos WHERE campana_id=?').bind(actor.camp.id).all()).results;
+  if (actor.rol !== 'supervisor') return { todo: true, procs: new Set(filas.map(p => p.id)), secs: null, filas };
+  let al = {}; try { al = JSON.parse(actor.sup.alcance || '{}') || {}; } catch (e) { al = {}; }
+  const gers = (al.gerencias || []).map(normal), secs = new Set((al.secciones || []).map(x => claveArea(x.g, x.s))), ids = new Set(al.procesos || []);
+  const dentro = al.todo ? filas : filas.filter(p => ids.has(p.id) || gers.includes(normal(p.gerencia)) || secs.has(claveArea(p.gerencia, p.seccion)));
+  return { todo: !!al.todo, procs: new Set(dentro.map(p => p.id)), secs: new Set(dentro.map(p => claveArea(p.gerencia, p.seccion))), filas: dentro };
+}
+const enSecs = (amb, g, sec) => amb.secs === null || amb.secs.has(claveArea(g, sec));
+
+// Personas que el Supervisor ve: las de sus secciones, las que tienen asignado un proceso suyo o ya trabajan en uno. null = todas.
+async function personasVisibles(env, camp, amb) {
+  if (amb.secs === null) return null;
+  const q = sql => env.DB.prepare(sql).bind(camp.id).all().then(r => r.results);
+  const [enc, asig, revs] = await Promise.all([
+    q('SELECT id, gerencia, seccion FROM encuestados WHERE campana_id=?'),
+    q('SELECT a.encuestado_id, a.proceso_id FROM asignaciones a JOIN encuestados e ON e.id=a.encuestado_id WHERE e.campana_id=?'),
+    q('SELECT r.encuestado_id, r.proceso_id FROM revisiones r JOIN encuestados e ON e.id=r.encuestado_id WHERE e.campana_id=?')
+  ]);
+  const vis = new Set(enc.filter(e => enSecs(amb, e.gerencia, e.seccion)).map(e => e.id));
+  asig.concat(revs).forEach(x => { if (amb.procs.has(x.proceso_id)) vis.add(x.encuestado_id); });
+  return vis;
+}
+
+async function registrarAccion(env, campId, actor, accion, detalle) {
+  await env.DB.prepare('INSERT INTO acciones (id, campana_id, actor_tipo, actor_id, actor_nombre, accion, detalle, creado) VALUES (?,?,?,?,?,?,?,?)')
+    .bind(uid(), campId, actor.rol, actor.sup ? actor.sup.id : '', actor.nombre, accion, typeof detalle === 'string' ? detalle : JSON.stringify(detalle || {}), ahora()).run();
+}
+async function registrarDelegaciones(env, camp, actor, encId, pids) {
+  if (!pids.length) return 0;
+  const ya = new Set();
+  for (let i = 0; i < pids.length; i += 30) {
+    const tanda = pids.slice(i, i + 30);
+    (await env.DB.prepare(`SELECT proceso_id FROM delegaciones WHERE encuestado_id=? AND activa=1 AND proceso_id IN (${tanda.map(() => '?').join(',')})`).bind(encId, ...tanda).all())
+      .results.forEach(r => ya.add(r.proceso_id));
+  }
+  const t = ahora(), st = pids.filter(pid => !ya.has(pid)).map(pid => env.DB.prepare('INSERT INTO delegaciones (id, campana_id, encuestado_id, proceso_id, actor_tipo, actor_id, actor_nombre, creado) VALUES (?,?,?,?,?,?,?,?)')
+    .bind(uid(), camp.id, encId, pid, actor.rol, actor.sup ? actor.sup.id : '', actor.nombre, t));
+  for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
+  return st.length;
+}
+
+async function listaSupervisores(env, campId) {
+  const r = (await env.DB.prepare('SELECT id, nombre, correo, activo, alcance, creado, ultimo FROM supervisores WHERE campana_id=? ORDER BY nombre').bind(campId).all()).results;
+  return r.map(x => { let al = {}; try { al = JSON.parse(x.alcance) || {}; } catch (e) { al = {}; } return { ...x, alcance: al }; });
 }
 
 // Volcado para el panel del cliente: avance, personas y procesos. NUNCA incluye lo que respondieron las personas (ni transcripciones),
 // el análisis de la IA, la matriz, el texto de la precarga, los correos ni los enlaces personales. Los textos se reemplazan por una marca
-// («•») para que el panel sepa si hay respuesta sin ver su contenido.
-async function rutaClienteCampana(env, camp, recarga) {
+// («•») para que el panel sepa si hay respuesta sin ver su contenido. Un Supervisor recibe solo lo que cae en su alcance.
+async function rutaClienteCampana(env, actor, recarga) {
+  const camp = actor.camp;
   const q = sql => env.DB.prepare(sql).bind(camp.id).all().then(r => r.results);
-  const [encuestados, procesos, revisiones, respuestas, asignaciones, precarga, ventanas] = await Promise.all([
+  let [encuestados, procesos, revisiones, respuestas, asignaciones, precarga, ventanas] = await Promise.all([
     q('SELECT id, nombre, rol, gerencia, seccion, estado, actualizado, origen, creado FROM encuestados WHERE campana_id=? ORDER BY gerencia, seccion, nombre'),
     q('SELECT id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, fuente, creado_por, fuera_alcance, validacion, validado_por, validado_en FROM procesos WHERE campana_id=? ORDER BY gerencia, seccion, orden, macroproceso, proceso, subproceso'),
     q('SELECT r.encuestado_id, r.proceso_id, r.estado FROM revisiones r JOIN encuestados e ON e.id=r.encuestado_id WHERE e.campana_id=?'),
@@ -2215,6 +2299,15 @@ async function rutaClienteCampana(env, camp, recarga) {
     q('SELECT pc.proceso_id, pc.bloque, pc.punto FROM precarga pc JOIN procesos p ON p.id=pc.proceso_id WHERE p.campana_id=?'),
     q('SELECT gerencia, seccion, abre, cierra, mensaje FROM ventanas WHERE campana_id=?')
   ]);
+  if (actor.rol === 'supervisor') {
+    const amb = await ambitoDe(env, actor), vis = await personasVisibles(env, camp, amb);
+    const veo = x => amb.procs.has(x.proceso_id) && vis.has(x.encuestado_id);
+    procesos = procesos.filter(x => amb.procs.has(x.id));
+    encuestados = encuestados.filter(x => vis.has(x.id));
+    revisiones = revisiones.filter(veo); respuestas = respuestas.filter(veo); asignaciones = asignaciones.filter(veo);
+    precarga = precarga.filter(x => amb.procs.has(x.proceso_id));
+    ventanas = ventanas.filter(v => enSecs(amb, v.gerencia, v.seccion) || (!v.seccion && amb.filas.some(p => mismaArea(p.gerencia, v.gerencia))));
+  }
   const limpias = respuestas.map(r => {
     const ck = leerMatriz(r.checklist), sano = {};
     Object.keys(ck).forEach(k => { if (k[0] !== '_' && ck[k]) sano[k] = { estado: ck[k].estado, fuente: ck[k].fuente }; });   // sin la evidencia (cita de la persona)
@@ -2222,63 +2315,178 @@ async function rutaClienteCampana(env, camp, recarga) {
       texto: String(r.texto || '').trim() ? '•' : '', sistemas: (r.sistemas && r.sistemas !== '[]') ? ['•'] : [], checklist: sano };
   });
   if (!recarga) {   // volver a pedir el volcado tras agregar o asignar no es un ingreso nuevo
-    await env.DB.prepare('UPDATE campanas SET cliente_ultimo=? WHERE id=?').bind(ahora(), camp.id).run();
-    log('cliente_ingreso', { campana: camp.id });
+    if (actor.rol === 'supervisor') await env.DB.prepare('UPDATE supervisores SET ultimo=? WHERE id=?').bind(ahora(), actor.sup.id).run();
+    else await env.DB.prepare('UPDATE campanas SET cliente_ultimo=? WHERE id=?').bind(ahora(), camp.id).run();
+    log('cliente_ingreso', { campana: camp.id, rol: actor.rol });
   }
-  return { ok: true, campana: { id: camp.id, nombre: camp.nombre, cliente: camp.cliente, logo: camp.logo || '', creada: camp.creada,
+  return { ok: true, rol: actor.rol, yo: { nombre: actor.nombre },
+    supervisores: actor.rol === 'cliente' ? await listaSupervisores(env, camp.id) : undefined,
+    campana: { id: camp.id, nombre: camp.nombre, cliente: camp.cliente, logo: camp.logo || '', creada: camp.creada,
       codigo_publico: camp.codigo_publico || '', abierta: camp.abierta ? 1 : 0, invitacion: camp.invitacion || '' },
     encuestados, procesos, revisiones, respuestas: limpias, asignaciones, precarga, ventanas, estructurado: [], sistemas: [], bloques: BLOQUES, generado: ahora() };
 }
 
 // ---------------------------------------------------------------- escritura acotada del panel del cliente
-// El cliente puede: agregar responsables a una sección que YA existe, asignar procesos a personas de su campaña, pedir los enlaces personales
-// de sus personas y activar el enlace abierto. Nada más: no ve respuestas, no toca la matriz, la validación, las fechas ni los accesos.
-async function rutaClientePersonas(env, camp, b) {
+// Administrador del cliente: agregar responsables a una sección que YA existe, asignar («delegar») procesos, pedir enlaces y activar el enlace abierto.
+// Supervisor: lo mismo, pero solo dentro de su alcance, sin el enlace abierto y sin gestionar supervisores. Nadie ve respuestas ni toca matriz,
+// validación, fechas o accesos. Toda delegación y toda acción relevante queda registrada con quién la hizo.
+async function rutaClientePersonas(env, actor, b) {
+  const camp = actor.camp, amb = await ambitoDe(env, actor);
   const lista = (Array.isArray(b.personas) ? b.personas : []).slice(0, 50);
   if (!lista.length) throw new HttpError(400, 'Indica al menos una persona');
   const areas = await areasDeCampana(env, camp.id);
   lista.forEach(x => {
     const g = txt(x && x.gerencia, 150), sec = txt(x && x.seccion, 150), a = areas.find(y => mismaArea(y.gerencia, g));
     if (!a || !a.secciones.some(z => mismaArea(z, sec))) throw new HttpError(400, 'La sección indicada no existe en el mapa de procesos.');
+    if (!enSecs(amb, g, sec)) throw new HttpError(403, 'Esa sección no está dentro de tu alcance.');
   });
   const r = await rutaEncuestadoAlta(env, { campana_id: camp.id, personas: lista });
   let asignados = 0;
-  // Responsable de la sección: queda asignado a todos los procesos vigentes de esa sección.
+  // Responsable de la sección: queda asignado a todos los procesos vigentes de esa sección (los que estén en su alcance).
   if (b.asignar_seccion && r.nuevos.length) {
     const procs = (await env.DB.prepare('SELECT id, gerencia, seccion FROM procesos WHERE campana_id=? AND fuera_alcance=0').bind(camp.id).all()).results;
     for (const n of r.nuevos) {
-      const ids = procs.filter(p => mismaArea(p.gerencia, n.gerencia) && mismaArea(p.seccion, n.seccion)).map(p => p.id);
-      if (ids.length) asignados += (await asignarProcesos(env, { id: n.id, campana_id: camp.id }, ids, 'consultor')).length;
+      const ids = procs.filter(p => amb.procs.has(p.id) && mismaArea(p.gerencia, n.gerencia) && mismaArea(p.seccion, n.seccion)).map(p => p.id);
+      if (!ids.length) continue;
+      const hechos = await asignarProcesos(env, { id: n.id, campana_id: camp.id }, ids, 'consultor');
+      asignados += hechos.length;
+      await registrarDelegaciones(env, camp, actor, n.id, hechos.map(p => p.id));
     }
   }
-  log('cliente_personas', { campana: camp.id, creados: r.creados, asignados });
-  return { ok: true, creados: r.creados, existentes: r.existentes, asignados };
+  if (r.creados) await registrarAccion(env, camp.id, actor, 'personas_agregadas', { personas: r.creados, asignados });
+  log('cliente_personas', { campana: camp.id, rol: actor.rol, creados: r.creados, asignados });
+  return { ok: true, creados: r.creados, existentes: r.existentes, asignados, nuevos: r.nuevos.map(n => n.id) };
 }
 
-async function rutaClienteAsignar(env, camp, b) {
-  const e = await env.DB.prepare('SELECT id FROM encuestados WHERE id=? AND campana_id=?').bind(txt(b.encuestado_id, 60), camp.id).first();
-  if (!e) throw new HttpError(404, 'Persona no encontrada');
+async function rutaClienteAsignar(env, actor, b) {
+  const camp = actor.camp, amb = await ambitoDe(env, actor), vis = await personasVisibles(env, camp, amb);
+  const e = await env.DB.prepare('SELECT id, nombre FROM encuestados WHERE id=? AND campana_id=?').bind(txt(b.encuestado_id, 60), camp.id).first();
+  if (!e || (vis && !vis.has(e.id))) throw new HttpError(404, 'Persona no encontrada');
+  const lista = a => [...new Set((Array.isArray(a) ? a : []).map(x => txt(x, 60)).filter(Boolean))].slice(0, 300);
+  const agregar = lista(b.agregar), desasignar = lista(b.desasignar);
+  if (actor.rol === 'supervisor' && agregar.concat(desasignar).some(id => !amb.procs.has(id))) throw new HttpError(403, 'Ese proceso no está habilitado para ti.');
+  const asignadosDe = async () => new Set((await env.DB.prepare("SELECT proceso_id FROM asignaciones WHERE encuestado_id=? AND origen='consultor'").bind(e.id).all()).results.map(r => r.proceso_id));
+  const antes = await asignadosDe();
   // Solo agregar o desasignar lo que el equipo asigna: quitar/restaurar borran respuestas y quedan para el consultor.
-  const r = await rutaAsignar(env, { encuestado_id: e.id, agregar: b.agregar, desasignar: b.desasignar });
-  log('cliente_asignar', { campana: camp.id, agregados: r.agregados, desasignados: r.desasignados });
-  return { ok: true, agregados: r.agregados, desasignados: r.desasignados };
+  const r = await rutaAsignar(env, { encuestado_id: e.id, agregar, desasignar });
+  const despues = await asignadosDe();
+  const nuevos = agregar.filter(id => despues.has(id) && !antes.has(id));
+  const quitadas = desasignar.filter(id => antes.has(id) && !despues.has(id));
+  await registrarDelegaciones(env, camp, actor, e.id, nuevos);
+  if (quitadas.length) {
+    const t = ahora();
+    const st = quitadas.map(pid => env.DB.prepare("UPDATE delegaciones SET activa=0, quitada=?, quitada_por=? WHERE encuestado_id=? AND proceso_id=? AND activa=1").bind(t, actor.nombre, e.id, pid));
+    for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
+  }
+  if (nuevos.length) await registrarAccion(env, camp.id, actor, 'delegar', { persona: e.nombre, persona_id: e.id, procesos: nuevos.length });
+  if (quitadas.length) await registrarAccion(env, camp.id, actor, 'quitar_delegacion', { persona: e.nombre, persona_id: e.id, procesos: quitadas.length });
+  log('cliente_asignar', { campana: camp.id, rol: actor.rol, agregados: r.agregados, desasignados: r.desasignados });
+  return { ok: true, agregados: r.agregados, desasignados: r.desasignados, nuevos, quitadas };
 }
 
-async function rutaClienteEnlaces(env, camp, b) {
+async function rutaClienteEnlaces(env, actor, b) {
+  const camp = actor.camp, vis = await personasVisibles(env, camp, await ambitoDe(env, actor));
   const ids = [...new Set((Array.isArray(b.encuestado_ids) ? b.encuestado_ids : []).map(x => txt(x, 60)).filter(Boolean))].slice(0, 300);
   const enlaces = [];
   for (let i = 0; i < ids.length; i += 30) {
     const tanda = ids.slice(i, i + 30);
-    (await env.DB.prepare(`SELECT id, nombre, token FROM encuestados WHERE campana_id=? AND id IN (${tanda.map(() => '?').join(',')})`).bind(camp.id, ...tanda).all())
-      .results.forEach(r => enlaces.push({ id: r.id, nombre: r.nombre, token: r.token }));
+    (await env.DB.prepare(`SELECT id, nombre, correo, token FROM encuestados WHERE campana_id=? AND id IN (${tanda.map(() => '?').join(',')})`).bind(camp.id, ...tanda).all())
+      .results.forEach(r => { if (!vis || vis.has(r.id)) enlaces.push({ id: r.id, nombre: r.nombre, correo: r.correo || '', token: r.token }); });
   }
-  log('cliente_enlaces', { campana: camp.id, enlaces: enlaces.length });
+  const para = b.para === 'correo' ? 'correo' : 'enlace';
+  if (enlaces.length) await registrarAccion(env, camp.id, actor, para === 'correo' ? 'correo_generado' : 'enlace_copiado', { personas: enlaces.length });
+  log('cliente_enlaces', { campana: camp.id, rol: actor.rol, enlaces: enlaces.length });
   return { ok: true, enlaces };
 }
 
-async function rutaClienteEnlaceAbierto(env, camp) {
-  const r = await rutaEnlace(env, { campana_id: camp.id, abierta: true });   // solo activar: no regenera el código ni cambia el dominio
+async function rutaClienteEnlaceAbierto(env, actor) {
+  soloAdminCliente(actor);
+  const r = await rutaEnlace(env, { campana_id: actor.camp.id, abierta: true });   // solo activar: no regenera el código ni cambia el dominio
+  await registrarAccion(env, actor.camp.id, actor, 'enlace_abierto_activado', {});
   return { ok: true, codigo_publico: r.codigo_publico, abierta: r.abierta };
+}
+
+// ---- Supervisores (los crea y administra el administrador del cliente)
+async function validarClaveNueva(env, camp, k, ignorarSupId) {
+  if (k.length < 8 || k.length > 40) throw new HttpError(400, 'La clave debe tener de 8 a 40 caracteres.');
+  if (!/^[A-Za-z0-9._\-!@#$%&*+=]+$/.test(k)) throw new HttpError(400, 'La clave solo puede llevar letras, números y estos signos: . _ - ! @ # $ % & * + =');
+  if (!/[A-Za-z]/.test(k) || !/\d/.test(k)) throw new HttpError(400, 'La clave debe combinar letras y números.');
+  const sin = x => normal(x).replace(/[^a-z0-9]/g, ''), n = sin(k);
+  if (/^(.)\1+$/.test(n) || /(password|contrasena|123456|qwerty|abcdef)/.test(n)) throw new HttpError(400, 'Esa clave es demasiado fácil de adivinar: elige otra.');
+  if ((sin(camp.cliente).length > 3 && n.includes(sin(camp.cliente))) || (sin(camp.nombre).length > 3 && n.includes(sin(camp.nombre)))) throw new HttpError(400, 'La clave no debe contener el nombre del cliente ni de la campaña.');
+  if (igualSeguro(k, (env.ADMIN_CODE || '').trim())) throw new HttpError(400, 'Esa clave no se puede usar.');
+  if (await env.DB.prepare('SELECT id FROM campanas WHERE codigo_cliente=?').bind(k).first()) throw new HttpError(409, 'Esa clave ya está en uso: elige otra.');
+  const otro = await env.DB.prepare('SELECT id FROM supervisores WHERE clave_hash=?').bind(await hashClaveSup(k)).first();
+  if (otro && otro.id !== ignorarSupId) throw new HttpError(409, 'Esa clave ya está en uso: elige otra.');
+}
+async function alcanceValido(env, camp, a) {
+  a = a || {};
+  if (a.todo) return { todo: true, gerencias: [], secciones: [], procesos: [] };
+  const filas = (await env.DB.prepare('SELECT id, gerencia, seccion FROM procesos WHERE campana_id=?').bind(camp.id).all()).results;
+  const gers = [], secs = [], procs = [], ok = new Set(filas.map(p => p.id));
+  (Array.isArray(a.gerencias) ? a.gerencias : []).forEach(g => { const f = filas.find(p => mismaArea(p.gerencia, g)); if (f && !gers.includes(f.gerencia)) gers.push(f.gerencia); });
+  (Array.isArray(a.secciones) ? a.secciones : []).forEach(x => {
+    const f = filas.find(p => mismaArea(p.gerencia, x && x.g) && mismaArea(p.seccion, x && x.s));
+    if (f && !secs.some(y => claveArea(y.g, y.s) === claveArea(f.gerencia, f.seccion))) secs.push({ g: f.gerencia, s: f.seccion });
+  });
+  (Array.isArray(a.procesos) ? a.procesos : []).forEach(id => { id = txt(id, 60); if (ok.has(id) && !procs.includes(id)) procs.push(id); });
+  if (!gers.length && !secs.length && !procs.length) throw new HttpError(400, 'Define al menos una gerencia, sección o proceso, o marca el acceso total.');
+  return { todo: false, gerencias: gers, secciones: secs.slice(0, 200), procesos: procs.slice(0, 2000) };
+}
+async function rutaClienteSupervisores(env, actor, b) {
+  soloAdminCliente(actor);
+  const camp = actor.camp, accion = String(b.accion || '');
+  if (!['crear', 'editar', 'activar', 'desactivar', 'clave'].includes(accion)) throw new HttpError(400, 'Acción inválida');
+  const nombre = txt(b.nombre, 150), correo = txt(b.correo, 150).toLowerCase();
+  if (correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new HttpError(400, 'El correo no es válido.');
+  if (accion === 'crear') {
+    if (nombre.length < 3) throw new HttpError(400, 'Escribe el nombre del supervisor.');
+    const alcance = await alcanceValido(env, camp, b.alcance);
+    const clave = txt(b.clave, 60) || generarClave();
+    await validarClaveNueva(env, camp, clave, '');
+    const id = uid();
+    await env.DB.prepare('INSERT INTO supervisores (id, campana_id, nombre, correo, clave_hash, activo, alcance, creado) VALUES (?,?,?,?,?,1,?,?)')
+      .bind(id, camp.id, nombre, correo, await hashClaveSup(clave), JSON.stringify(alcance), ahora()).run();
+    await registrarAccion(env, camp.id, actor, 'supervisor_creado', { supervisor: nombre, supervisor_id: id });
+    return { ok: true, id, clave, supervisores: await listaSupervisores(env, camp.id) };
+  }
+  const sup = await env.DB.prepare('SELECT * FROM supervisores WHERE id=? AND campana_id=?').bind(txt(b.id, 60), camp.id).first();
+  if (!sup) throw new HttpError(404, 'Supervisor no encontrado');
+  let clave = '';
+  if (accion === 'editar') {
+    const n2 = b.nombre === undefined ? sup.nombre : nombre;
+    if (n2.length < 3) throw new HttpError(400, 'Escribe el nombre del supervisor.');
+    const alcance = b.alcance === undefined ? sup.alcance : JSON.stringify(await alcanceValido(env, camp, b.alcance));
+    await env.DB.prepare('UPDATE supervisores SET nombre=?, correo=?, alcance=? WHERE id=?').bind(n2, b.correo === undefined ? sup.correo : correo, alcance, sup.id).run();
+    await registrarAccion(env, camp.id, actor, 'supervisor_editado', { supervisor: n2, supervisor_id: sup.id });
+  } else if (accion === 'activar' || accion === 'desactivar') {
+    await env.DB.prepare('UPDATE supervisores SET activo=? WHERE id=?').bind(accion === 'activar' ? 1 : 0, sup.id).run();
+    await registrarAccion(env, camp.id, actor, accion === 'activar' ? 'supervisor_activado' : 'supervisor_desactivado', { supervisor: sup.nombre, supervisor_id: sup.id });
+  } else {
+    clave = txt(b.clave, 60) || generarClave();
+    await validarClaveNueva(env, camp, clave, sup.id);
+    await env.DB.prepare('UPDATE supervisores SET clave_hash=? WHERE id=?').bind(await hashClaveSup(clave), sup.id).run();
+    await registrarAccion(env, camp.id, actor, 'supervisor_clave_nueva', { supervisor: sup.nombre, supervisor_id: sup.id });
+  }
+  return { ok: true, id: sup.id, clave, supervisores: await listaSupervisores(env, camp.id) };
+}
+
+// ---- Trazabilidad: lo que hicieron los Supervisores (y el administrador del cliente), visible para el administrador y para el consultor.
+async function trazabilidad(env, campId) {
+  const [delegaciones, acciones, supervisores] = await Promise.all([
+    env.DB.prepare(`SELECT d.id, d.creado, d.actor_tipo, d.actor_id, d.actor_nombre, d.activa, d.quitada, d.quitada_por, d.encuestado_id, d.proceso_id,
+        e.nombre AS persona, e.gerencia, e.seccion, p.codigo, p.macroproceso, p.proceso, p.subproceso
+      FROM delegaciones d LEFT JOIN encuestados e ON e.id=d.encuestado_id LEFT JOIN procesos p ON p.id=d.proceso_id
+      WHERE d.campana_id=? ORDER BY d.creado DESC LIMIT 2000`).bind(campId).all().then(r => r.results),
+    env.DB.prepare('SELECT id, actor_tipo, actor_id, actor_nombre, accion, detalle, creado FROM acciones WHERE campana_id=? ORDER BY creado DESC LIMIT 300').bind(campId).all().then(r => r.results),
+    listaSupervisores(env, campId)
+  ]);
+  return { ok: true, delegaciones, acciones, supervisores };
+}
+async function rutaTrazabilidadAdmin(env, url) {
+  const camp = await env.DB.prepare('SELECT id FROM campanas WHERE id=?').bind(url.searchParams.get('id') || '').first();
+  if (!camp) throw new HttpError(404, 'Campaña no encontrada');
+  return trazabilidad(env, camp.id);
 }
 
 // ---------------------------------------------------------------- router
@@ -2325,22 +2533,25 @@ export default {
 
       // Panel del cliente (solo lectura, solo su campaña): su propio código; nunca da acceso a /a/.
       if (url.pathname.startsWith('/c/') && req.method === 'GET') {
-        const camp = await campanaDeCliente(env, req);
-        if (url.pathname === '/c/campana') return json(await rutaClienteCampana(env, camp, url.searchParams.get('recarga') === '1'), 200, h);
+        const actor = await actorCliente(env, req);
+        if (url.pathname === '/c/campana') return json(await rutaClienteCampana(env, actor, url.searchParams.get('recarga') === '1'), 200, h);
+        if (url.pathname === '/c/trazabilidad') { soloAdminCliente(actor); return json(await trazabilidad(env, actor.camp.id), 200, h); }
       }
       if (url.pathname.startsWith('/c/') && req.method === 'POST') {
-        const camp = await campanaDeCliente(env, req);
+        const actor = await actorCliente(env, req);
         const b = await cuerpo(req);
-        if (url.pathname === '/c/personas') return json(await rutaClientePersonas(env, camp, b), 200, h);
-        if (url.pathname === '/c/asignar') return json(await rutaClienteAsignar(env, camp, b), 200, h);
-        if (url.pathname === '/c/enlaces') return json(await rutaClienteEnlaces(env, camp, b), 200, h);
-        if (url.pathname === '/c/enlace-abierto') return json(await rutaClienteEnlaceAbierto(env, camp), 200, h);
+        if (url.pathname === '/c/personas') return json(await rutaClientePersonas(env, actor, b), 200, h);
+        if (url.pathname === '/c/asignar') return json(await rutaClienteAsignar(env, actor, b), 200, h);
+        if (url.pathname === '/c/enlaces') return json(await rutaClienteEnlaces(env, actor, b), 200, h);
+        if (url.pathname === '/c/enlace-abierto') return json(await rutaClienteEnlaceAbierto(env, actor), 200, h);
+        if (url.pathname === '/c/supervisores') return json(await rutaClienteSupervisores(env, actor, b), 200, h);
       }
 
       if (url.pathname.startsWith('/a/')) {
         exigirAdmin(req, env);
         if (ruta === 'GET /a/campanas') return json(await rutaCampanas(env), 200, h);
         if (ruta === 'GET /a/campana') return json(await rutaCampana(env, url), 200, h);
+        if (ruta === 'GET /a/campana/trazabilidad') return json(await rutaTrazabilidadAdmin(env, url), 200, h);
         if (ruta === 'POST /a/precarga/extraer') return json(await rutaPrecargaExtraer(env, req, url, ctx), 200, h);
         if (req.method === 'POST') {
           const b = await cuerpo(req);

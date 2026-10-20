@@ -388,6 +388,10 @@
             <h3 style="font-size:14px;margin-top:22px">Acceso del cliente (solo lectura)</h3>
             <p class="muted">Un código propio para la administradora del cliente: ve el avance por gerencia y sección, las personas y los procesos asignados, y los porcentajes de información completada y de procesos validados. <b>Nunca</b> ve lo que respondieron las personas, el análisis de la IA, la precarga con documentos, los correos ni los enlaces personales, y no puede cambiar nada. Renovar o desactivar el código cierra su sesión al instante.</p>
             <div id="clAcceso"></div>
+            <h3 style="font-size:14px;margin-top:22px">Supervisores y trazabilidad (solo lectura)</h3>
+            <p class="muted">Los Supervisores los crea y administra la administradora del cliente desde su panel. Aquí ves quiénes son, qué alcance tienen y todo lo que delegaron.</p>
+            <div class="row"><button class="btn btn-ghost btn-xs" id="btnTraza">Ver supervisores y trazabilidad</button><span class="muted" id="msgTraza" role="status"></span></div>
+            <div id="cnTraza"></div>
             <h3 style="font-size:14px;margin-top:22px">Texto de invitación</h3>
             <p class="muted">Es el texto que se copia en «Invitar» y en el acta de cada gerencia. Marcas que se reemplazan: <code>{cliente}</code>, <code>{gerencia}</code>, <code>{seccion}</code>, <code>{area}</code> (la sección o, si no hay, la gerencia), <code>{enlace}</code>, <code>{apertura}</code> y <code>{plazo}</code>.</p>
             <textarea id="inInvitacion" rows="12" aria-label="Texto de invitación de la campaña" style="min-height:200px"></textarea>
@@ -424,6 +428,7 @@
       <div><label for="clGer">Gerencia</label><select id="clGer"></select></div>
     </div>
     <div id="clLista" style="margin-top:12px"></div>
+    <div id="clAdmin" class="hidden" style="margin-top:18px"></div>
   </section>
 </main>
 
@@ -525,7 +530,7 @@
   var CLIENTE = !!new URLSearchParams(location.search).get('cliente');   // ?cliente=1 o ?cliente=nombre (el nombre es solo estético)
   if (CLIENTE){
     document.querySelector('header .sub').textContent = 'Voz MBC · seguimiento del relevamiento (acceso del cliente)';
-    document.querySelector('#vLogin p.muted').textContent = 'Ingresa el código de acceso que te entregó el equipo consultor.';
+    document.querySelector('#vLogin p.muted').textContent = 'Ingresa la clave de acceso que te entregaron.';
   }
   var CODIGO = '';
   try { CODIGO = sessionStorage.getItem(CLIENTE ? 'relev-cliente' : 'relev-admin') || ''; } catch(e){}
@@ -3280,6 +3285,8 @@
     C.fuera = C.procesos.filter(function(p){ return p.fuera_alcance; });
     C.procesos = C.procesos.filter(function(p){ return !p.fuera_alcance; });
     indexar();
+    C.rol = j.rol || 'cliente'; C.supervisores = j.supervisores || [];
+    document.querySelector('header .sub').textContent = 'Voz MBC · seguimiento del relevamiento · ' + (C.rol === 'supervisor' ? 'Supervisor: ' + (j.yo && j.yo.nombre || '') : 'administración del cliente');
     $('#clTitulo').textContent = 'Seguimiento · ' + C.campana.nombre;
     // El logo del cliente va en la franja superior, siempre visible, junto a la marca de la consola.
     var hl = $('#hdLogo');
@@ -3307,7 +3314,8 @@
       if (!asignados.length && !tomado.length) s.sinResp++;
     });
     C.encuestados.forEach(function(e){ obt(e.gerencia, e.seccion).personas.push({e: e, i: info[e.id]}); });
-    return Object.keys(m).map(function(k){ return m[k]; });
+    // Un Supervisor solo gestiona secciones donde tiene procesos: una persona de otra sección con un proceso suyo delegado no crea una sección aparte.
+    return Object.keys(m).map(function(k){ return m[k]; }).filter(function(s){ return C.rol !== 'supervisor' || s.procs.length || s.noVigentes; });
   }
   function barraCl(n, total, texto){
     var pc = total ? Math.round(100 * n / total) : 0;
@@ -3318,9 +3326,11 @@
     var vig = 0, resp = 0, valid = 0, pts = 0, noVig = 0, gers = {};
     secs.forEach(function(s){ vig += s.procs.length; resp += s.resp; valid += s.valid; pts += s.puntos; noVig += s.noVigentes; gers[s.gerencia] = 1; });
     var pc = function(a, b){ return b ? Math.round(100 * a / b) : 0; };
-    $('#clSub').textContent = 'Actualizado: ' + fecha(C.generado) + ' · ' + C.campana.cliente;
+    var pend = 0, prog = 0;
+    secs.forEach(function(s){ s.procs.forEach(function(x){ if (x.cb.estado === 'sin_cobertura') pend++; else if (x.cb.estado === 'en_curso') prog++; }); });
+    $('#clSub').textContent = (C.rol === 'supervisor' ? 'Tu alcance · ' : '') + 'Actualizado: ' + fecha(C.generado) + ' · ' + C.campana.cliente;
     $('#clResumen').innerHTML = '<div class="kpis" style="margin-bottom:12px">' +
-      [[Object.keys(gers).length, 'gerencias'], [secs.length, 'secciones'], [vig, 'procesos vigentes'], [C.encuestados.length, 'personas asignadas']].map(function(k){ return '<div class="kpi"><b>' + k[0] + '</b><span>' + k[1] + '</span></div>'; }).join('') + '</div>' +
+      [[Object.keys(gers).length, 'gerencias'], [secs.length, 'secciones'], [vig, 'procesos vigentes'], [C.encuestados.length, 'personas asignadas'], [pend, 'pendientes'], [prog, 'en progreso'], [resp, 'completados']].map(function(k){ return '<div class="kpi"><b>' + k[0] + '</b><span>' + k[1] + '</span></div>'; }).join('') + '</div>' +
       '<div class="row" style="align-items:stretch">' +
       '<div class="cl-barra"><b>Información completada</b>' + ayuda('Procesos respondidos ÷ procesos vigentes. Un proceso está respondido cuando su checklist de los 3 bloques está completo (una persona o varias entre todas, con lo que aportó el equipo consultor). La cifra de puntos mide cuántos de los puntos del checklist de todos los procesos ya están cubiertos.') +
         '<div style="font-size:26px;font-family:Montserrat,sans-serif;font-weight:800;color:var(--heading)">' + pc(resp, vig) + '%</div>' + barraCl(resp, vig) +
@@ -3334,6 +3344,7 @@
     $('#clGer').innerHTML = '<option value="">Todas</option>' + Object.keys(gs).sort(function(a, b){ return a.localeCompare(b, 'es'); }).map(function(g){ return '<option' + (g === FCL.ger ? ' selected' : '') + '>' + esc(g) + '</option>'; }).join('');
     $('#clTexto').value = FCL.texto;
     pintarListaCliente(secs);
+    pintarAdminCl();
   }
   // ---- lo único que puede editar el cliente: responsables de la sección, asignación de procesos y enlaces
   function apiCl(path, body){
@@ -3367,7 +3378,7 @@
     var ids = s.personas.map(function(x){ return x.e.id; }).join(',');
     return '<div class="row acc-cl" style="margin:4px 0 8px">' +
       (activo ? '<button type="button" class="btn btn-xs" data-ca="enlace-sec"' + d + '>Copiar enlace de la sección</button><button type="button" class="btn btn-ghost btn-xs" data-ca="invitacion"' + d + '>Copiar invitación</button>'
-              : '<button type="button" class="btn btn-xs" data-ca="activar"' + d + '>Activar el enlace de la sección</button>') +
+              : (C.rol === 'cliente' ? '<button type="button" class="btn btn-xs" data-ca="activar"' + d + '>Activar el enlace de la sección</button>' : '<span class="muted">El enlace de la sección aún no está activo: pídele al administrador que lo active.</span>')) +
       (s.personas.length ? '<button type="button" class="btn btn-ghost btn-xs" data-ca="enlaces-sec" data-ids="' + esc(ids) + '">Copiar enlaces personales (' + s.personas.length + ')</button>' : '') +
       '<button type="button" class="btn btn-ghost btn-xs" data-ca="agregar"' + d + '>+ Agregar responsables</button></div>';
   }
@@ -3409,10 +3420,14 @@
       if (mal){ $('#cpMsg').textContent = mal; return; }
       if (!personas.length){ $('#cpMsg').textContent = 'Escribe al menos una persona.'; return; }
       b.disabled = true; $('#cpMsg').textContent = 'Guardando…';
-      apiCl('/c/personas', {personas: personas, asignar_seccion: $('#cpAsig').checked}).then(function(j){
+      var asig = $('#cpAsig').checked;
+      apiCl('/c/personas', {personas: personas, asignar_seccion: asig}).then(function(j){
         var t = j.creados + (j.creados === 1 ? ' persona agregada' : ' personas agregadas') + (j.existentes.length ? ' · ya estaban: ' + j.existentes.join(', ') : '') + '.';
         CLOPEN['s:' + g + '\u0001' + s] = true;
-        return recargarCl(t).then(function(){ $('#dlg').close(); });
+        return recargarCl(t).then(function(){
+          var ent = asig ? j.nuevos.map(function(id){ return {eid: id, pids: asignadosCl(id)}; }).filter(function(e){ return e.pids.length; }) : [];
+          if (ent.length) pasoCorreoCl(ent); else $('#dlg').close();
+        });
       }).catch(function(err){ b.disabled = false; $('#cpMsg').textContent = err.message; });
     });
   }
@@ -3442,7 +3457,7 @@
       });
       if (!agregar.length && !quitar.length){ $('#dlg').close(); return; }
       b.disabled = true; $('#asMsg').textContent = 'Guardando…';
-      guardar(agregar, quitar).then(function(){ return recargarCl('Asignación guardada.'); }).then(function(){ $('#dlg').close(); })
+      guardar(agregar, quitar).then(function(ent){ return recargarCl('Asignación guardada.').then(function(){ if (ent && ent.length) pasoCorreoCl(ent); else $('#dlg').close(); }); })
         .catch(function(err){ b.disabled = false; $('#asMsg').textContent = err.message; });
     });
   }
@@ -3454,10 +3469,10 @@
       return (sa - sb) || a.nombre.localeCompare(b.nombre, 'es');
     }).map(function(e){ return {id: e.id, texto: e.nombre, sub: [e.rol, e.seccion].filter(Boolean).join(' · ')}; });
     dialogoAsignarCl('Asignar personas al proceso', nombreProc(p) + ' · ' + p.gerencia + ' · ' + p.seccion, items, marcados, function(agregar, quitar){
-      var seq = Promise.resolve();
-      agregar.forEach(function(eid){ seq = seq.then(function(){ return apiCl('/c/asignar', {encuestado_id: eid, agregar: [pid]}); }); });
+      var seq = Promise.resolve(), ent = [];
+      agregar.forEach(function(eid){ seq = seq.then(function(){ return apiCl('/c/asignar', {encuestado_id: eid, agregar: [pid]}).then(function(r){ if (r.nuevos.length) ent.push({eid: eid, pids: r.nuevos}); }); }); });
       quitar.forEach(function(eid){ seq = seq.then(function(){ return apiCl('/c/asignar', {encuestado_id: eid, desasignar: [pid]}); }); });
-      return seq;
+      return seq.then(function(){ return ent; });
     }, 'Todavía no hay personas cargadas. Primero agrega a los responsables desde su sección («+ Agregar responsables»).');
   }
   function dialogoProcesosPersonaCl(eid){
@@ -3469,7 +3484,7 @@
     var items = lista.map(function(p){ return {id: p.id, texto: nombreProc(p), sub: mismaAreaCl(p.seccion, e.seccion) ? (p.codigo || '') : p.gerencia + ' · ' + p.seccion}; });
     dialogoAsignarCl('Asignar procesos a ' + e.nombre, e.gerencia + ' · ' + e.seccion, items, marcados, function(agregar, quitar){
       var cuerpo = {encuestado_id: eid}; if (agregar.length) cuerpo.agregar = agregar; if (quitar.length) cuerpo.desasignar = quitar;
-      return apiCl('/c/asignar', cuerpo);
+      return apiCl('/c/asignar', cuerpo).then(function(r){ return r.nuevos.length ? [{eid: eid, pids: r.nuevos}] : []; });
     }, 'Esta sección no tiene procesos vigentes en el mapa.');
   }
   $('#clLista').addEventListener('toggle', function(ev){ var d = ev.target; if (d && d.dataset && d.dataset.k) CLOPEN[d.dataset.k] = d.open; }, true);
@@ -3483,12 +3498,278 @@
     else if (a === 'invitacion') copiarAsyncCl(textoInvitacion(g, s), b);
     else if (a === 'enlace-per') copiarEnlacesCl([id], b, false);
     else if (a === 'enlaces-sec') copiarEnlacesCl(b.dataset.ids.split(','), b, true);
+    else if (a === 'eml-per'){
+      var pidsP = asignadosCl(id);
+      if (!pidsP.length){ avisoCl('Esa persona todavía no tiene procesos delegados: asígnale procesos primero.', true); return; }
+      descargarCorreosCl([{eid: id, pids: pidsP}], b);
+    }
     else if (a === 'activar'){
       b.disabled = true;
       apiCl('/c/enlace-abierto', {}).then(function(j){
         C.campana.codigo_publico = j.codigo_publico; C.campana.abierta = j.abierta; CLOPEN['s:' + g + '\u0001' + s] = true; pintarListaCliente(); avisoCl('Enlace activado: ya puedes copiarlo.');
       }).catch(function(err){ b.disabled = false; avisoCl(err.message, true); });
     }
+  });
+
+  // ---- correo para Outlook (.eml): se abre como borrador listo para enviar (cabecera X-Unsent)
+  var b64u = function(t){ return btoa(unescape(encodeURIComponent(t))); };
+  function construirEml(para, nombre, asunto, html){
+    var ascii = /^[\x20-\x7e]*$/.test(nombre || '');
+    var l = ['X-Unsent: 1', 'MIME-Version: 1.0'];
+    if (para) l.push('To: ' + (ascii ? '"' + String(nombre || '').replace(/["\\]/g, '') + '"' : '=?UTF-8?B?' + b64u(nombre) + '?=') + ' <' + para + '>');
+    l.push('Subject: =?UTF-8?B?' + b64u(asunto) + '?=', 'Content-Type: text/html; charset="utf-8"', 'Content-Transfer-Encoding: base64', '', b64u(html).replace(/.{1,76}/g, '$&\r\n'));
+    return l.join('\r\n');
+  }
+  function bajarEml(archivo, contenido){
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([contenido], {type: 'message/rfc822'}));
+    a.download = archivo.replace(/[\\\/:*?"<>|]+/g, ' ').slice(0, 120) + '.eml';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 800);
+  }
+  var primerNombreCl = function(n){ return String(n || '').trim().split(/\s+/)[0] || ''; };
+  function quienFirmaCl(){ return C.rol === 'supervisor' ? ((C.yo && C.yo.nombre) || 'Tu supervisor') : 'El equipo de seguimiento del relevamiento'; }
+  function htmlCorreoDelegacion(d){
+    var n = d.procesos.length, txtN = n + (n === 1 ? ' proceso' : ' procesos');
+    var li = d.procesos.slice(0, 20).map(function(p){ return '<li>' + (p.codigo ? '<b>' + esc(p.codigo) + '</b> · ' : '') + esc(nombreProc(p)) + ' <span style="color:#667085">(' + esc(p.seccion) + ')</span></li>'; }).join('') +
+      (n > 20 ? '<li>y ' + (n - 20) + ' más (los verás en tu enlace)</li>' : '');
+    return '<div style="font-family:Segoe UI,Calibri,Arial,sans-serif;font-size:14px;color:#1b2a41;line-height:1.55">' +
+      '<p>Hola ' + esc(primerNombreCl(d.nombre)) + ':</p>' +
+      '<p>' + esc(d.quien) + ' te delegó completar la información de ' + txtN + ' del inventario de procesos de ' + esc(d.cliente) + ':</p><ul>' + li + '</ul>' +
+      '<p><b>Cómo completarlo</b></p><ol>' +
+      '<li>Entra a tu enlace personal: <a href="' + esc(d.enlace) + '">' + esc(d.enlace) + '</a>. Es solo tuyo y puedes volver a entrar cuando quieras, desde cualquier equipo.</li>' +
+      '<li>Verás tus procesos; los que te delegaron aparecen primero. Elige cada uno y cuéntalo en 3 bloques, hablando o por escrito. Cada bloque te muestra lo que necesitamos saber y te avisa si falta algo. Todo se guarda solo.</li>' +
+      '<li>Si ya existen SOP, flujos o procesos documentados, compártelos con ' + esc(d.quien) + ': los usamos para precargar la información.</li></ol>' +
+      (d.plazo ? '<p>Plazo de referencia: hasta el ' + esc(d.plazo) + '.</p>' : '') +
+      '<p>Tus respuestas se usan solo para el inventario de procesos.</p><p>Gracias,<br>' + esc(d.quien) + '</p></div>';
+  }
+  // entregas = [{eid, pids}]: una persona con los procesos que se le delegaron. Un correo por persona (nunca uno por proceso).
+  function descargarCorreosCl(entregas, boton){
+    if (boton) boton.disabled = true;
+    apiCl('/c/enlaces', {encuestado_ids: entregas.map(function(e){ return e.eid; }), para: 'correo'}).then(function(j){
+      var m = {}, sinCorreo = [];
+      j.enlaces.forEach(function(x){ m[x.id] = x; });
+      entregas.forEach(function(en, i){
+        var x = m[en.eid], e = C.encuestados.filter(function(q){ return q.id === en.eid; })[0]; if (!x || !e) return;
+        var procs = en.pids.map(function(id){ return C.procesos.filter(function(q){ return q.id === id; })[0]; }).filter(Boolean);
+        var v = ventanaDe(e.gerencia, e.seccion), n = procs.length;
+        var html = htmlCorreoDelegacion({nombre: x.nombre, procesos: procs.map(function(p){ return {codigo: p.codigo, macroproceso: p.macroproceso, proceso: p.proceso, subproceso: p.subproceso, seccion: p.seccion}; }),
+          enlace: URL_ENCUESTA + '?k=' + x.token, quien: quienFirmaCl(), cliente: C.campana.cliente, plazo: v && v.cierra ? fechaLargaCl(v.cierra) : ''});
+        if (!x.correo) sinCorreo.push(x.nombre);
+        setTimeout(function(){ bajarEml('Delegación - ' + x.nombre, construirEml(x.correo, x.nombre, 'Relevamiento de procesos ' + C.campana.cliente + ': te delegaron ' + n + (n === 1 ? ' proceso' : ' procesos'), html)); }, i * 500);
+      });
+      avisoCl('Se descargó ' + (entregas.length === 1 ? '1 correo' : entregas.length + ' correos') + '. Ábrelos en Outlook: cada uno queda como borrador listo para enviar.' +
+        (sinCorreo.length ? ' Sin correo registrado (agrégalo al enviar): ' + sinCorreo.join(', ') + '.' : ''), false);
+    }).catch(function(err){ avisoCl(err.message, true); }).then(function(){ if (boton) boton.disabled = false; });
+  }
+  function pasoCorreoCl(entregas){
+    var filas = entregas.map(function(en, i){
+      var e = C.encuestados.filter(function(q){ return q.id === en.eid; })[0] || {nombre: '(persona)'};
+      return '<tr><td><b>' + esc(e.nombre) + '</b></td><td class="num">' + en.pids.length + (en.pids.length === 1 ? ' proceso' : ' procesos') + '</td><td><button type="button" class="btn btn-ghost btn-xs" data-eml="uno" data-i="' + i + '">Descargar correo (.eml)</button></td></tr>';
+    }).join('');
+    abrirDlgCl('Delegación guardada', entregas.length + (entregas.length === 1 ? ' persona por avisar' : ' personas por avisar'),
+      '<p style="margin-top:0">Para avisar a cada persona, descarga su correo y ábrelo en Outlook: queda como borrador con el enlace y la lista de procesos, listo para enviar. Es un solo correo por persona, aunque le hayas delegado varios procesos.</p>' +
+      '<div class="tblwrap"><table><thead><tr><th scope="col">Persona</th><th scope="col" class="num">Delegado</th><th scope="col">Correo</th></tr></thead><tbody>' + filas + '</tbody></table></div>' +
+      '<div class="row" style="margin-top:12px">' + (entregas.length > 1 ? '<button type="button" class="btn" data-eml="todos">Descargar los ' + entregas.length + ' correos</button>' : '') + '<button type="button" class="btn btn-ghost" data-eml="cerrar">Terminar</button></div>');
+    $('#dlgB').onclick = function(ev){
+      var b = ev.target.closest('[data-eml]'); if (!b) return;
+      if (b.dataset.eml === 'uno') descargarCorreosCl([entregas[+b.dataset.i]], b);
+      else if (b.dataset.eml === 'todos') descargarCorreosCl(entregas, b);
+      else $('#dlg').close();
+    };
+  }
+
+  // ---- Supervisores y trazabilidad
+  var ACCION_TXT = {delegar: 'Delegó procesos', quitar_delegacion: 'Quitó una delegación', personas_agregadas: 'Agregó personas', enlace_copiado: 'Copió enlaces', correo_generado: 'Generó correos',
+    enlace_abierto_activado: 'Activó el enlace abierto', supervisor_creado: 'Creó un supervisor', supervisor_editado: 'Editó un supervisor', supervisor_activado: 'Activó un supervisor',
+    supervisor_desactivado: 'Desactivó un supervisor', supervisor_clave_nueva: 'Generó una clave nueva'};
+  function alcanceTextoCl(al){
+    if (!al) return '—'; if (al.todo) return 'Acceso total';
+    var t = [], g = (al.gerencias || []).length, sc = (al.secciones || []).length, pr = (al.procesos || []).length;
+    if (g) t.push(g + (g === 1 ? ' gerencia' : ' gerencias')); if (sc) t.push(sc + (sc === 1 ? ' sección' : ' secciones')); if (pr) t.push(pr + (pr === 1 ? ' proceso' : ' procesos'));
+    return t.join(' · ') || '—';
+  }
+  function detalleAccionCl(d){
+    var o = {}; try { o = JSON.parse(d) || {}; } catch(e){}
+    return [o.persona, o.supervisor, o.procesos != null ? o.procesos + (o.procesos === 1 ? ' proceso' : ' procesos') : '', o.personas != null ? o.personas + (o.personas === 1 ? ' persona' : ' personas') : '', o.asignados ? o.asignados + ' asignaciones' : ''].filter(Boolean).join(' · ');
+  }
+  function estadoProcTrazaCl(pid){ try { var cb = cobertura(pid); return ESTADO_TXT[cb.estado] || ''; } catch(e){ return ''; } }
+  function pintarTrazaCl(el){
+    var t = el._t, f = el._f || (el._f = {sup: '', texto: ''});
+    var dels = t.delegaciones.filter(function(d){
+      if (f.sup && (f.sup === 'cliente' ? d.actor_tipo !== 'cliente' : d.actor_id !== f.sup)) return false;
+      return !f.texto || sinTildes([d.persona, d.actor_nombre, d.codigo, d.macroproceso, d.proceso, d.subproceso, d.seccion, d.gerencia].join(' ')).indexOf(sinTildes(f.texto)) >= 0;
+    });
+    var opts = '<option value="">Todos</option><option value="cliente"' + (f.sup === 'cliente' ? ' selected' : '') + '>Administrador del cliente</option>' + t.supervisores.map(function(s){ return '<option value="' + esc(s.id) + '"' + (f.sup === s.id ? ' selected' : '') + '>' + esc(s.nombre) + '</option>'; }).join('');
+    var filas = dels.slice(0, 300).map(function(d){
+      return '<tr><td>' + esc(fecha(d.creado)) + '</td><td>' + esc(d.actor_nombre || '') + '</td><td><b>' + esc(d.persona || '(persona borrada)') + '</b></td>' +
+        '<td>' + (d.codigo ? '<span class="muted">' + esc(d.codigo) + '</span> ' : '') + esc(d.subproceso || d.proceso || d.macroproceso || '') + '</td><td>' + esc([d.gerencia, d.seccion].filter(Boolean).join(' · ')) + '</td>' +
+        '<td>' + esc(estadoProcTrazaCl(d.proceso_id)) + '</td><td>' + (d.activa ? '<span class="chip c-ok">Vigente</span>' : '<span class="chip c-mut">Quitada ' + esc(fecha(d.quitada)) + '</span>') + '</td></tr>';
+    }).join('');
+    var acc = t.acciones.slice(0, 100).map(function(a){ return '<tr><td>' + esc(fecha(a.creado)) + '</td><td>' + esc(a.actor_nombre) + '</td><td>' + esc(ACCION_TXT[a.accion] || a.accion) + '</td><td>' + esc(detalleAccionCl(a.detalle)) + '</td></tr>'; }).join('');
+    el.querySelector('.tz-cuerpo').innerHTML =
+      '<div class="row" style="margin:6px 0"><div><label for="tzSup">Quién delegó</label><select id="tzSup">' + opts + '</select></div>' +
+      '<div style="flex:1;min-width:200px"><label for="tzTxt">Buscar</label><input type="search" id="tzTxt" value="' + esc(f.texto) + '" placeholder="Persona, proceso, sección…"></div>' +
+      '<button type="button" class="btn btn-ghost btn-xs" id="tzXls" style="align-self:end">Exportar a Excel</button></div>' +
+      '<p class="muted">' + dels.length + (dels.length === 1 ? ' delegación' : ' delegaciones') + (dels.length > 300 ? ' (se muestran las 300 más recientes; el Excel las trae todas)' : '') + '. El estado del proceso es el de hoy.</p>' +
+      (dels.length ? '<div class="tblwrap"><table><thead><tr><th scope="col">Fecha</th><th scope="col">Quién delegó</th><th scope="col">Persona</th><th scope="col">Proceso</th><th scope="col">Sección</th><th scope="col">Estado del proceso</th><th scope="col">Delegación</th></tr></thead><tbody>' + filas + '</tbody></table></div>' : '<p class="muted">Todavía no hay delegaciones.</p>') +
+      '<details style="margin-top:10px"><summary>Bitácora de acciones (' + t.acciones.length + ')</summary>' + (acc ? '<div class="tblwrap"><table><thead><tr><th scope="col">Fecha</th><th scope="col">Quién</th><th scope="col">Acción</th><th scope="col">Detalle</th></tr></thead><tbody>' + acc + '</tbody></table></div>' : '<p class="muted">Sin acciones registradas.</p>') + '</details>';
+    el.querySelector('#tzSup').addEventListener('change', function(){ f.sup = this.value; pintarTrazaCl(el); });
+    el.querySelector('#tzTxt').addEventListener('input', function(){ f.texto = this.value; var pos = this.selectionStart; pintarTrazaCl(el); var n = el.querySelector('#tzTxt'); n.focus(); n.setSelectionRange(pos, pos); });
+    el.querySelector('#tzXls').addEventListener('click', function(){
+      var filasX = dels.map(function(d){ return {Fecha: fecha(d.creado), 'Quién delegó': d.actor_nombre, Rol: d.actor_tipo === 'supervisor' ? 'Supervisor' : 'Administrador del cliente', Persona: d.persona || '', 'Código': d.codigo || '',
+        Proceso: d.subproceso || d.proceso || d.macroproceso || '', Gerencia: d.gerencia || '', 'Sección': d.seccion || '', 'Estado del proceso': estadoProcTrazaCl(d.proceso_id), 'Delegación': d.activa ? 'Vigente' : 'Quitada', 'Quitada el': d.quitada ? fecha(d.quitada) : '', 'Quitada por': d.quitada_por || ''}; });
+      var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filasX.length ? filasX : [{'(sin datos)': ''}]), 'Delegaciones');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(t.acciones.length ? t.acciones.map(function(a){ return {Fecha: fecha(a.creado), 'Quién': a.actor_nombre, 'Acción': ACCION_TXT[a.accion] || a.accion, Detalle: detalleAccionCl(a.detalle)}; }) : [{'(sin datos)': ''}]), 'Acciones');
+      XLSX.writeFile(wb, nombreArchivo('Delegaciones - ' + C.campana.nombre));
+    });
+  }
+  function renderTrazaCl(el, t, mostrarSup){
+    el._t = t;
+    var sups = !mostrarSup ? '' : '<h4 style="font-size:13px;margin:6px 0 4px">Supervisores</h4>' + (t.supervisores.length ? '<div class="tblwrap"><table><thead><tr><th scope="col">Supervisor</th><th scope="col">Alcance</th><th scope="col">Estado</th><th scope="col">Último ingreso</th><th scope="col" class="num">Delegaciones vigentes</th></tr></thead><tbody>' +
+      t.supervisores.map(function(s){ var n = t.delegaciones.filter(function(d){ return d.actor_id === s.id && d.activa; }).length;
+        return '<tr><td><b>' + esc(s.nombre) + '</b></td><td>' + esc(alcanceTextoCl(s.alcance)) + '</td><td>' + (s.activo ? '<span class="chip c-ok">Activo</span>' : '<span class="chip c-mut">Desactivado</span>') + '</td><td>' + esc(s.ultimo ? fecha(s.ultimo) : 'Nunca') + '</td><td class="num">' + n + '</td></tr>'; }).join('') +
+      '</tbody></table></div>' : '<p class="muted">Todavía no hay supervisores.</p>');
+    el.innerHTML = sups + '<h4 style="font-size:13px;margin:12px 0 4px">Delegaciones</h4><div class="tz-cuerpo"></div>';
+    pintarTrazaCl(el);
+  }
+  $('#btnTraza').addEventListener('click', function(){
+    var b = this; b.disabled = true; $('#msgTraza').textContent = 'Cargando…';
+    api('/a/campana/trazabilidad?id=' + encodeURIComponent(C.campana.id)).then(function(t){ $('#msgTraza').textContent = ''; renderTrazaCl($('#cnTraza'), t, true); })
+      .catch(function(err){ $('#msgTraza').textContent = err.message; }).then(function(){ b.disabled = false; });
+  });
+
+  function pintarAdminCl(){
+    var el = $('#clAdmin');
+    if (C.rol !== 'cliente'){ el.classList.add('hidden'); el.innerHTML = ''; return; }
+    el.classList.remove('hidden');
+    el.innerHTML = '<details class="cl cl-ger" data-k="adm:sup"' + (CLOPEN['adm:sup'] ? ' open' : '') + '><summary>Supervisores<span class="cl-cifras"><span>' + C.supervisores.length + (C.supervisores.length === 1 ? ' supervisor' : ' supervisores') + '</span></span></summary><div class="cl-cuerpo" id="clSupCuerpo"></div></details>' +
+      '<details class="cl cl-ger" data-k="adm:traza"' + (CLOPEN['adm:traza'] ? ' open' : '') + ' style="margin-top:10px"><summary>Trazabilidad de delegaciones</summary><div class="cl-cuerpo" id="clTrazaCuerpo"><p class="muted">Ábrelo para ver quién delegó qué.</p></div></details>';
+    pintarSupervisoresCl();
+    if (CLOPEN['adm:traza']) cargarTrazaCl();
+  }
+  function cargarTrazaCl(){
+    var cu = $('#clTrazaCuerpo'); if (!cu) return;
+    cu.innerHTML = '<p class="muted">Cargando…</p>';
+    fetch(API + '/c/trazabilidad', {headers: {'x-client-code': CODIGO}}).then(function(r){ return r.json(); }).then(function(t){
+      if (!t.ok) throw new Error(t.error || 'No se pudo cargar'); var c2 = $('#clTrazaCuerpo'); if (c2) renderTrazaCl(c2, t, false);
+    }).catch(function(err){ var c2 = $('#clTrazaCuerpo'); if (c2) c2.innerHTML = '<p class="msg warn">' + esc(err.message) + '</p>'; });
+  }
+  $('#clAdmin').addEventListener('toggle', function(ev){
+    var d = ev.target; if (!d || !d.dataset || !d.dataset.k) return;
+    CLOPEN[d.dataset.k] = d.open; if (d.dataset.k === 'adm:traza' && d.open) cargarTrazaCl();
+  }, true);
+  function pintarSupervisoresCl(){
+    var cu = $('#clSupCuerpo'); if (!cu) return;
+    cu.innerHTML = '<p class="muted" style="margin-top:0">Un Supervisor entra con su propia clave y solo ve y gestiona los procesos de su alcance: puede agregar personas, delegarles procesos y descargar el correo para avisarles. No ve lo que responden las personas.</p>' +
+      '<div class="row"><button type="button" class="btn btn-xs" data-sup="nuevo">+ Nuevo supervisor</button><span class="muted" id="msgSup" role="status"></span></div>' +
+      (C.supervisores.length ? '<div class="tblwrap" style="margin-top:8px"><table><thead><tr><th scope="col">Supervisor</th><th scope="col">Alcance</th><th scope="col">Estado</th><th scope="col">Último ingreso</th><th scope="col">Acciones</th></tr></thead><tbody>' +
+        C.supervisores.map(function(s){
+          return '<tr' + (s.activo ? '' : ' class="inactivo"') + '><td><b>' + esc(s.nombre) + '</b>' + (s.correo ? '<div class="muted">' + esc(s.correo) + '</div>' : '') + '</td><td>' + esc(alcanceTextoCl(s.alcance)) + '</td>' +
+            '<td>' + (s.activo ? '<span class="chip c-ok">Activo</span>' : '<span class="chip c-mut">Desactivado</span>') + '</td><td>' + esc(s.ultimo ? fecha(s.ultimo) : 'Nunca') + '</td>' +
+            '<td class="acc-cl"><button type="button" class="btn btn-ghost btn-xs" data-sup="editar" data-id="' + esc(s.id) + '">Editar</button> ' +
+            '<button type="button" class="btn btn-ghost btn-xs" data-sup="clave" data-id="' + esc(s.id) + '">Nueva clave</button> ' +
+            '<button type="button" class="btn btn-ghost btn-xs" data-sup="' + (s.activo ? 'desactivar' : 'activar') + '" data-id="' + esc(s.id) + '">' + (s.activo ? 'Desactivar' : 'Activar') + '</button></td></tr>';
+        }).join('') + '</tbody></table></div>' : '<p class="muted">Todavía no hay supervisores.</p>');
+  }
+  function urlAccesoCl(){ return location.origin + location.pathname + location.search; }
+  // La clave solo se ve en este momento: se entrega por correo (.eml para Outlook) o se copia.
+  function mostrarAccesoSupCl(s, clave){
+    var url = urlAccesoCl();
+    abrirDlgCl('Acceso del supervisor', s.nombre,
+      '<p style="margin-top:0">Entrega estos datos a <b>' + esc(s.nombre) + '</b>. <b>La clave no se vuelve a mostrar</b>: si se pierde, genera una nueva.</p>' +
+      '<div class="grid2"><div><label for="asDir">Dirección</label><input type="text" id="asDir" readonly value="' + esc(url) + '"></div><div><label for="asClave">Clave</label><input type="text" id="asClave" readonly value="' + esc(clave) + '"></div></div>' +
+      '<div class="row" style="margin-top:12px"><button type="button" class="btn btn-xs" data-ac="copiar">Copiar dirección y clave</button>' +
+      '<button type="button" class="btn btn-ghost btn-xs" data-ac="eml">Descargar correo de acceso (.eml)</button><button type="button" class="btn btn-ghost btn-xs" data-ac="cerrar">Terminar</button></div>' +
+      (s.correo ? '' : '<p class="muted">Este supervisor no tiene correo registrado: el borrador se abrirá sin destinatario.</p>'));
+    $('#dlgB').onclick = function(ev){
+      var b = ev.target.closest('[data-ac]'); if (!b) return;
+      if (b.dataset.ac === 'copiar') copiarAsyncCl('Seguimiento del relevamiento de procesos ' + C.campana.cliente + '\nDirección: ' + url + '\nClave: ' + clave, b);
+      else if (b.dataset.ac === 'eml'){
+        var html = '<div style="font-family:Segoe UI,Calibri,Arial,sans-serif;font-size:14px;color:#1b2a41;line-height:1.55"><p>Hola ' + esc(primerNombreCl(s.nombre)) + ':</p>' +
+          '<p>Te habilitamos como <b>Supervisor</b> del relevamiento de procesos de ' + esc(C.campana.cliente) + '. Desde el panel de seguimiento puedes ver el avance de ' + (s.alcance && s.alcance.todo ? 'todos los procesos' : 'los procesos de tu alcance (' + esc(alcanceTextoCl(s.alcance)) + ')') + ', agregar a las personas de tu equipo, delegarles procesos y avisarles por correo.</p>' +
+          '<p><b>Dirección:</b> <a href="' + esc(url) + '">' + esc(url) + '</a><br><b>Clave:</b> ' + esc(clave) + '</p>' +
+          '<p>Guarda tu clave: es personal. Desde el panel no verás lo que responden las personas, solo su avance.</p><p>Gracias,<br>' + esc(quienFirmaCl()) + '</p></div>';
+        bajarEml('Acceso supervisor - ' + s.nombre, construirEml(s.correo, s.nombre, 'Tu acceso al seguimiento del relevamiento de procesos ' + C.campana.cliente, html));
+      } else $('#dlg').close();
+    };
+  }
+  function dialogoSupervisorCl(id){
+    var s = id ? C.supervisores.filter(function(x){ return x.id === id; })[0] : null; if (id && !s) return;
+    var al = (s && s.alcance) || {todo: false, gerencias: [], secciones: [], procesos: []};
+    var selG = {}, selS = {}, selP = {};
+    (al.gerencias || []).forEach(function(g){ selG[sinTildes(g)] = 1; });
+    (al.secciones || []).forEach(function(x){ selS[sinTildes(x.g) + '|' + sinTildes(x.s)] = 1; });
+    (al.procesos || []).forEach(function(pid){ selP[pid] = 1; });
+    var gers = {};
+    C.procesos.forEach(function(p){ (gers[p.gerencia] = gers[p.gerencia] || {})[p.seccion] = 1; });
+    var nombres = Object.keys(gers).sort(function(a, b){ return a.localeCompare(b, 'es'); });
+    var arbol = nombres.map(function(g){
+      var gk = sinTildes(g);
+      return '<div style="margin:6px 0"><label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" style="width:auto" data-g="' + esc(g) + '"' + (selG[gk] ? ' checked' : '') + '> ' + esc(g) + '</label>' +
+        '<div style="margin-left:26px">' + Object.keys(gers[g]).sort(function(a, b){ return a.localeCompare(b, 'es'); }).map(function(sec){
+          return '<label style="display:flex;gap:8px;align-items:center;font-weight:500"><input type="checkbox" style="width:auto" data-g="' + esc(g) + '" data-s="' + esc(sec) + '"' + ((selG[gk] || selS[gk + '|' + sinTildes(sec)]) ? ' checked' : '') + (selG[gk] ? ' disabled' : '') + '> ' + esc(sec) + '</label>';
+        }).join('') + '</div></div>';
+    }).join('');
+    abrirDlgCl(s ? 'Editar supervisor' : 'Nuevo supervisor', s ? s.nombre : 'Define quién es y qué procesos podrá gestionar',
+      '<div class="grid2"><div><label for="sbNom">Nombre completo</label><input type="text" id="sbNom" maxlength="150" value="' + esc(s ? s.nombre : '') + '"></div>' +
+      '<div><label for="sbCor">Correo (para enviarle su acceso)</label><input type="email" id="sbCor" maxlength="150" value="' + esc(s ? s.correo : '') + '"></div></div>' +
+      (s ? '' : '<label for="sbClave">Clave (opcional)</label><input type="text" id="sbClave" maxlength="40" autocomplete="off" placeholder="Déjala vacía para generar una"><span class="muted">De 8 a 40 caracteres, con letras y números. Se la entregas tú; no se vuelve a mostrar.</span>') +
+      '<h4 style="font-size:13px;margin:14px 0 4px">Alcance: qué procesos puede ver y delegar</h4>' +
+      '<label style="display:flex;gap:8px;align-items:center;font-weight:500"><input type="radio" name="sbAl" value="todo" style="width:auto"' + (al.todo ? ' checked' : '') + '> Acceso total a todos los procesos</label>' +
+      '<label style="display:flex;gap:8px;align-items:center;font-weight:500"><input type="radio" name="sbAl" value="sel" style="width:auto"' + (al.todo ? '' : ' checked') + '> Solo gerencias, secciones o procesos que elija</label>' +
+      '<div id="sbSel" style="' + (al.todo ? 'display:none;' : '') + 'margin-top:8px"><p class="muted" style="margin:0 0 4px">Marcar una gerencia incluye todas sus secciones, también las que se agreguen después.</p>' +
+      '<div id="sbArbol" style="max-height:30vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:6px 10px">' + arbol + '</div>' +
+      '<label for="sbBusP" style="margin-top:10px">Procesos específicos (opcional)</label><input type="search" id="sbBusP" placeholder="Busca un proceso por nombre o código…" autocomplete="off"><div id="sbResP"></div><div id="sbChips" class="row" style="margin-top:6px"></div></div>' +
+      '<div class="row" style="margin-top:14px"><button type="button" class="btn" id="sbOk">' + (s ? 'Guardar cambios' : 'Crear supervisor') + '</button><span class="muted" id="sbMsg" role="status"></span></div>');
+    var chips = function(){
+      var ids = Object.keys(selP);
+      $('#sbChips').innerHTML = ids.map(function(pid){ var p = C.procesos.filter(function(q){ return q.id === pid; })[0]; return p ? '<span class="chip c-inf">' + esc((p.codigo ? p.codigo + ' · ' : '') + nombreProc(p)) + ' <button type="button" data-q="' + esc(pid) + '" aria-label="Quitar" style="border:0;background:none;cursor:pointer;color:inherit">✕</button></span>' : ''; }).join('');
+    };
+    chips();
+    $('#dlgB').onclick = function(ev){
+      var q = ev.target.closest('[data-q]'); if (q){ delete selP[q.dataset.q]; chips(); return; }
+      var r = ev.target.closest('[data-r]'); if (r){ selP[r.dataset.r] = 1; chips(); $('#sbBusP').value = ''; $('#sbResP').innerHTML = ''; }
+    };
+    $('#dlgB').onchange = function(ev){
+      var t = ev.target;
+      if (t.name === 'sbAl'){ $('#sbSel').style.display = t.value === 'todo' ? 'none' : ''; return; }
+      if (t.dataset && t.dataset.g && !t.dataset.s){
+        Array.prototype.forEach.call(document.querySelectorAll('#sbArbol input[data-s]'), function(i){ if (i.dataset.g === t.dataset.g){ i.disabled = t.checked; i.checked = t.checked; } });
+      }
+    };
+    $('#sbBusP').addEventListener('input', function(){
+      var t = sinTildes(this.value.trim()); if (t.length < 2){ $('#sbResP').innerHTML = ''; return; }
+      var hallados = C.procesos.filter(function(p){ return !selP[p.id] && sinTildes([p.codigo, nombreProc(p), p.macroproceso, p.seccion].join(' ')).indexOf(t) >= 0; }).slice(0, 8);
+      $('#sbResP').innerHTML = hallados.length ? hallados.map(function(p){ return '<div><button type="button" class="btn btn-ghost btn-xs" data-r="' + esc(p.id) + '" style="margin:2px 0;text-align:left">' + esc((p.codigo ? p.codigo + ' · ' : '') + nombreProc(p)) + ' <span class="muted">· ' + esc(p.seccion) + '</span></button></div>'; }).join('') : '<p class="muted">Sin resultados.</p>';
+    });
+    $('#sbOk').addEventListener('click', function(){
+      var b = this, todo = document.querySelector('input[name="sbAl"]:checked').value === 'todo';
+      var alc = {todo: todo, gerencias: [], secciones: [], procesos: Object.keys(selP)};
+      Array.prototype.forEach.call(document.querySelectorAll('#sbArbol input:checked'), function(i){
+        if (!i.dataset.s) alc.gerencias.push(i.dataset.g); else if (!i.disabled) alc.secciones.push({g: i.dataset.g, s: i.dataset.s});
+      });
+      var cuerpo = {accion: s ? 'editar' : 'crear', nombre: $('#sbNom').value, correo: $('#sbCor').value, alcance: alc};
+      if (s) cuerpo.id = s.id; else if ($('#sbClave').value.trim()) cuerpo.clave = $('#sbClave').value.trim();
+      b.disabled = true; $('#sbMsg').textContent = 'Guardando…';
+      apiCl('/c/supervisores', cuerpo).then(function(j){
+        C.supervisores = j.supervisores; pintarAdminCl();
+        if (!s){ var nuevo = j.supervisores.filter(function(x){ return x.id === j.id; })[0]; mostrarAccesoSupCl(nuevo, j.clave); } else $('#dlg').close();
+      }).catch(function(err){ b.disabled = false; $('#sbMsg').textContent = err.message; });
+    });
+  }
+  $('#clAdmin').addEventListener('click', function(ev){
+    var b = ev.target.closest('[data-sup]'); if (!b) return;
+    var a = b.dataset.sup, id = b.dataset.id;
+    if (a === 'nuevo' || a === 'editar') return dialogoSupervisorCl(a === 'editar' ? id : null);
+    var s = C.supervisores.filter(function(x){ return x.id === id; })[0]; if (!s) return;
+    if (a === 'desactivar' && !confirm('«' + s.nombre + '» dejará de poder entrar y su sesión se cerrará de inmediato. Lo que ya delegó se mantiene. ¿Continuar?')) return;
+    if (a === 'clave' && !confirm('Se generará una clave nueva para «' + s.nombre + '» y la actual dejará de funcionar. ¿Continuar?')) return;
+    b.disabled = true;
+    apiCl('/c/supervisores', {accion: a, id: id}).then(function(j){
+      C.supervisores = j.supervisores; pintarAdminCl();
+      if (a === 'clave') mostrarAccesoSupCl(j.supervisores.filter(function(x){ return x.id === id; })[0], j.clave);
+    }).catch(function(err){ b.disabled = false; $('#msgSup').textContent = err.message; });
   });
 
   function pintarListaCliente(secs){
@@ -3526,7 +3807,8 @@
                 '<td class="num">' + (x.i.av.total ? x.i.av.pct + '% <span class="muted">(' + x.i.av.hechos + ' de ' + x.i.av.total + ')</span>' : '—') + '</td>' +
                 '<td>' + esc(x.e.actualizado ? fecha(x.e.actualizado) : 'Sin actividad') + '</td>' +
                 '<td class="acc-cl"><button type="button" class="btn btn-ghost btn-xs" data-ca="enlace-per" data-id="' + esc(x.e.id) + '" aria-label="Copiar el enlace personal de ' + esc(x.e.nombre) + '">Copiar enlace</button> ' +
-                '<button type="button" class="btn btn-ghost btn-xs" data-ca="procesos-per" data-id="' + esc(x.e.id) + '" aria-label="Asignar procesos a ' + esc(x.e.nombre) + '">Procesos…</button></td></tr>';
+                '<button type="button" class="btn btn-ghost btn-xs" data-ca="procesos-per" data-id="' + esc(x.e.id) + '" aria-label="Asignar procesos a ' + esc(x.e.nombre) + '">Procesos…</button> ' +
+                '<button type="button" class="btn btn-ghost btn-xs" data-ca="eml-per" data-id="' + esc(x.e.id) + '" aria-label="Descargar el correo de ' + esc(x.e.nombre) + ' para Outlook">Correo (.eml)</button></td></tr>';
             }).join('') + '</tbody></table></div>' : '<p class="muted">Esta sección todavía no tiene personas asignadas.</p>';
           var cls = {respondido: 'c-ok', en_curso: 'c-inf', sin_cobertura: 'c-warn'};
           var procesos = s.procs.length ? '<div class="tblwrap"><table><thead><tr><th scope="col">Proceso</th><th scope="col">Responsables</th><th scope="col">Estado</th><th scope="col" class="num">Información</th><th scope="col">Validado</th><th scope="col">Asignar</th></tr></thead><tbody>' +
