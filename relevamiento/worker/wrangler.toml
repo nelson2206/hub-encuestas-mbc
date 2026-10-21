@@ -11,10 +11,22 @@ compatibility_flags = ["nodejs_compat"]
 workers_dev = true     # direccion workers.dev: no depende de que Netskope clasifique un subdominio nuevo
 preview_urls = false   # este Worker guarda claves: sin URLs publicas por version
 
+# Sitio propio: la encuesta (index.html) y la consola (admin.html) se sirven desde este mismo Worker en relevamiento.mbc-latam.com.
+# La API (/r, /a, /c, /health) la atiende el código; todo lo demás sale de publico/ (lo arma sitio.mjs). Los enlaces ya enviados
+# en encuesta.mbc-latam.com/relevamiento/ siguen funcionando: son la misma base de datos.
+[assets]
+directory = "./publico"
+binding = "ASSETS"
+run_worker_first = ["/r/*", "/a/*", "/c/*", "/health"]
+
+[[routes]]
+pattern = "relevamiento.mbc-latam.com"
+custom_domain = true
+
 [vars]
 # encuesta.mbc-latam.com = Voz; github.io = respaldo del mismo repo.
 # Pruebas locales: .dev.vars (fuera de git) sobreescribe ALLOWED_ORIGINS y ADMIN_CODE para wrangler dev.
-ALLOWED_ORIGINS = "https://encuesta.mbc-latam.com,https://nelson2206.github.io"
+ALLOWED_ORIGINS = "https://relevamiento.mbc-latam.com,https://encuesta.mbc-latam.com,https://nelson2206.github.io"
 # Modelo de IA por tarea (Claude) y esfuerzo (low, medium, high). Revisión = checklist de cada bloque; también lee las imágenes.
 IA_MODELO_ESTRUCTURAR = "claude-sonnet-5-5"
 IA_ESFUERZO_ESTRUCTURAR = "medium"

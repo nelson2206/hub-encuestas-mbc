@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "deploy": "wrangler deploy"
+    "deploy": "node sitio.mjs && npx wrangler deploy"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0"
