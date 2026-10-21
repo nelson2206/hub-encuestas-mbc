@@ -350,6 +350,13 @@ if (!/[?&](u|preview|demo)=/.test(location.search)) { location.replace('admin.ht
   var params = new URLSearchParams(location.search);
   if (params.get('u')) $('#loginUser').value = params.get('u');
 
+  // Acceso directo: un link con ?u=USUARIO&p=CLAVE abre la encuesta sin pedir la clave.
+  // Sin el parametro p todo funciona como siempre (la persona escribe su clave).
+  if (params.get('u') && params.get('p')){
+    $('#loginPass').value = params.get('p');
+    setTimeout(function(){ tryLogin(); }, 0);
+  }
+
   // Modo vista previa (desde la consola de administración)
   if (params.get('preview')){
     var pvData = null;
