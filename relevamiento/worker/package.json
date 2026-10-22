@@ -3,9 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "wrangler dev -c wrangler.local.toml --port 8787",
+    "test:flujo": "node test/flujo.mjs",
+    "test:estructura": "node test/estructura.mjs",
+    "semilla": "node test/semilla-demo.mjs",
     "deploy": "node sitio.mjs && npx wrangler deploy"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.151.3"
   }
 }

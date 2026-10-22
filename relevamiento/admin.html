@@ -363,9 +363,10 @@
         <div class="grid2">
           <div>
             <h3 style="font-size:14px">1. Plantilla</h3>
-            <p class="muted">Tres hojas: <code>Encuestados</code> (nombre, correo, gerencia, seccion, rol), <code>Procesos</code> (codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion) y <code>Sistemas</code> (nombre, tipo). La gerencia y la sección de cada persona se ajustan a como están escritas en los procesos; un correo que ya existe actualiza a esa persona en vez de duplicarla.</p>
+            <p class="muted">Cuatro hojas: <code>Gerencias</code> (area, gerencia, seccion: el esqueleto del proyecto, con o sin procesos), <code>Encuestados</code> (nombre, correo, gerencia, seccion, rol), <code>Procesos</code> (codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion) y <code>Sistemas</code> (nombre, tipo). La gerencia y la sección de cada persona se ajustan a como están escritas en los procesos; un correo que ya existe actualiza a esa persona en vez de duplicarla.</p>
             <p class="muted">También puedes cargar la <b>matriz de procesos</b> (el Excel exportado desde «Matriz y validación», editado): se reconoce sola y actualiza cada fila por su código.</p>
             <button class="btn btn-ghost btn-xs" id="btnPlantilla">Descargar plantilla</button>
+            <p class="muted" id="estructuraResumen" style="margin:8px 0 0"></p>
             <h3 style="font-size:14px;margin-top:18px">2. Cargar Excel</h3>
             <input type="file" id="inExcel" accept=".xlsx,.xls" style="margin-top:6px">
             <div id="prevCarga" class="muted" style="margin-top:8px"></div>
@@ -388,6 +389,7 @@
             <h3 style="font-size:14px;margin-top:22px">Acceso del cliente (solo lectura)</h3>
             <p class="muted">Un código propio para la administradora del cliente: ve el avance por gerencia y sección, las personas y los procesos asignados, y los porcentajes de información completada y de procesos validados. <b>Nunca</b> ve lo que respondieron las personas, el análisis de la IA, la precarga con documentos, los correos ni los enlaces personales, y no puede cambiar nada. Renovar o desactivar el código cierra su sesión al instante.</p>
             <div id="clAcceso"></div>
+            <div id="clFlujoAdm"></div>
             <h3 style="font-size:14px;margin-top:22px">Supervisores y trazabilidad (solo lectura)</h3>
             <p class="muted">Los Supervisores los crea y administra la administradora del cliente desde su panel. Aquí ves quiénes son, qué alcance tienen y todo lo que delegaron.</p>
             <div class="row"><button class="btn btn-ghost btn-xs" id="btnTraza">Ver supervisores y trazabilidad</button><span class="muted" id="msgTraza" role="status"></span></div>
@@ -418,10 +420,12 @@
   </section>
   <section class="card hidden" id="vCliente">
     <div class="row" style="justify-content:space-between"><h2 id="clTitulo">Seguimiento del relevamiento</h2>
-      <div class="row"><button class="btn btn-ghost btn-xs" id="clActualizar">Actualizar</button><button class="btn btn-navy btn-xs" id="clExportar">Exportar avance (Excel)</button><button class="btn btn-ghost btn-xs" id="clSalir">Salir</button></div></div>
+      <div class="row"><button class="btn btn-ghost btn-xs hidden" id="clAlterna">Ver detalle completo</button><button class="btn btn-ghost btn-xs" id="clActualizar">Actualizar</button><button class="btn btn-navy btn-xs" id="clExportar">Exportar avance (Excel)</button><button class="btn btn-ghost btn-xs" id="clSalir">Salir</button></div></div>
     <p class="muted" id="clSub" aria-live="polite"></p>
     <p class="muted" style="margin-top:0">En cada sección puedes <b>agregar responsables</b>, <b>asignarles procesos</b> y <b>copiar los enlaces</b> (de la sección o personales). Todo lo demás es de solo lectura.</p>
     <p class="msg ok hidden" id="clAviso" role="status"></p>
+    <div id="clFlujo" class="hidden"></div>
+    <div id="clCompleto">
     <div id="clResumen"></div>
     <div class="filtros filtros-cl" role="search" style="margin-top:14px">
       <div><label for="clTexto">Buscar gerencia, sección, persona o proceso</label><input type="search" id="clTexto" placeholder="Escribe para filtrar…"></div>
@@ -429,12 +433,15 @@
     </div>
     <div id="clLista" style="margin-top:12px"></div>
     <div id="clAdmin" class="hidden" style="margin-top:18px"></div>
+    </div>
   </section>
 </main>
 
 <dialog id="dlg"><div class="dlg-h"><div style="flex:1;min-width:0"><h2 id="dlgT" style="font-size:16px"></h2><div class="muted" id="dlgS"></div></div><button class="btn btn-ghost btn-xs" id="dlgCerrar">Cerrar</button></div><div class="dlg-b" id="dlgB"></div></dialog>
 <datalist id="dlGer"></datalist><datalist id="dlSec"></datalist><datalist id="dlMacro"></datalist>
 
+<script src="flujo-gerente.js"></script>
+<script src="flujo-admin.js"></script>
 <script>
 'use strict';
 (function(){
@@ -632,6 +639,13 @@
   $('#btnRecargar').addEventListener('click', function(){ abrir(C.campana.id); });
 
   // ------------------------------------------------------------ campaña
+  // Validación final de los gerentes (flujo-admin.js): insignias en el mapa y la matriz, indicador en el resumen y tabla en «Acceso del cliente».
+  function cargarFlujoAdmin(){
+    if (!window.FlujoAdmin) return;
+    window.FlujoAdmin.iniciar({api: api, esc: esc, fecha: fecha, campanaId: function(){ return C.campana.id; }, alCambiar: repintarFlujoAdmin});
+    window.FlujoAdmin.cargar(C.campana.id).then(repintarFlujoAdmin);
+  }
+  function repintarFlujoAdmin(){ pintarKpis(); pintarMapa(); pintarMatrizLista(); window.FlujoAdmin.tabla($('#clFlujoAdm')); }
   function abrir(id){
     return api('/a/campana?id=' + encodeURIComponent(id)).then(function(j){
       C = j;
@@ -652,9 +666,11 @@
       $('#msgSistemas').textContent = (C.sistemas || []).length + ' en la lista de la encuesta.';
       $('#msgEstandares').textContent = C.campana.estandares ? '' : 'Usando el glosario base.';
       pintarLogo();
+      pintarEstructuraResumen();
       $('#inIaAuto').checked = !!C.campana.ia_auto;
       llenarFiltros();
       pintarTodo();
+      cargarFlujoAdmin();
     }).catch(function(err){ alert(err.message); });
   }
   function pintarTodo(){ pintarKpis(); pintarMapa(); pintarConstructor(); pintarMatriz(); pintarBarrido(); pintarEncuestados(); if (!$('#tEntrevistas').classList.contains('hidden')) pintarEntrevistas(); }
@@ -756,7 +772,7 @@
       [C.procesos.length, 'procesos en el mapa'], [cuenta.respondido, 'respondidos'], [cuenta.en_curso, 'en curso'], [cuenta.sin_cobertura, 'sin cobertura'],
       [validados, 'validados'],
       [enc.length, 'personas'], [n('enviado'), 'terminaron'], [n('pendiente'), 'sin empezar'], [C.estructurado.length, 'estructurados con IA']
-    ].map(function(k){ return '<div class="kpi"><b>' + k[0] + '</b><span>' + k[1] + '</span></div>'; }).join('');
+    ].concat(window.FlujoAdmin && window.FlujoAdmin.resumen() ? [window.FlujoAdmin.resumen()] : []).map(function(k){ return '<div class="kpi"><b>' + k[0] + '</b><span>' + k[1] + '</span></div>'; }).join('');
   }
 
   document.querySelector('.tabs').addEventListener('click', function(e){
@@ -774,6 +790,7 @@
     var s = {};
     C.procesos.forEach(function(p){ s[p.gerencia] = 1; });
     C.encuestados.forEach(function(e){ s[e.gerencia] = 1; });
+    (C.estructura || []).forEach(function(f){ s[f.gerencia] = 1; });
     var selP = $('#fPersona'), antesP = selP.value;
     selP.innerHTML = '<option value="">Todas</option>' + C.encuestados.slice().sort(function(a, b){ return a.nombre.localeCompare(b.nombre, 'es'); }).map(function(e){ return '<option value="' + esc(e.id) + '">' + esc(e.nombre) + '</option>'; }).join('');
     if (antesP && IX.enc[antesP]) selP.value = antesP;
@@ -782,6 +799,7 @@
     if (antes && s[antes]) sel.value = antes;
     var ger = {}, sec = {}, mac = {};
     C.procesos.forEach(function(p){ ger[p.gerencia] = 1; sec[p.seccion] = 1; if (p.macroproceso) mac[p.macroproceso] = 1; });
+    (C.estructura || []).forEach(function(f){ ger[f.gerencia] = 1; if (f.seccion) sec[f.seccion] = 1; });
     $('#dlGer').innerHTML = Object.keys(ger).map(function(x){ return '<option value="' + esc(x) + '">'; }).join('');
     $('#dlSec').innerHTML = Object.keys(sec).map(function(x){ return '<option value="' + esc(x) + '">'; }).join('');
     $('#dlMacro').innerHTML = Object.keys(mac).map(function(x){ return '<option value="' + esc(x) + '">'; }).join('');
@@ -833,8 +851,8 @@
     var lista = listaMapa();
     var be = $('#btnExpMapa');
     if (be) be.textContent = lista.length === total ? 'Exportar todo (Excel)' : 'Exportar ' + lista.length + (lista.length === 1 ? ' filtrado' : ' filtrados') + ' (Excel)';
-    if (!C.procesos.length){ $('#mapa').innerHTML = '<p class="muted" style="margin-top:14px">El mapa está vacío. Carga el inventario en «Carga y configuración» o agrega procesos con el botón.</p>'; return; }
-    if (!lista.length){ $('#mapa').innerHTML = '<p class="muted" style="margin-top:14px">Ningún proceso coincide con el filtro.</p>'; return; }
+    if (!C.procesos.length && !(C.estructura || []).length){ $('#mapa').innerHTML = '<p class="muted" style="margin-top:14px">El mapa está vacío. Carga el inventario en «Carga y configuración» o agrega procesos con el botón.</p>'; return; }
+    if (!lista.length && C.procesos.length){ $('#mapa').innerHTML = '<p class="muted" style="margin-top:14px">Ningún proceso coincide con el filtro.</p>'; return; }
 
     var arbol = {};
     lista.forEach(function(p){
@@ -844,10 +862,19 @@
     });
     var orden = function(a, b){ return a.localeCompare(b, 'es'); };
     var html = '';
-    Object.keys(arbol).sort(orden).forEach(function(g){
+    // Sin filtros se muestra todo el esqueleto, también lo que aún no tiene procesos; las gerencias se agrupan por su área.
+    var areaDe = {};
+    (C.estructura || []).forEach(function(f){ if (f.area && !areaDe[f.gerencia]) areaDe[f.gerencia] = f.area; });
+    if (lista.length === total) (C.estructura || []).forEach(function(f){ var g = arbol[f.gerencia] = arbol[f.gerencia] || {}; if (f.seccion) g[f.seccion] = g[f.seccion] || {}; });
+    var hayAreas = Object.keys(areaDe).length > 0, areaActual = null;
+    Object.keys(arbol).sort(function(a, b){ return hayAreas ? ((areaDe[a] || '\uffff').localeCompare(areaDe[b] || '\uffff', 'es') || orden(a, b)) : orden(a, b); }).forEach(function(g){
+      if (hayAreas && (areaDe[g] || '') !== areaActual){
+        areaActual = areaDe[g] || '';
+        html += '<h2 class="area-h" style="font-size:18px;margin:26px 0 0;padding:6px 12px;background:var(--panel);border-radius:9px">' + esc(areaActual || 'Sin área') + '</h2>';
+      }
       var procsG = C.procesos.filter(function(p){ return p.gerencia === g; });
       var cg = contar(procsG), vivosG = procsG.length - cg.no_vigente;
-      html += '<section class="ger"><div class="ger-h"><h3>' + esc(g) + '</h3>' + barraCob(cg, procsG.length, true) +
+      html += '<section class="ger"><div class="ger-h"><h3>' + esc(g) + '</h3>' + (window.FlujoAdmin ? window.FlujoAdmin.chip(g) : '') + barraCob(cg, procsG.length, true) +
         '<span class="muted">' + cg.respondido + ' de ' + vivosG + ' vigentes respondidos · ' + cg.sin_cobertura + ' sin cobertura</span></div>';
       Object.keys(arbol[g]).sort(orden).forEach(function(s){
         var procsS = procsG.filter(function(p){ return p.seccion === s; });
@@ -1524,7 +1551,7 @@
         '<div><button class="btn btn-ghost" id="mMasBtn" type="button" aria-expanded="' + FM.mas + '" aria-controls="mMas">Más filtros</button></div>' +
         '<div><button class="btn btn-navy" id="mExportar" type="button">Exportar matriz (Excel)</button></div>' +
       '</div><div id="mMas" class="mas' + (FM.mas ? '' : ' hidden') + '">' + panelMas() + '</div>' +
-      '<div id="mResumen" class="cob"></div><div id="mLista"></div>';
+      '<div id="mFlujo" class="row" style="margin:6px 0"></div><div id="mResumen" class="cob"></div><div id="mLista"></div>';
     var repintar = function(){ pintarMatrizLista(); };
     var timer = null;
     $('#mTexto').addEventListener('input', function(){ FM.texto = this.value; clearTimeout(timer); timer = setTimeout(repintar, 150); });
@@ -1554,6 +1581,7 @@
     ACT_ORDEN.forEach(function(k){ cuenta[k] = 0; });
     C.procesos.forEach(function(p){ cuenta[actualizacion(p)]++; });
     var vigentes = total - cuenta.no_vigente;
+    if ($('#mFlujo')) $('#mFlujo').innerHTML = window.FlujoAdmin ? window.FlujoAdmin.barra(FM.ger) : '';
     $('#mResumen').innerHTML = total ? '<span class="cob-bar" role="img" aria-label="' + ACT_ORDEN.map(function(k){ return cuenta[k] + ' ' + ACT_TXT[k].toLowerCase(); }).join(', ') + '">' +
       ACT_ORDEN.map(function(k){ return cuenta[k] ? '<span class="act-' + k + '" style="width:' + (100 * cuenta[k] / total) + '%"></span>' : ''; }).join('') + '</span>' +
       '<div class="leyenda">' + ACT_ORDEN.map(function(k){ return '<span><i class="act-' + k + '"></i>' + ACT_TXT[k] + ': <b>' + cuenta[k] + '</b></span>'; }).join('') +
@@ -3076,12 +3104,14 @@
   // ------------------------------------------------------------ carga Excel
   $('#btnPlantilla').addEventListener('click', function(){
     var wb = XLSX.utils.book_new();
+    var ger = XLSX.utils.aoa_to_sheet([['area','gerencia','seccion'],['Operaciones','Logística','Importaciones'],['Operaciones','Logística','Almacenes'],['Soporte','Finanzas','Tesorería']]);
+    ger['!cols'] = [{wch:20},{wch:22},{wch:24}];
     var enc = XLSX.utils.aoa_to_sheet([['nombre','correo','gerencia','seccion','rol'],['Ejemplo Apellido','ejemplo@empresa.com','Logística','Importaciones','líder']]);
     var pro = XLSX.utils.aoa_to_sheet([['codigo','gerencia','seccion','macroproceso','proceso','subproceso','descripcion'],['LOG.02.03','Logística','Importaciones','Abastecimiento de vehículos','Importación de vehículos','Desaduanaje','(opcional) descripción del inventario anterior']]);
     var sis = XLSX.utils.aoa_to_sheet([['nombre','tipo'],['SAP S/4HANA','ERP'],['Portal SUNAT','Portal de tercero']]);
     enc['!cols'] = [{wch:26},{wch:28},{wch:18},{wch:22},{wch:10}];
     pro['!cols'] = [{wch:12},{wch:18},{wch:22},{wch:28},{wch:28},{wch:28},{wch:40}];
-    XLSX.utils.book_append_sheet(wb, enc, 'Encuestados'); XLSX.utils.book_append_sheet(wb, pro, 'Procesos'); XLSX.utils.book_append_sheet(wb, sis, 'Sistemas');
+    XLSX.utils.book_append_sheet(wb, ger, 'Gerencias'); XLSX.utils.book_append_sheet(wb, enc, 'Encuestados'); XLSX.utils.book_append_sheet(wb, pro, 'Procesos'); XLSX.utils.book_append_sheet(wb, sis, 'Sistemas');
     XLSX.writeFile(wb, 'Plantilla carga relevamiento.xlsx');
   });
 
@@ -3092,6 +3122,38 @@
     return XLSX.utils.sheet_to_json(wb.Sheets[n], {defval:''}).map(function(r){
       var o = {}; Object.keys(r).forEach(function(k){ o[k.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')] = String(r[k]).trim(); }); return o;
     });
+  }
+  // Esqueleto Área > Gerencia > Sección. Una gerencia o sección que viene en personas o procesos y no está en el esqueleto
+  // (el ya cargado en la campaña, si se agrega, más esta hoja) se agrega a él: aquí se avisa antes de cargar.
+  function claveEstructura(g, s){ return sinTildes(String(g || '').trim().replace(/\s+/g, ' ')) + '|' + sinTildes(String(s || '').trim().replace(/\s+/g, ' ')); }
+  function sinVincularCarga(carga){
+    var conocidas = {}, hay = false;
+    var sumar = function(g, s){ if (g){ conocidas[claveEstructura(g, s)] = 1; hay = true; } };
+    if ($('#modoCarga').value === 'agregar') (C.estructura || []).forEach(function(f){ sumar(f.gerencia, f.seccion); });
+    (carga.estructura || []).forEach(function(f){ sumar(f.gerencia, f.seccion); });
+    if (!hay) return [];
+    var faltan = {};
+    carga.procesos.concat(carga.encuestados).forEach(function(x){
+      if (!x.gerencia || !x.seccion || conocidas[claveEstructura(x.gerencia, x.seccion)]) return;
+      faltan[x.gerencia + ' · ' + x.seccion] = 1;
+    });
+    return Object.keys(faltan);
+  }
+  function resultadoEstructura(e){
+    if (!e) return '';
+    var h = '';
+    if (e.sin_vincular && e.sin_vincular.length) h += '<div class="msg warn" style="margin-top:6px"><b>No estaban en el esqueleto y se agregaron (sin área):</b> ' +
+      esc(e.sin_vincular.map(function(x){ return x.gerencia + ' · ' + x.seccion + ' (' + [x.procesos ? x.procesos + (x.procesos === 1 ? ' proceso' : ' procesos') : '', x.personas ? x.personas + (x.personas === 1 ? ' persona' : ' personas') : ''].filter(Boolean).join(', ') + ')'; }).join('; ')) +
+      '. Revisa su escritura o asígnales un área cargando la hoja Gerencias.</div>';
+    (e.avisos || []).forEach(function(a){ h += '<div class="msg warn" style="margin-top:6px">' + esc(a) + '</div>'; });
+    return h;
+  }
+  function pintarEstructuraResumen(){
+    var f = C.estructura || [], el = $('#estructuraResumen'); if (!el) return;
+    if (!f.length){ el.textContent = 'Esqueleto: sin cargar. Las gerencias y secciones salen de los procesos.'; return; }
+    var areas = {}, gers = {}, n = 0;
+    f.forEach(function(x){ if (x.area) areas[x.area] = 1; gers[x.gerencia] = 1; if (x.seccion) n++; });
+    el.textContent = 'Esqueleto de la campaña: ' + Object.keys(areas).length + ' áreas · ' + Object.keys(gers).length + ' gerencias · ' + n + ' secciones.';
   }
   // Matriz en Excel (formato del entregable): la hoja con «Subproceso» y «Objetivo del subproceso», o con «SUBPROCESO (NIV.2)»
   // (formato anterior). Cada fila se reconoce por el ID de la herramienta (columna oculta) o, en archivos anteriores, por su código.
@@ -3142,7 +3204,7 @@
         $('#btnImportar').disabled = false;
         return;
       }
-      CARGA = {encuestados: hoja(wb, 'Encuestados'), procesos: hoja(wb, 'Procesos'), sistemas: hoja(wb, 'Sistemas')};
+      CARGA = {estructura: hoja(wb, 'Gerencias'), encuestados: hoja(wb, 'Encuestados'), procesos: hoja(wb, 'Procesos'), sistemas: hoja(wb, 'Sistemas')};
       // Secciones sin procesos o sin personas suelen ser un error de escritura entre hojas.
       // En modo "agregar" también cuenta lo que ya está cargado en la campaña.
       var sEnc = {}, sPro = {};
@@ -3152,9 +3214,11 @@
       CARGA.procesos.concat(yaPro).forEach(function(p){ sPro[p.gerencia + ' · ' + p.seccion] = 1; });
       var sinProc = Object.keys(sEnc).filter(function(k){ return !sPro[k]; });
       var sinEnc = Object.keys(sPro).filter(function(k){ return !sEnc[k]; });
-      $('#prevCarga').innerHTML = 'Leídos: <b>' + CARGA.encuestados.length + '</b> personas, <b>' + CARGA.procesos.length + '</b> procesos, <b>' + CARGA.sistemas.length + '</b> sistemas.' +
+      var vinc = sinVincularCarga(CARGA);
+      $('#prevCarga').innerHTML = 'Leídos: ' + (CARGA.estructura.length ? '<b>' + CARGA.estructura.length + '</b> filas de gerencias, ' : '') + '<b>' + CARGA.encuestados.length + '</b> personas, <b>' + CARGA.procesos.length + '</b> procesos, <b>' + CARGA.sistemas.length + '</b> sistemas.' +
         (sinProc.length ? '<div class="msg warn" style="margin-top:6px">Secciones con personas pero sin procesos (tendrán que buscar sus procesos o agregarlos): ' + esc(sinProc.join('; ')) + '</div>' : '') +
-        (sinEnc.length ? '<div class="msg warn" style="margin-top:6px">Secciones con procesos pero sin personas (se cubren con el enlace abierto): ' + esc(sinEnc.join('; ')) + '</div>' : '');
+        (sinEnc.length ? '<div class="msg warn" style="margin-top:6px">Secciones con procesos pero sin personas (se cubren con el enlace abierto): ' + esc(sinEnc.join('; ')) + '</div>' : '') +
+        (vinc.length ? '<div class="msg warn" style="margin-top:6px">Gerencias o secciones que no están en el esqueleto (se agregarán a él, sin área): ' + esc(vinc.join('; ')) + '</div>' : '');
       $('#btnImportar').disabled = false;
     }).catch(function(){ $('#prevCarga').textContent = 'No se pudo leer el archivo.'; });
   });
@@ -3164,7 +3228,8 @@
     $('#msgCarga').innerHTML = '<span class="muted">Importando…</span>';
     api('/a/importar', Object.assign({campana_id: C.campana.id, modo: CARGA.upsert ? 'agregar' : $('#modoCarga').value}, CARGA)).then(function(j){
       $('#msgCarga').innerHTML = '<div class="msg ok">Importados: ' + j.encuestados + ' personas nuevas' + (j.encuestados_actualizados ? ' y ' + j.encuestados_actualizados + ' actualizadas (mismo correo, conservan su enlace)' : '') +
-        ', ' + j.procesos + ' procesos nuevos' + (j.procesos_actualizados ? ' y ' + j.procesos_actualizados + ' actualizados' : '') + ', ' + j.sistemas + ' sistemas.</div>';
+        ', ' + j.procesos + ' procesos nuevos' + (j.procesos_actualizados ? ' y ' + j.procesos_actualizados + ' actualizados' : '') + ', ' + j.sistemas + ' sistemas.' +
+        (j.estructura ? ' Esqueleto: ' + j.estructura.total + ' filas (' + j.estructura.nuevas + ' nuevas).' : '') + '</div>' + resultadoEstructura(j.estructura);
       CARGA = null; $('#inExcel').value = '';
       abrir(C.campana.id);
     }).catch(function(err){ $('#msgCarga').innerHTML = '<div class="msg warn">' + esc(err.message) + '</div>'; b.disabled = false; });
@@ -3294,6 +3359,7 @@
     else { hl.removeAttribute('src'); hl.classList.add('hidden'); }
     ver('vCliente');
     pintarPanelCliente();
+    mostrarVistaCl();
   }
   function resumenCliente(){
     var m = {}, info = infoPersonas();
@@ -3350,10 +3416,39 @@
   function apiCl(path, body){
     return fetch(API + path, {method: 'POST', headers: {'x-client-code': CODIGO, 'content-type': 'application/json'}, body: JSON.stringify(body || {})}).then(function(r){
       return r.json().catch(function(){ return {ok: false, error: 'Respuesta inesperada'}; }).then(function(j){
+        if (!r.ok || !j.ok){ var e = new Error(j.error || ('Error ' + r.status)); e.datos = j; throw e; }
+        return j;
+      });
+    }).catch(function(err){
+      // El Worker avisa antes de reiniciar pasos ya confirmados (409): si la persona acepta, se repite el cambio con forzar.
+      if (!(err.datos && err.datos.requiere_confirmacion) || !window.FlujoGerente) throw err;
+      return window.FlujoGerente.confirmar('Este cambio afecta pasos ya confirmados', err.datos.error, 'Aplicar el cambio', true).then(function(si){
+        if (!si) throw new Error('Cambio cancelado.');
+        return apiCl(path, Object.assign({}, body, {forzar: true}));
+      });
+    });
+  }
+  function getCl(path){
+    return fetch(API + path, {headers: {'x-client-code': CODIGO}}).then(function(r){
+      return r.json().catch(function(){ return {ok: false, error: 'Respuesta inesperada'}; }).then(function(j){
         if (!r.ok || !j.ok) throw new Error(j.error || ('Error ' + r.status));
         return j;
       });
     });
+  }
+  // Vista de pasos del Supervisor (flujo-gerente.js): se monta una vez y después solo se refresca cuando se vuelve a cargar el panel.
+  var FLUJO_MONTADO = false, VER_COMPLETO = false;
+  function mostrarVistaCl(){
+    var sup = C.rol === 'supervisor' && !!window.FlujoGerente;
+    $('#clFlujo').classList.toggle('hidden', !sup || VER_COMPLETO);
+    $('#clCompleto').classList.toggle('hidden', sup && !VER_COMPLETO);
+    $('#clAlterna').classList.toggle('hidden', !sup);
+    $('#clAlterna').textContent = VER_COMPLETO ? 'Volver a los pasos' : 'Ver detalle completo';
+    if (!sup) return;
+    if (FLUJO_MONTADO){ window.FlujoGerente.refrescar(); return; }
+    FLUJO_MONTADO = true;
+    window.FlujoGerente.montar({raiz: $('#clFlujo'), get: getCl, post: apiCl, datos: function(){ return C; }, recargar: function(){ return recargarCl(); },
+      agregarPersona: dialogoPersonaCl, asignarProceso: dialogoAsignarProcesoCl, correos: pasoCorreoCl, abrirDlg: abrirDlgCl, esc: esc, fecha: fecha});
   }
   function recargarCl(aviso){
     var y = window.scrollY;
@@ -3580,7 +3675,7 @@
   }
 
   // ---- Supervisores y trazabilidad
-  var ACCION_TXT = {delegar: 'Delegó procesos', quitar_delegacion: 'Quitó una delegación', personas_agregadas: 'Agregó personas', enlace_copiado: 'Copió enlaces', correo_generado: 'Generó correos',
+  var ACCION_TXT = {flujo_paso_confirmado: 'Confirmó un paso', flujo_pasos_reiniciados: 'Reinició pasos por un cambio', flujo_retroceso: 'Retrocedió un paso', flujo_aprobacion_final: 'Dio la validación final', flujo_reabierto: 'MBC reabrió la validación final', proceso_agregado: 'Agregó un proceso', proceso_quitado: 'Quitó un proceso', proceso_restaurado: 'Restauró un proceso', proceso_incorporado: 'Eligió procesos del inventario', proceso_soltado: 'Soltó un proceso', delegar: 'Delegó procesos', quitar_delegacion: 'Quitó una delegación', personas_agregadas: 'Agregó personas', enlace_copiado: 'Copió enlaces', correo_generado: 'Generó correos',
     enlace_abierto_activado: 'Activó el enlace abierto', supervisor_creado: 'Creó un supervisor', supervisor_editado: 'Editó un supervisor', supervisor_activado: 'Activó un supervisor',
     supervisor_desactivado: 'Desactivó un supervisor', supervisor_clave_nueva: 'Generó una clave nueva'};
   function alcanceTextoCl(al){
@@ -3832,8 +3927,9 @@
   }
   $('#clTexto').addEventListener('input', function(){ FCL.texto = this.value; guardarFiltrosCl(); pintarListaCliente(); });
   $('#clGer').addEventListener('change', function(){ FCL.ger = this.value; guardarFiltrosCl(); pintarListaCliente(); });
+  $('#clAlterna').addEventListener('click', function(){ VER_COMPLETO = !VER_COMPLETO; mostrarVistaCl(); });
   $('#clActualizar').addEventListener('click', function(){ $('#clSub').textContent = 'Actualizando…'; entrarCliente(); });
-  $('#clSalir').addEventListener('click', function(){ try { sessionStorage.removeItem('relev-cliente'); } catch(e){} CODIGO = ''; $('#hdLogo').classList.add('hidden'); ver('vLogin'); });
+  $('#clSalir').addEventListener('click', function(){ try { sessionStorage.removeItem('relev-cliente'); } catch(e){} CODIGO = ''; FLUJO_MONTADO = false; VER_COMPLETO = false; $('#hdLogo').classList.add('hidden'); ver('vLogin'); });
   $('#clExportar').addEventListener('click', function(){
     var tp = totalPuntos(), pc = function(a, b){ return b ? Math.round(100 * a / b) : 0; };
     var filas = resumenCliente().sort(function(a, b){ return a.gerencia.localeCompare(b.gerencia, 'es') || a.seccion.localeCompare(b.seccion, 'es'); }).map(function(s){

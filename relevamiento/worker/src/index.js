@@ -38,7 +38,7 @@
  *   POST /a/campana              {nombre, cliente, glosario}
  *   POST /a/campana/glosario     {campana_id, glosario}
  *   POST /a/enlace               {campana_id, abierta?, regenerar?, dominio?}
- *   POST /a/importar             {campana_id, modo, upsert?, encuestados[], procesos[] (con matriz opcional; con upsert se actualiza por id o código), sistemas[]}
+ *   POST /a/importar             {campana_id, modo, upsert?, estructura[] (hoja Gerencias: {area, gerencia, seccion}), encuestados[], procesos[] (con matriz opcional; con upsert se actualiza por id o código), sistemas[]}
  *   GET  /a/campana?id=          volcado completo de la campaña
  *   POST /a/proceso              {campana_id, id?, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion}
  *   POST /a/proceso/borrar       {proceso_id}   (solo si nadie lo respondió)
@@ -70,7 +70,15 @@
  *   POST /a/respuesta/borrar     {encuestado_id, proceso_id | proceso_ids[]}   (borra sus respuestas en esos procesos; la persona se queda)
  *   POST /a/estructurar          {proceso_id}
  *   POST /a/borrar-campana       {campana_id, confirmar}   (confirmar = nombre exacto)
- *   GET  /health
+ *   GET  /a/campana/flujo?id=    validación final por gerente y por gerencia (flujo guiado del Supervisor)
+ *   POST /a/flujo/reabrir        {campana_id, supervisor_id, motivo}   (reabre la aprobación final de un Gerente)
+ * Flujo guiado del Supervisor (x-client-code de un Supervisor; ver flujo.js):
+ *   GET  /c/flujo                estado de los 4 pasos, compuertas y procesos de su alcance
+ *   POST /c/flujo/confirmar      {paso, confirmar_final?}
+ *   POST /c/flujo/retroceder     {}   (retira la confirmación del último paso)
+ *   GET  /c/flujo/catalogo?q=    procesos ya cargados por MBC que no están en su alcance (para elegirlos)
+ *   POST /c/flujo/proceso        {accion: agregar | incorporar{proceso_ids} | soltar | quitar | restaurar, ...}
+ *   GET  /health            público, solo {ok}; GET /a/health (x-admin-code) trae la IA y los modelos
  * Tarea programada (cada 15 minutos, wrangler.toml): la IA estructura los procesos con respuestas nuevas y completa la matriz.
  *
  * La matriz (procesos.matriz, JSON) replica las columnas del inventario del cliente y agrega las del contrato;
@@ -83,6 +91,10 @@
  * ============================================================ */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { leerEstructura, prepararEstructura, asegurarEstructura, areasDeEstructura } from './estructura.js';
+import { rutaFlujo, rutaFlujoCatalogo, rutaFlujoConfirmar, rutaFlujoRetroceder, rutaFlujoProceso, rutaFlujoAdmin, rutaFlujoReabrir, guardarCambio } from './flujo.js';
+import { ambitoDe, enSecs, claveArea, registrarAccion } from './ambito.js';
+import { HttpError, ahora, uid, txt, normal, mismaArea, log, mascara } from './comun.js';
 
 // Modelo de IA y esfuerzo por tarea: se cambian en wrangler.toml [vars] sin tocar el código (por defecto, Claude Sonnet 5.5).
 // estructurar = completar la matriz; revision = checklist de cada bloque; imagen = leer imágenes (con el modelo de revisión).
@@ -140,8 +152,6 @@ const ESTADOS_REVISION = ['vigente', 'cambio', 'no_participo', 'no_existe'];
 const PULSE_INGEST = 'https://pulse.mbc-latam.com/api/ai-usage';
 
 // ---------------------------------------------------------------- utilidades
-const ahora = () => new Date().toISOString();
-const uid = () => crypto.randomUUID();
 
 function tokenNuevo() {
   // 20 caracteres sin ambiguos (sin 0/O, 1/l/I): se puede dictar por teléfono si hace falta.
@@ -170,10 +180,6 @@ function json(obj, status, h) {
   });
 }
 
-class HttpError extends Error {
-  constructor(status, msg) { super(msg); this.status = status; }
-}
-
 // Comparación en tiempo constante: el tiempo de respuesta no delata cuántos caracteres acertó.
 function igualSeguro(a, b) {
   const te = new TextEncoder();
@@ -192,24 +198,12 @@ function aBase64(buf) {
   return btoa(bin);
 }
 
-const txt = (v, max) => String(v == null ? '' : v).trim().slice(0, max || 500);
-
 async function cuerpo(req) {
   try { return await req.json(); } catch (e) { throw new HttpError(400, 'Cuerpo JSON inválido'); }
 }
 
-// Minúsculas, sin tildes y sin espacios repetidos: "Importación" y "importacion" son lo mismo.
-const normal = s => String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 const VACIAS = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'e', 'en', 'a', 'al', 'para', 'por', 'con', 'un', 'una', 'o']);
-// Gerencia y sección se comparan sin mayúsculas ni tildes: "Control interno" y "Control Interno" son la misma área.
-const mismaArea = (a, b) => normal(a) === normal(b);
 
-// Registro estructurado para Workers Logs. Solo datos operativos: nunca tokens completos, nombres,
-// correos ni texto de respuestas.
-function log(evento, datos) {
-  try { console.log(JSON.stringify(Object.assign({ evento }, datos || {}))); } catch (e) { /* el registro nunca rompe la respuesta */ }
-}
-const mascara = k => (k ? String(k).slice(0, 4) + '…' : '');
 
 // Columnas de la matriz de procesos. La consola muestra las de la matriz que definió TDP (2026-10-06) y las aprobaciones
 // externas; las demás son del formato anterior y se siguen aceptando para no perder lo que ya está cargado.
@@ -664,6 +658,7 @@ async function areasDeCampana(env, campId) {
     UNION SELECT gerencia, seccion FROM encuestados WHERE campana_id=? AND origen='carga'`).bind(campId, campId).all();
   const m = {};
   r.results.forEach(x => { (m[x.gerencia] = m[x.gerencia] || new Set()).add(x.seccion); });
+  areasDeEstructura(await leerEstructura(env, campId)).forEach(a => { m[a.gerencia] = m[a.gerencia] || new Set(); a.secciones.forEach(x => m[a.gerencia].add(x)); });
   const orden = (a, b) => a.localeCompare(b, 'es');
   return Object.keys(m).sort(orden).map(g => ({ gerencia: g, secciones: Array.from(m[g]).sort(orden) }));
 }
@@ -775,10 +770,22 @@ async function rutaRegistro(env, b) {
 }
 
 // ---------------------------------------------------------------- consola
-function exigirAdmin(req, env) {
+// Los códigos incorrectos se cuentan por IP (misma tabla y ventana que el panel del cliente, con prefijo 'a:'):
+// pasado el límite se bloquea unos minutos, aunque el siguiente intento fuera el correcto.
+async function exigirAdmin(req, env) {
   const codigo = (env.ADMIN_CODE || '').trim();
   if (!codigo) throw new HttpError(500, 'Falta configurar ADMIN_CODE en el Worker');
-  if (!igualSeguro(req.headers.get('x-admin-code') || '', codigo)) throw new HttpError(401, 'Código de administración incorrecto');
+  const ip = 'a:' + (req.headers.get('cf-connecting-ip') || 'sin-ip').slice(0, 60);
+  const ventana = Math.floor(Date.now() / 600000), limite = Number(env.LIMITE_INTENTOS) || 15;
+  const fila = await env.DB.prepare('SELECT n FROM login_intentos WHERE ip=? AND ventana=?').bind(ip, ventana).first();
+  if (fila && fila.n >= limite) throw new HttpError(429, 'Demasiados intentos con un código incorrecto. Espera unos minutos y vuelve a intentar.');
+  if (!igualSeguro(req.headers.get('x-admin-code') || '', codigo)) {
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO login_intentos (ip, ventana, n) VALUES (?,?,1) ON CONFLICT(ip, ventana) DO UPDATE SET n=n+1').bind(ip, ventana),
+      env.DB.prepare('DELETE FROM login_intentos WHERE ventana < ?').bind(ventana - 6)
+    ]);
+    throw new HttpError(401, 'Código de administración incorrecto');
+  }
 }
 
 async function rutaCampanas(env) {
@@ -844,10 +851,11 @@ async function rutaEnlace(env, b) {
 async function rutaImportar(env, b) {
   const camp = await env.DB.prepare('SELECT id FROM campanas WHERE id=?').bind(b.campana_id).first();
   if (!camp) throw new HttpError(404, 'Campaña no encontrada');
-  const enc = Array.isArray(b.encuestados) ? b.encuestados : [];
-  const pro = Array.isArray(b.procesos) ? b.procesos : [];
-  const sis = Array.isArray(b.sistemas) ? b.sistemas : [];
-  if (enc.length > 500 || pro.length > 3000 || sis.length > 1000) throw new HttpError(413, 'Demasiadas filas en una sola carga');
+  // Solo filas que sean objetos: un null, un número o un texto suelto en la lista se ignoran en vez de provocar un error 500.
+  const filas = v => (Array.isArray(v) ? v : []).filter(x => x && typeof x === 'object' && !Array.isArray(x));
+  const enc = filas(b.encuestados), pro = filas(b.procesos), sis = filas(b.sistemas);
+  const hojaEst = filas(b.estructura);   // hoja «Gerencias»: {area, gerencia, seccion}
+  if (enc.length > 500 || pro.length > 3000 || sis.length > 1000 || hojaEst.length > 2000) throw new HttpError(413, 'Demasiadas filas en una sola carga');
   const st = [];
   if (b.modo === 'reemplazar') {
     // Reemplazar solo se permite antes de que haya respuestas: nunca se pierde lo que ya contaron.
@@ -860,9 +868,12 @@ async function rutaImportar(env, b) {
     st.push(env.DB.prepare('DELETE FROM precarga WHERE proceso_id IN (SELECT id FROM procesos WHERE campana_id=?)').bind(camp.id));
     st.push(env.DB.prepare('DELETE FROM procesos WHERE campana_id=?').bind(camp.id));
     st.push(env.DB.prepare('DELETE FROM sistemas WHERE campana_id=?').bind(camp.id));
+    st.push(env.DB.prepare('DELETE FROM estructura WHERE campana_id=?').bind(camp.id));
   }
   const agregar = b.modo !== 'reemplazar';
   const t = ahora();
+  // Esqueleto (Área > Gerencia > Sección): las filas de personas y procesos se vinculan a él y lo que no esté se agrega y se informa.
+  const E = prepararEstructura(agregar ? await leerEstructura(env, camp.id) : [], hojaEst);
 
   // Áreas de referencia: las del inventario ya cargado (si se agrega) y las de esta carga. Las personas se
   // escriben con la misma gerencia y sección que los procesos: así cada una ve los procesos de su sección.
@@ -895,7 +906,9 @@ async function rutaImportar(env, b) {
   const vistos = new Set();
   enc.forEach(x => {
     const nombre = txt(x.nombre, 150), correo = txt(x.correo, 150).toLowerCase();
-    const [gerencia, seccion] = canonica(txt(x.gerencia, 150), txt(x.seccion, 150));
+    const gRaw = txt(x.gerencia, 150), sRaw = txt(x.seccion, 150);
+    if (E.activo() && (!nombre || !gRaw)) return;
+    const [gerencia, seccion] = E.activo() ? E.vincular(gRaw, sRaw, 'personas', true) : canonica(gRaw, sRaw);
     if (!nombre || !gerencia || !seccion) return;
     if (correo) {
       if (vistos.has(correo)) return;   // repetido dentro del mismo archivo
@@ -921,10 +934,12 @@ async function rutaImportar(env, b) {
     ya.results.forEach(x => { porId[x.id] = x.id; actual[x.id] = x; if (normal(x.codigo)) porCodigo[normal(x.codigo)] = x.id; });
   }
   pro.forEach((x, i) => {
-    const gerencia = txt(x.gerencia, 150), seccion = txt(x.seccion, 150);
+    const gRaw = txt(x.gerencia, 150), sRaw = txt(x.seccion, 150);
     const nombre = txt(x.proceso, 200) || txt(x.subproceso, 200);
-    if (!gerencia || !seccion || !nombre) return;
+    if (!gRaw || !sRaw || !nombre) return;
+    const [gerencia, seccion] = E.vincular(gRaw, sRaw, 'procesos', false);
     const matriz = limpiarMatriz(x.matriz);
+    if (E.activo()) { if (matriz.gerencia) matriz.gerencia = gerencia; if (matriz.seccion) matriz.seccion = seccion; }   // la matriz usa los nombres del esqueleto
     const val = VALIDACIONES.includes(x.validacion) ? x.validacion : null;
     // Nombres del inventario anterior (columna PARTICIPANTES): alimentan el buscador por persona.
     const personas = txt(x.personas || matriz.participantes || '', 4000);
@@ -961,9 +976,11 @@ async function rutaImportar(env, b) {
     st.push(env.DB.prepare('INSERT INTO sistemas (id, campana_id, nombre, tipo) VALUES (?,?,?,?)').bind(uid(), camp.id, nombre, txt(x.tipo, 80)));
     nS++;
   });
+  st.push(...E.sentencias(env, camp.id));
   for (let i = 0; i < st.length; i += 90) await env.DB.batch(st.slice(i, i + 90));
-  log('importar', { campana: camp.id, modo: b.modo, upsert: !!b.upsert, nE, nEAct, nP, nPAct, nS });
-  return { ok: true, encuestados: nE, encuestados_actualizados: nEAct, procesos: nP, procesos_actualizados: nPAct, sistemas: nS };
+  const estructura = E.activo() ? E.resultado() : null;
+  log('importar', { campana: camp.id, modo: b.modo, upsert: !!b.upsert, nE, nEAct, nP, nPAct, nS, estructura: estructura ? estructura.total : 0, sin_vincular: estructura ? estructura.sin_vincular.length : 0 });
+  return { ok: true, encuestados: nE, encuestados_actualizados: nEAct, procesos: nP, procesos_actualizados: nPAct, sistemas: nS, estructura };
 }
 
 async function rutaCampana(env, url) {
@@ -986,7 +1003,7 @@ async function rutaCampana(env, url) {
   precarga.forEach(x => { x.archivos = JSON.parse(x.archivos || '[]'); });
   respuestas.forEach(x => { x.sistemas = JSON.parse(x.sistemas || '[]'); x.checklist = leerMatriz(x.checklist); });
   procesos.forEach(x => { x.matriz = leerMatriz(x.matriz); x.matriz_ia = leerMatriz(x.matriz_ia); });
-  return { ok: true, campana: camp, encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, precarga, ventanas, bloques: BLOQUES, estandares_base: ESTANDARES_BASE };
+  return { ok: true, campana: camp, encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, precarga, ventanas, estructura: await leerEstructura(env, id), bloques: BLOQUES, estandares_base: ESTANDARES_BASE };
 }
 
 // Alta o edición de un proceso desde el mapa de la consola.
@@ -1010,6 +1027,7 @@ async function rutaProcesoAdmin(env, b) {
   await env.DB.prepare(`INSERT INTO procesos (id, campana_id, codigo, gerencia, seccion, macroproceso, proceso, subproceso, descripcion, fuente, orden)
     VALUES (?,?,?,?,?,?,?,?,?,'consultor',5000)`)
     .bind(id, camp.id, f.codigo, f.gerencia, f.seccion, f.macroproceso, f.proceso, f.subproceso, f.descripcion).run();
+  await asegurarEstructura(env, camp.id, f.gerencia, f.seccion);
   return { ok: true, id };
 }
 
@@ -1047,6 +1065,7 @@ async function rutaProcesoMover(env, b) {
     procesos.push({ id: p.id, gerencia: g, seccion: sec, macroproceso: mac, matriz: mx, validacion, actualizado_en: actualizado });
   }
   await env.DB.batch(st);
+  for (const p of procesos) await asegurarEstructura(env, camp.id, p.gerencia, p.seccion);
   log('mover', { campana: camp.id, procesos: procesos.length, restaura });
   return { ok: true, procesos };
 }
@@ -1278,6 +1297,9 @@ async function rutaBorrarCampana(env, b) {
     env.DB.prepare('DELETE FROM delegaciones WHERE campana_id=?').bind(camp.id),
     env.DB.prepare('DELETE FROM acciones WHERE campana_id=?').bind(camp.id),
     env.DB.prepare('DELETE FROM supervisores WHERE campana_id=?').bind(camp.id),
+    env.DB.prepare('DELETE FROM estructura WHERE campana_id=?').bind(camp.id),
+    env.DB.prepare('DELETE FROM flujo_pasos WHERE campana_id=?').bind(camp.id),
+    env.DB.prepare('DELETE FROM aprobaciones WHERE campana_id=?').bind(camp.id),
     env.DB.prepare('DELETE FROM encuestados WHERE campana_id=?').bind(camp.id),
     env.DB.prepare('DELETE FROM campanas WHERE id=?').bind(camp.id)
   ]);
@@ -2204,7 +2226,6 @@ async function rutaClienteAcceso(env, b) {
 // ---------------------------------------------------------------- panel del cliente: administrador del cliente y Supervisores
 const sha256Hex = async x => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(x)))].map(n => n.toString(16).padStart(2, '0')).join('');
 const hashClaveSup = k => sha256Hex('voz-sup:' + k);   // la clave del Supervisor no se guarda: solo su huella
-const claveArea = (g, sec) => normal(g) + '|' + normal(sec);
 const generarClave = () => { for (;;) { const k = tokenNuevo().slice(0, 12); if (/[A-Za-z]/.test(k) && /\d/.test(k)) return k; } };
 
 // Quién entra con la clave del encabezado: el administrador del cliente (clave de la campaña) o un Supervisor (clave propia).
@@ -2236,16 +2257,6 @@ function soloAdminCliente(actor) {
   if (actor.rol !== 'cliente') throw new HttpError(403, 'Esta acción es solo del administrador del cliente.');
 }
 
-// Qué procesos y secciones puede ver y gestionar quien entra. El administrador del cliente: todo (secs = null).
-async function ambitoDe(env, actor) {
-  const filas = (await env.DB.prepare('SELECT id, gerencia, seccion FROM procesos WHERE campana_id=?').bind(actor.camp.id).all()).results;
-  if (actor.rol !== 'supervisor') return { todo: true, procs: new Set(filas.map(p => p.id)), secs: null, filas };
-  let al = {}; try { al = JSON.parse(actor.sup.alcance || '{}') || {}; } catch (e) { al = {}; }
-  const gers = (al.gerencias || []).map(normal), secs = new Set((al.secciones || []).map(x => claveArea(x.g, x.s))), ids = new Set(al.procesos || []);
-  const dentro = al.todo ? filas : filas.filter(p => ids.has(p.id) || gers.includes(normal(p.gerencia)) || secs.has(claveArea(p.gerencia, p.seccion)));
-  return { todo: !!al.todo, procs: new Set(dentro.map(p => p.id)), secs: new Set(dentro.map(p => claveArea(p.gerencia, p.seccion))), filas: dentro };
-}
-const enSecs = (amb, g, sec) => amb.secs === null || amb.secs.has(claveArea(g, sec));
 
 // Personas que el Supervisor ve: las de sus secciones, las que tienen asignado un proceso suyo o ya trabajan en uno. null = todas.
 async function personasVisibles(env, camp, amb) {
@@ -2261,10 +2272,6 @@ async function personasVisibles(env, camp, amb) {
   return vis;
 }
 
-async function registrarAccion(env, campId, actor, accion, detalle) {
-  await env.DB.prepare('INSERT INTO acciones (id, campana_id, actor_tipo, actor_id, actor_nombre, accion, detalle, creado) VALUES (?,?,?,?,?,?,?,?)')
-    .bind(uid(), campId, actor.rol, actor.sup ? actor.sup.id : '', actor.nombre, accion, typeof detalle === 'string' ? detalle : JSON.stringify(detalle || {}), ahora()).run();
-}
 async function registrarDelegaciones(env, camp, actor, encId, pids) {
   if (!pids.length) return 0;
   const ya = new Set();
@@ -2340,6 +2347,7 @@ async function rutaClientePersonas(env, actor, b) {
     if (!a || !a.secciones.some(z => mismaArea(z, sec))) throw new HttpError(400, 'La sección indicada no existe en el mapa de procesos.');
     if (!enSecs(amb, g, sec)) throw new HttpError(403, 'Esa sección no está dentro de tu alcance.');
   });
+  await guardarCambio(env, actor, BLOQUES, 2, false, false);   // con la aprobación final dada no se agregan personas
   const r = await rutaEncuestadoAlta(env, { campana_id: camp.id, personas: lista });
   let asignados = 0;
   // Responsable de la sección: queda asignado a todos los procesos vigentes de esa sección (los que estén en su alcance).
@@ -2366,6 +2374,7 @@ async function rutaClienteAsignar(env, actor, b) {
   const agregar = lista(b.agregar), desasignar = lista(b.desasignar);
   if (actor.rol === 'supervisor' && agregar.concat(desasignar).some(id => !amb.procs.has(id))) throw new HttpError(403, 'Ese proceso no está habilitado para ti.');
   const asignadosDe = async () => new Set((await env.DB.prepare("SELECT proceso_id FROM asignaciones WHERE encuestado_id=? AND origen='consultor'").bind(e.id).all()).results.map(r => r.proceso_id));
+  await guardarCambio(env, actor, BLOQUES, 2, b.forzar === true, desasignar.length > 0);   // quitar responsables puede invalidar los pasos siguientes
   const antes = await asignadosDe();
   // Solo agregar o desasignar lo que el equipo asigna: quitar/restaurar borran respuestas y quedan para el consultor.
   const r = await rutaAsignar(env, { encuestado_id: e.id, agregar, desasignar });
@@ -2423,10 +2432,11 @@ async function alcanceValido(env, camp, a) {
   a = a || {};
   if (a.todo) return { todo: true, gerencias: [], secciones: [], procesos: [] };
   const filas = (await env.DB.prepare('SELECT id, gerencia, seccion FROM procesos WHERE campana_id=?').bind(camp.id).all()).results;
+  const conEstructura = filas.concat(await leerEstructura(env, camp.id));   // gerencias y secciones del esqueleto, aunque aún no tengan procesos
   const gers = [], secs = [], procs = [], ok = new Set(filas.map(p => p.id));
-  (Array.isArray(a.gerencias) ? a.gerencias : []).forEach(g => { const f = filas.find(p => mismaArea(p.gerencia, g)); if (f && !gers.includes(f.gerencia)) gers.push(f.gerencia); });
+  (Array.isArray(a.gerencias) ? a.gerencias : []).forEach(g => { const f = conEstructura.find(p => mismaArea(p.gerencia, g)); if (f && !gers.includes(f.gerencia)) gers.push(f.gerencia); });
   (Array.isArray(a.secciones) ? a.secciones : []).forEach(x => {
-    const f = filas.find(p => mismaArea(p.gerencia, x && x.g) && mismaArea(p.seccion, x && x.s));
+    const f = conEstructura.find(p => mismaArea(p.gerencia, x && x.g) && mismaArea(p.seccion, x && x.s));
     if (f && !secs.some(y => claveArea(y.g, y.s) === claveArea(f.gerencia, f.seccion))) secs.push({ g: f.gerencia, s: f.seccion });
   });
   (Array.isArray(a.procesos) ? a.procesos : []).forEach(id => { id = txt(id, 60); if (ok.has(id) && !procs.includes(id)) procs.push(id); });
@@ -2489,6 +2499,18 @@ async function rutaTrazabilidadAdmin(env, url) {
   return trazabilidad(env, camp.id);
 }
 
+async function rutaFlujoAdminCampana(env, url) {
+  const camp = await env.DB.prepare('SELECT id FROM campanas WHERE id=?').bind(url.searchParams.get('id') || '').first();
+  if (!camp) throw new HttpError(404, 'Campaña no encontrada');
+  return rutaFlujoAdmin(env, camp, BLOQUES);
+}
+
+function estadoServicio(env) {
+  const ia = (env.ANTHROPIC_API_KEY || '').trim() ? 'clave propia' : (env.PROCESSIQ && (env.INTERNAL_CODE || '').trim() ? 'via processiq-api' : 'sin configurar');
+  const modelos = { estructurar: iaDe(env, 'estructurar'), revision: iaDe(env, 'revision'), imagen: iaDe(env, 'imagen') };
+  return { ok: true, servicio: 'voz-relevamiento-api', ia, modelos, admin: !!(env.ADMIN_CODE || '').trim() };
+}
+
 // ---------------------------------------------------------------- router
 export default {
   // Tarea programada (wrangler.toml [triggers]): la IA completa la matriz con las respuestas nuevas.
@@ -2505,11 +2527,8 @@ export default {
       return new Response(null, { status: h['Access-Control-Allow-Origin'] ? 204 : 403, headers: h });
     }
     try {
-      if (ruta === 'GET /health') {
-        const ia = (env.ANTHROPIC_API_KEY || '').trim() ? 'clave propia' : (env.PROCESSIQ && (env.INTERNAL_CODE || '').trim() ? 'via processiq-api' : 'sin configurar');
-        const modelos = { estructurar: iaDe(env, 'estructurar'), revision: iaDe(env, 'revision'), imagen: iaDe(env, 'imagen') };
-        return json({ ok: true, servicio: 'voz-relevamiento-api', ia, modelos, admin: !!(env.ADMIN_CODE || '').trim() }, 200, h);
-      }
+      // Público: solo dice que el servicio responde. El detalle (IA, modelos) está en GET /a/health, con código de administración.
+      if (ruta === 'GET /health') return json({ ok: true, servicio: 'voz-relevamiento-api' }, 200, h);
       if (!h['Access-Control-Allow-Origin']) throw new HttpError(403, 'Origen no permitido');
 
       if (ruta === 'GET /r/sesion') return json(await rutaSesion(env, url), 200, h);
@@ -2535,11 +2554,16 @@ export default {
       if (url.pathname.startsWith('/c/') && req.method === 'GET') {
         const actor = await actorCliente(env, req);
         if (url.pathname === '/c/campana') return json(await rutaClienteCampana(env, actor, url.searchParams.get('recarga') === '1'), 200, h);
+        if (url.pathname === '/c/flujo') return json(await rutaFlujo(env, actor, BLOQUES), 200, h);
+        if (url.pathname === '/c/flujo/catalogo') return json(await rutaFlujoCatalogo(env, actor, url, BLOQUES), 200, h);
         if (url.pathname === '/c/trazabilidad') { soloAdminCliente(actor); return json(await trazabilidad(env, actor.camp.id), 200, h); }
       }
       if (url.pathname.startsWith('/c/') && req.method === 'POST') {
         const actor = await actorCliente(env, req);
         const b = await cuerpo(req);
+        if (url.pathname === '/c/flujo/confirmar') return json(await rutaFlujoConfirmar(env, actor, b, BLOQUES), 200, h);
+        if (url.pathname === '/c/flujo/retroceder') return json(await rutaFlujoRetroceder(env, actor, BLOQUES), 200, h);
+        if (url.pathname === '/c/flujo/proceso') return json(await rutaFlujoProceso(env, actor, b, BLOQUES), 200, h);
         if (url.pathname === '/c/personas') return json(await rutaClientePersonas(env, actor, b), 200, h);
         if (url.pathname === '/c/asignar') return json(await rutaClienteAsignar(env, actor, b), 200, h);
         if (url.pathname === '/c/enlaces') return json(await rutaClienteEnlaces(env, actor, b), 200, h);
@@ -2548,13 +2572,16 @@ export default {
       }
 
       if (url.pathname.startsWith('/a/')) {
-        exigirAdmin(req, env);
+        await exigirAdmin(req, env);
+        if (ruta === 'GET /a/health') return json(estadoServicio(env), 200, h);
         if (ruta === 'GET /a/campanas') return json(await rutaCampanas(env), 200, h);
         if (ruta === 'GET /a/campana') return json(await rutaCampana(env, url), 200, h);
+        if (ruta === 'GET /a/campana/flujo') return json(await rutaFlujoAdminCampana(env, url), 200, h);
         if (ruta === 'GET /a/campana/trazabilidad') return json(await rutaTrazabilidadAdmin(env, url), 200, h);
         if (ruta === 'POST /a/precarga/extraer') return json(await rutaPrecargaExtraer(env, req, url, ctx), 200, h);
         if (req.method === 'POST') {
           const b = await cuerpo(req);
+          if (url.pathname === '/a/flujo/reabrir') return json(await rutaFlujoReabrir(env, b), 200, h);
           if (url.pathname === '/a/campana') return json(await rutaCampanaNueva(env, b), 200, h);
           if (url.pathname === '/a/campana/glosario') return json(await rutaGlosario(env, b), 200, h);
           if (url.pathname === '/a/campana/sistemas') return json(await rutaSistemas(env, b), 200, h);
@@ -2593,7 +2620,7 @@ export default {
       // así se ve si un enlace llega con token inválido, desde un origen no permitido o con una campaña cerrada.
       log('error', { ruta, status, error: err instanceof HttpError ? err.message : String(err && err.message || err),
         origen: req.headers.get('Origin') || '', k: mascara(url.searchParams.get('k')), c: mascara(url.searchParams.get('c')) });
-      return json({ ok: false, error: err instanceof HttpError ? err.message : 'Error interno' }, status, h);
+      return json(Object.assign({ ok: false, error: err instanceof HttpError ? err.message : 'Error interno' }, err instanceof HttpError ? err.extra : {}), status, h);
     }
   }
 };

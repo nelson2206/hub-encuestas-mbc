@@ -188,3 +188,8 @@ CREATE TABLE IF NOT EXISTS login_intentos (
   n INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (ip, ventana)
 );
+
+-- Flujo guiado del Supervisor (migracion-014.sql): procesos.quitado_por, flujo_pasos y aprobaciones.
+-- Base nueva: aplicar después de schema.sql las migraciones 011, 012 y 014 (schema.sql no incluye sus columnas ni tablas).
+
+-- Esqueleto Área > Gerencia > Sección (migracion-015.sql): tabla estructura. Aplicarla también en una base nueva.

@@ -3,6 +3,6 @@
 import { cpSync, mkdirSync, rmSync } from 'node:fs';
 rmSync('publico', { recursive: true, force: true });
 mkdirSync('publico', { recursive: true });
-for (const f of ['index.html', 'admin.html']) cpSync(`../${f}`, `publico/${f}`);
+for (const f of ['index.html', 'admin.html', 'flujo-admin.js', 'flujo-gerente.js']) cpSync(`../${f}`, `publico/${f}`);
 for (const f of ['favicon.png', 'apple-touch-icon.png', 'icon-512.png', 'og-image.png']) cpSync(`../../${f}`, `publico/${f}`);
 console.log('publico/ listo');
