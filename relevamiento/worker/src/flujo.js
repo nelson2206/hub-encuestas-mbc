@@ -89,7 +89,7 @@ export async function rutaFlujo(env, actor, bloques) {
   soloSupervisor(actor);
   const { est } = await leer(env, actor, bloques);
   return {
-    ok: true, supervisor: { id: actor.sup.id, nombre: actor.sup.nombre },
+    ok: true, supervisor: { id: actor.sup.id, nombre: actor.sup.nombre }, perfil: actor.sup.perfil || 'gerente',
     paso_actual: est.paso_actual, vigentes: est.vigentes, confirmado: est.confirmado,
     compuertas: est.compuertas, aprobacion: est.aprobacion && { gerente: est.aprobacion.gerente, aprobado_en: est.aprobacion.aprobado_en, gerencias: JSON.parse(est.aprobacion.gerencias || '[]'), procesos: est.aprobacion.procesos },
     procesos: est.procesos
@@ -121,6 +121,7 @@ export async function rutaFlujoConfirmar(env, actor, b, bloques) {
   if (![1, 2, 3, 4].includes(paso)) throw new HttpError(400, 'Paso inválido');
   const { est } = await leer(env, actor, bloques);
   if (est.aprobada) throw new HttpError(403, 'Tu aprobación final ya está dada.');
+  if (paso === 4 && (actor.sup.perfil || 'gerente') !== 'gerente') throw new HttpError(403, 'La validación final la da el Gerente.');
   if (paso !== est.paso_actual) throw new HttpError(409, 'Los pasos se confirman en orden: ahora te corresponde el paso ' + est.paso_actual + '.');
   const gate = est.compuertas[paso];
   if (!gate.ok) throw new HttpError(409, paso === 1 ? gate.faltan[0] : 'Aún no puedes continuar: faltan ' + gate.faltan.length + ' proceso(s).', { faltan: gate.faltan });

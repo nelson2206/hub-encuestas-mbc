@@ -1003,6 +1003,8 @@ async function rutaCampana(env, url) {
   precarga.forEach(x => { x.archivos = JSON.parse(x.archivos || '[]'); });
   respuestas.forEach(x => { x.sistemas = JSON.parse(x.sistemas || '[]'); x.checklist = leerMatriz(x.checklist); });
   procesos.forEach(x => { x.matriz = leerMatriz(x.matriz); x.matriz_ia = leerMatriz(x.matriz_ia); });
+  const sups = (await env.DB.prepare("SELECT id, encuestado_id, perfil, activo FROM supervisores WHERE campana_id=? AND encuestado_id<>''").bind(id).all()).results;
+  encuestados.forEach(e => { const sp = sups.find(x => x.encuestado_id === e.id && x.activo); e.perfil = sp ? sp.perfil : 'responsable'; e.sup_id = sp ? sp.id : ''; });
   return { ok: true, campana: camp, encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, precarga, ventanas, estructura: await leerEstructura(env, id), bloques: BLOQUES, estandares_base: ESTANDARES_BASE };
 }
 
@@ -2287,7 +2289,7 @@ async function registrarDelegaciones(env, camp, actor, encId, pids) {
 }
 
 async function listaSupervisores(env, campId) {
-  const r = (await env.DB.prepare('SELECT id, nombre, correo, activo, alcance, creado, ultimo FROM supervisores WHERE campana_id=? ORDER BY nombre').bind(campId).all()).results;
+  const r = (await env.DB.prepare('SELECT id, nombre, correo, activo, alcance, creado, ultimo, perfil, encuestado_id FROM supervisores WHERE campana_id=? ORDER BY nombre').bind(campId).all()).results;
   return r.map(x => { let al = {}; try { al = JSON.parse(x.alcance) || {}; } catch (e) { al = {}; } return { ...x, alcance: al }; });
 }
 
@@ -2481,6 +2483,46 @@ async function rutaClienteSupervisores(env, actor, b) {
   return { ok: true, id: sup.id, clave, supervisores: await listaSupervisores(env, camp.id) };
 }
 
+// ---- Perfil de una persona (lo asigna el consultor desde «Personas y enlaces»): responsable (hoy), supervisor (su sección) o gerente (su gerencia, con validación final).
+// Supervisor y gerente entran al panel del cliente con su propia clave; el alcance sale de su gerencia o sección. La clave solo se ve al crearla o renovarla.
+async function rutaPersonaPerfil(env, b) {
+  const camp = await env.DB.prepare('SELECT * FROM campanas WHERE id=?').bind(txt(b.campana_id, 60)).first();
+  if (!camp) throw new HttpError(404, 'Campaña no encontrada');
+  const perfil = String(b.perfil || '');
+  if (!['responsable', 'supervisor', 'gerente'].includes(perfil)) throw new HttpError(400, 'Perfil inválido');
+  const enc = await env.DB.prepare('SELECT id, nombre, correo, gerencia, seccion FROM encuestados WHERE id=? AND campana_id=?').bind(txt(b.encuestado_id, 60), camp.id).first();
+  if (!enc) throw new HttpError(404, 'Persona no encontrada');
+  const actor = { rol: 'consultor', sup: null, nombre: 'Equipo consultor' };
+  const sup = await env.DB.prepare('SELECT * FROM supervisores WHERE campana_id=? AND encuestado_id=?').bind(camp.id, enc.id).first();
+  if (perfil === 'responsable') {
+    if (sup && sup.activo) {
+      await env.DB.prepare('UPDATE supervisores SET activo=0 WHERE id=?').bind(sup.id).run();
+      await registrarAccion(env, camp.id, actor, 'perfil_quitado', { persona: enc.nombre, supervisor_id: sup.id });
+    }
+    return { ok: true, perfil, supervisores: await listaSupervisores(env, camp.id) };
+  }
+  let alcance;
+  try { alcance = await alcanceValido(env, camp, perfil === 'gerente' ? { gerencias: [enc.gerencia] } : { secciones: [{ g: enc.gerencia, s: enc.seccion }] }); }
+  catch (e) { throw new HttpError(400, 'No hay procesos ni esqueleto para «' + enc.gerencia + (perfil === 'supervisor' ? ' · ' + enc.seccion : '') + '». Cárgalos primero para poder darle este perfil.'); }
+  let clave = '', id;
+  if (sup) {
+    id = sup.id;
+    const cambia = sup.perfil !== perfil || !sup.activo;
+    if (b.regenerar) { clave = generarClave(); await validarClaveNueva(env, camp, clave, sup.id); }
+    const valores = [perfil, cambia ? JSON.stringify(alcance) : sup.alcance, enc.nombre, enc.correo || sup.correo];
+    if (clave) valores.push(await hashClaveSup(clave));
+    valores.push(sup.id);
+    await env.DB.prepare('UPDATE supervisores SET perfil=?, alcance=?, activo=1, nombre=?, correo=?' + (clave ? ', clave_hash=?' : '') + ' WHERE id=?').bind(...valores).run();
+  } else {
+    id = uid(); clave = generarClave();
+    await validarClaveNueva(env, camp, clave, '');
+    await env.DB.prepare('INSERT INTO supervisores (id, campana_id, nombre, correo, clave_hash, activo, alcance, creado, perfil, encuestado_id) VALUES (?,?,?,?,?,1,?,?,?,?)')
+      .bind(id, camp.id, enc.nombre, enc.correo || '', await hashClaveSup(clave), JSON.stringify(alcance), ahora(), perfil, enc.id).run();
+  }
+  await registrarAccion(env, camp.id, actor, 'perfil_asignado', { persona: enc.nombre, perfil, supervisor_id: id });
+  return { ok: true, perfil, supervisor_id: id, clave, supervisores: await listaSupervisores(env, camp.id) };
+}
+
 // ---- Trazabilidad: lo que hicieron los Supervisores (y el administrador del cliente), visible para el administrador y para el consultor.
 async function trazabilidad(env, campId) {
   const [delegaciones, acciones, supervisores] = await Promise.all([
@@ -2591,6 +2633,7 @@ export default {
           if (url.pathname === '/a/estandares/probar') return json(await rutaEstandaresProbar(env, b, ctx), 200, h);
           if (url.pathname === '/a/precarga') return json(await rutaPrecarga(env, b), 200, h);
           if (url.pathname === '/a/encuestado') return json(await rutaEncuestadoAlta(env, b), 200, h);
+          if (url.pathname === '/a/persona/perfil') return json(await rutaPersonaPerfil(env, b), 200, h);
           if (url.pathname === '/a/ventana') return json(await rutaVentana(env, b), 200, h);
           if (url.pathname === '/a/campana/invitacion') return json(await rutaInvitacion(env, b), 200, h);
           if (url.pathname === '/a/campana/cliente') return json(await rutaClienteAcceso(env, b), 200, h);

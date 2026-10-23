@@ -6,6 +6,7 @@
     "dev": "wrangler dev -c wrangler.local.toml --port 8787",
     "test:flujo": "node test/flujo.mjs",
     "test:estructura": "node test/estructura.mjs",
+    "test:perfiles": "node test/perfiles.mjs",
     "semilla": "node test/semilla-demo.mjs",
     "deploy": "node sitio.mjs && npx wrangler deploy"
   },

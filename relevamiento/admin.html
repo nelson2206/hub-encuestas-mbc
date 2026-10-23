@@ -2881,7 +2881,7 @@
       (repetidos ? '<button class="btn btn-ghost btn-xs" id="btnSelDup">Seleccionar duplicados</button>' : '') +
       '<span class="muted" id="selMsg"></span></div>' +
       '<div class="row" style="margin-bottom:8px"><span class="muted" id="pCuenta" aria-live="polite"></span><span id="pArea"></span></div>';
-    h += '<div class="tblwrap"><table><thead><tr><th scope="col"><input type="checkbox" id="selTodos" aria-label="Seleccionar a todas las personas que se ven"></th><th scope="col">Nombre</th><th scope="col">Gerencia · sección</th><th scope="col">Rol o cargo</th><th scope="col">Origen</th><th scope="col">Estado</th><th scope="col" class="num">Avance</th><th scope="col" class="num">Respuestas</th><th scope="col">Última actividad</th><th scope="col"></th></tr></thead><tbody>';
+    h += '<div class="tblwrap"><table><thead><tr><th scope="col"><input type="checkbox" id="selTodos" aria-label="Seleccionar a todas las personas que se ven"></th><th scope="col">Nombre</th><th scope="col">Gerencia · sección</th><th scope="col">Rol o cargo</th><th scope="col">Origen</th><th scope="col">Estado</th><th scope="col" class="num">Avance</th><th scope="col" class="num">Respuestas</th><th scope="col">Última actividad</th><th scope="col">Perfil</th><th scope="col"></th></tr></thead><tbody>';
     C.encuestados.forEach(function(en){
       var i = info[en.id], av = i.av, ep = ESTADO_P[i.estado];
       var n = C.respuestas.filter(function(r){ return r.encuestado_id === en.id && (r.texto || '').trim(); }).length;
@@ -2897,10 +2897,11 @@
         '<td class="num">' + (av.total ? '<b>' + av.pct + '%</b><span class="pbar" role="img" aria-label="' + av.hechos + ' de ' + av.total + ' procesos completos"><i style="width:' + av.pct + '%"></i></span>' +
           '<div class="muted">' + av.hechos + ' de ' + av.total + (av.total === 1 ? ' proceso' : ' procesos') + '</div>' + (av.porMarcar ? '<div class="muted">' + av.porMarcar + ' por marcar</div>' : '') : '<span class="muted">Sin procesos asignados</span>') + '</td>' +
         '<td class="num">' + n + '</td><td>' + (i.inactiva ? '<b>' + esc(ult) + '</b>' : esc(ult)) + '</td>' +
+        '<td>' + celdaPerfil(en) + '</td>' +
         '<td><div class="row" style="flex-wrap:nowrap"><button class="btn btn-ghost btn-xs" data-procs="' + esc(en.id) + '">Procesos</button><button class="btn btn-ghost btn-xs" data-copiar="' + esc(en.token) + '">Copiar enlace</button>' +
         '<button class="btn-link" data-quitar="' + esc(en.id) + '">Borrar</button></div></td></tr>';
     });
-    if (!C.encuestados.length) h += '<tr><td colspan="10" class="muted">Todavía no hay personas: carga el Excel o activa el enlace abierto.</td></tr>';
+    if (!C.encuestados.length) h += '<tr><td colspan="11" class="muted">Todavía no hay personas: carga el Excel o activa el enlace abierto.</td></tr>';
     h += '</tbody></table></div>';
     $('#tEncuestados').innerHTML = h;
     var marcar = marcarSeleccion;
@@ -3103,7 +3104,66 @@
     });
   }
 
+  // ------------------------------------------------------------ perfil de cada persona (responsable / supervisor / gerente)
+  var PERFILES = [['responsable', 'Responsable'], ['supervisor', 'Supervisor'], ['gerente', 'Gerente']];
+  function celdaPerfil(en){
+    var p = en.perfil || 'responsable';
+    return '<select data-perfil="' + esc(en.id) + '" aria-label="Perfil de ' + esc(en.nombre) + '" style="min-width:118px">' +
+      PERFILES.map(function(x){ return '<option value="' + x[0] + '"' + (x[0] === p ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select>' +
+      (p !== 'responsable' ? '<div><button type="button" class="btn-link" data-nclave="' + esc(en.id) + '" title="Genera una clave nueva; la anterior deja de servir">Nueva clave</button></div>' : '');
+  }
+  function textoPerfil(p){
+    return p === 'gerente' ? 'Gerente: ve y delega todo lo de su gerencia, lleva el flujo de 4 pasos y da la validación final.' :
+      'Supervisor: ve y delega lo de su sección y llega hasta el avance; la validación final la da el Gerente.';
+  }
+  function dialogoAccesoPerfil(en, j){
+    var activo = !!C.campana.cliente_activo && !!C.campana.codigo_cliente, url = enlaceCliente();
+    $('#dlgT').textContent = 'Acceso de ' + en.nombre;
+    $('#dlgS').textContent = (j.perfil === 'gerente' ? 'Gerente' : 'Supervisor') + ' · ' + en.gerencia + (j.perfil === 'supervisor' ? ' · ' + en.seccion : '');
+    $('#dlgB').innerHTML = '<p class="muted" style="margin-top:0">' + esc(textoPerfil(j.perfil)) + '</p>' +
+      (activo ? '' : '<p class="msg warn" role="alert">El acceso del cliente está apagado: esta clave no entra hasta que lo actives en «Carga y configuración» → «Acceso del cliente».</p>') +
+      (j.clave ? '<label>Dirección</label><div class="row"><input type="text" readonly value="' + esc(url) + '" style="flex:1" aria-label="Dirección de acceso"><button type="button" class="btn btn-ghost btn-xs" id="apUrl">Copiar</button></div>' +
+        '<label>Clave (solo se muestra ahora)</label><div class="row"><input type="text" readonly value="' + esc(j.clave) + '" style="flex:1;font-family:monospace" aria-label="Clave"><button type="button" class="btn btn-ghost btn-xs" id="apClave">Copiar</button></div>' +
+        '<div class="row" style="margin-top:12px"><button type="button" class="btn btn-navy btn-xs" id="apEml">Preparar correo (.eml)</button><span class="muted">Se abre en Outlook como borrador, listo para enviar a ' + esc(en.correo || 'la persona') + '.</span></div>' :
+        '<p class="muted">La clave que ya se entregó sigue valiendo. Si se perdió, usa «Nueva clave» en la fila de la persona.</p>');
+    if (j.clave){
+      $('#apUrl').addEventListener('click', function(){ copiar(url, this); });
+      $('#apClave').addEventListener('click', function(){ copiar(j.clave, this); });
+      $('#apEml').addEventListener('click', function(){
+        var html = '<p>Hola ' + esc(primerNombreCl(en.nombre)) + ',</p>' +
+          '<p>Te damos acceso al seguimiento del relevamiento de procesos con el perfil de <b>' + (j.perfil === 'gerente' ? 'Gerente' : 'Supervisor') + '</b>. ' + esc(textoPerfil(j.perfil)) + '</p>' +
+          '<p>Entra aquí: <a href="' + esc(url) + '">' + esc(url) + '</a><br>Tu clave: <b style="font-family:monospace">' + esc(j.clave) + '</b></p>' +
+          '<p>La clave es personal: no la compartas. Si la pierdes, avísanos y te damos una nueva.</p><p>Saludos,<br>Equipo de seguimiento del relevamiento</p>';
+        bajarEml('Acceso ' + en.nombre, construirEml(en.correo, en.nombre, 'Tu acceso al seguimiento del relevamiento de procesos', html));
+      });
+    }
+    if (!$('#dlg').open) $('#dlg').showModal();
+  }
+  function cambiarPerfil(en, perfil, regenerar, sel){
+    var antes = en.perfil || 'responsable';
+    if (sel) sel.disabled = true;
+    return api('/a/persona/perfil', {campana_id: C.campana.id, encuestado_id: en.id, perfil: perfil, regenerar: !!regenerar}).then(function(j){
+      en.perfil = j.perfil; C.supervisores = j.supervisores || C.supervisores;
+      pintarEncuestados();
+      if (j.perfil !== 'responsable') dialogoAccesoPerfil(en, j);
+    }).catch(function(err){
+      alert(err.message); en.perfil = antes; pintarEncuestados();
+    });
+  }
+  $('#tEncuestados').addEventListener('change', function(e){
+    var sel = e.target.closest('[data-perfil]'); if (!sel) return;
+    var en = C.encuestados.filter(function(x){ return x.id === sel.dataset.perfil; })[0]; if (!en) return;
+    var nuevo = sel.value, antes = en.perfil || 'responsable';
+    if (nuevo === antes) return;
+    var msg = nuevo === 'responsable' ? '¿Quitar el acceso de supervisión a ' + en.nombre + '? Su clave deja de servir. Lo que ya hizo queda registrado.' :
+      '¿Dar a ' + en.nombre + ' el perfil de ' + (nuevo === 'gerente' ? 'Gerente de «' + en.gerencia + '»' : 'Supervisor de «' + en.gerencia + ' · ' + en.seccion + '»') + '? Se genera una clave de acceso para entregársela.';
+    if (!confirm(msg)){ sel.value = antes; return; }
+    cambiarPerfil(en, nuevo, false, sel);
+  });
+
   $('#tEncuestados').addEventListener('click', function(e){
+    var nc = e.target.closest('[data-nclave]');
+    if (nc){ var pe = C.encuestados.filter(function(x){ return x.id === nc.dataset.nclave; })[0]; if (pe && confirm('Se genera una clave nueva para ' + pe.nombre + ' y la anterior deja de servir. ¿Continuar?')) cambiarPerfil(pe, pe.perfil, true, null); return; }
     var pr = e.target.closest('[data-procs]');
     if (pr) return procesosPersona(pr.dataset.procs);
     var q = e.target.closest('[data-quitar]');

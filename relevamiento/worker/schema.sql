@@ -149,7 +149,9 @@ CREATE TABLE IF NOT EXISTS supervisores (
   activo INTEGER NOT NULL DEFAULT 1,
   alcance TEXT NOT NULL DEFAULT '{"todo":false}',
   creado TEXT NOT NULL,
-  ultimo TEXT NOT NULL DEFAULT ''
+  ultimo TEXT NOT NULL DEFAULT '',
+  perfil TEXT NOT NULL DEFAULT 'gerente',   -- supervisor (su sección) / gerente (su gerencia, con validación final)
+  encuestado_id TEXT NOT NULL DEFAULT ''    -- persona a la que se le dio el perfil desde la consola ('' = lo creó el cliente)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ix_sup_clave ON supervisores(clave_hash);
 CREATE INDEX IF NOT EXISTS ix_sup_camp ON supervisores(campana_id);

@@ -410,6 +410,7 @@
     pie(c, 4, 'Validación final');
     enlazarPie(c, 4, 'Estás dando tu aprobación final sobre ' + plural(vivos.length, 'proceso', 'procesos') + '. Después NO podrás cambiar nada ni volver atrás: solo el equipo consultor puede reabrirla.', '¿Dar tu validación final?', true);
     if (!aprobada){ var b = c.querySelector('[data-fg=confirmar]'); if (b) b.classList.remove('btn-navy'); }
+    if (F.perfil === 'supervisor'){ var bc = c.querySelector('[data-fg=confirmar]'); if (bc) bc.remove(); c.insertAdjacentHTML('beforeend', '<p class="msg info" role="note">La validación final la da el Gerente de tu área. Tú llegas hasta aquí: tus procesos, su delegación y su avance.</p>'); }
   }
 
   // ---------------------------------------------------------------- API pública
