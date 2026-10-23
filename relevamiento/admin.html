@@ -275,6 +275,21 @@
   @media (max-width:600px){ .ayuda:hover::after,.ayuda:focus::after{position:fixed;left:16px;right:16px;width:auto;top:auto;margin-top:8px} }
   .ayuda:hover::after,.ayuda:focus::after{content:attr(data-tip);position:absolute;z-index:40;left:0;top:calc(100% + 6px);width:min(360px,78vw);background:var(--navy);color:#fff;border-radius:8px;padding:9px 11px;font:400 12.5px/1.4 "Trebuchet MS","Segoe UI",sans-serif;text-align:left;white-space:normal;box-shadow:0 6px 18px rgba(0,0,0,.28)}
 </style>
+<script>
+// Migración a https://relevamiento.mbc-latam.com (2026-10-23): quien entra por la dirección antigua pasa a la nueva, con su mismo enlace.
+// Antes de pasar se comprueba que la red deja cargar el sitio nuevo (una imagen real); si no carga, esta página sigue funcionando
+// igual contra el mismo Worker y la misma base. La clave de la consola no se traslada: se vuelve a escribir.
+(function(){
+  var NUEVO = 'https://relevamiento.mbc-latam.com';
+  if (!/^(encuesta\.mbc-latam\.com|nelson2206\.github\.io)$/.test(location.hostname)) return;
+  var q = location.search, p = new URLSearchParams(q);
+  
+  var destino = NUEVO + '/admin' + q + location.hash;
+  var img = new Image(), t = setTimeout(function(){ img.onload = null; }, 4000);
+  img.onload = function(){ clearTimeout(t); location.replace(destino); };
+  img.src = NUEVO + '/favicon.png?v=' + Date.now();
+})();
+</script>
 </head>
 <body>
 <header><div class="hin"><div><h1>Consola de relevamiento de procesos</h1><div class="sub">Voz MBC · uso interno del equipo consultor</div></div><img id="hdLogo" class="hidden" alt="" style="margin-left:auto;height:44px;width:auto;background:#fff;border-radius:9px;padding:6px 12px;box-sizing:content-box"></div></header>

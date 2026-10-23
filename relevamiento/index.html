@@ -197,6 +197,23 @@
   .foot-inner{max-width:820px;margin:0 auto;font-size:12.5px}
   .hidden{display:none !important}
 </style>
+<script>
+// Migración a https://relevamiento.mbc-latam.com (2026-10-23): quien entra por la dirección antigua pasa a la nueva, con su mismo enlace.
+// Antes de pasar se comprueba que la red deja cargar el sitio nuevo (una imagen real); si no carga, esta página sigue funcionando
+// igual contra el mismo Worker y la misma base. Aquí también se lleva el avance guardado en este navegador (la encuesta lo guarda por origen).
+(function(){
+  var NUEVO = 'https://relevamiento.mbc-latam.com';
+  if (!/^(encuesta\.mbc-latam\.com|nelson2206\.github\.io)$/.test(location.hostname)) return;
+  var q = location.search, p = new URLSearchParams(q);
+  if (!p.get('k') && p.get('c')){
+    try { var g = JSON.parse(localStorage.getItem('relev-' + p.get('c')) || 'null'); if (g && g.k) q = '?k=' + encodeURIComponent(g.k); } catch(e){}
+  }
+  var destino = NUEVO + '/' + q + location.hash;
+  var img = new Image(), t = setTimeout(function(){ img.onload = null; }, 4000);
+  img.onload = function(){ clearTimeout(t); location.replace(destino); };
+  img.src = NUEVO + '/favicon.png?v=' + Date.now();
+})();
+</script>
 </head>
 <body>
 
