@@ -63,6 +63,14 @@ try {
   const cf = await sup('POST', '/c/flujo/confirmar', { paso: 4 });
   ok(cf.status === 403 && /Gerente/.test(cf.error || ''), 'el Supervisor no puede dar la validación final', cf);
 
+  console.log('Claves del equipo');
+  const claveDe = (vol, id) => ((vol.encuestados || []).find(e => e.id === id) || {}).clave_acceso || '';
+  const vg = await ger('GET', '/c/campana?recarga=1'), vs = await sup('GET', '/c/campana?recarga=1'), vc = await conClave('ClienteDePrueba26')('GET', '/c/campana?recarga=1');
+  ok(claveDe(vg, luis.id) === claveLuis, 'el Gerente ve la clave del Supervisor de su gerencia');
+  ok(claveDe(vs, ana.id) === '', 'el Supervisor NO ve la clave del Gerente (con ella se da la validación final)');
+  ok(claveDe(vs, luis.id) === claveLuis, 'el Supervisor ve su propia clave');
+  ok(claveDe(vc, ana.id) === claveAna && (vc.supervisores || []).every(s => 'clave' in s), 'el administrador del cliente ve todas las claves');
+
   console.log('Clave nueva y quitar el perfil');
   r = await admin('POST', '/a/persona/perfil', { campana_id: cid, encuestado_id: luis.id, perfil: 'supervisor', regenerar: true });
   ok(r.ok && r.clave && r.clave !== claveLuis, 'una clave nueva reemplaza a la anterior', r);

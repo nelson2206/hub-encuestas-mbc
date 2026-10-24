@@ -2289,8 +2289,9 @@ async function registrarDelegaciones(env, camp, actor, encId, pids) {
   return st.length;
 }
 
-async function listaSupervisores(env, campId) {
-  const r = (await env.DB.prepare('SELECT id, nombre, correo, activo, alcance, creado, ultimo, perfil, encuestado_id FROM supervisores WHERE campana_id=? ORDER BY nombre').bind(campId).all()).results;
+// conClave: incluye el texto de la clave (solo para el consultor y el administrador del cliente).
+async function listaSupervisores(env, campId, conClave) {
+  const r = (await env.DB.prepare('SELECT id, nombre, correo, activo, alcance, creado, ultimo, perfil, encuestado_id' + (conClave ? ', clave' : '') + ' FROM supervisores WHERE campana_id=? ORDER BY nombre').bind(campId).all()).results;
   return r.map(x => { let al = {}; try { al = JSON.parse(x.alcance) || {}; } catch (e) { al = {}; } return { ...x, alcance: al }; });
 }
 
@@ -2318,6 +2319,15 @@ async function rutaClienteCampana(env, actor, recarga) {
     precarga = precarga.filter(x => amb.procs.has(x.proceso_id));
     ventanas = ventanas.filter(v => enSecs(amb, v.gerencia, v.seccion) || (!v.seccion && amb.filas.some(p => mismaArea(p.gerencia, v.gerencia))));
   }
+  // Accesos del equipo: el administrador del cliente ve todas las claves; un Gerente o Supervisor ve las de los Supervisores de su
+  // alcance (y la suya). La clave de un Gerente nunca la ve otro: con ella se da la validación final.
+  const sups = (await env.DB.prepare("SELECT id, encuestado_id, perfil, clave FROM supervisores WHERE campana_id=? AND activo=1 AND encuestado_id<>''").bind(camp.id).all()).results;
+  encuestados = encuestados.map(e => {
+    const sp = sups.find(x => x.encuestado_id === e.id);
+    if (!sp) return e;
+    const propia = actor.sup && actor.sup.id === sp.id, ve = actor.rol === 'cliente' || propia || sp.perfil === 'supervisor';
+    return { ...e, perfil: sp.perfil, clave_acceso: ve ? sp.clave || '' : '' };
+  });
   const limpias = respuestas.map(r => {
     const ck = leerMatriz(r.checklist), sano = {};
     Object.keys(ck).forEach(k => { if (k[0] !== '_' && ck[k]) sano[k] = { estado: ck[k].estado, fuente: ck[k].fuente }; });   // sin la evidencia (cita de la persona)
@@ -2330,7 +2340,7 @@ async function rutaClienteCampana(env, actor, recarga) {
     log('cliente_ingreso', { campana: camp.id, rol: actor.rol });
   }
   return { ok: true, rol: actor.rol, yo: { nombre: actor.nombre },
-    supervisores: actor.rol === 'cliente' ? await listaSupervisores(env, camp.id) : undefined,
+    supervisores: actor.rol === 'cliente' ? await listaSupervisores(env, camp.id, true) : undefined,
     campana: { id: camp.id, nombre: camp.nombre, cliente: camp.cliente, logo: camp.logo || '', creada: camp.creada,
       codigo_publico: camp.codigo_publico || '', abierta: camp.abierta ? 1 : 0, invitacion: camp.invitacion || '' },
     encuestados, procesos, revisiones, respuestas: limpias, asignaciones, precarga, ventanas, estructurado: [], sistemas: [], bloques: BLOQUES, generado: ahora() };
@@ -2461,7 +2471,7 @@ async function rutaClienteSupervisores(env, actor, b) {
     await env.DB.prepare('INSERT INTO supervisores (id, campana_id, nombre, correo, clave_hash, clave, activo, alcance, creado) VALUES (?,?,?,?,?,?,1,?,?)')
       .bind(id, camp.id, nombre, correo, await hashClaveSup(clave), clave, JSON.stringify(alcance), ahora()).run();
     await registrarAccion(env, camp.id, actor, 'supervisor_creado', { supervisor: nombre, supervisor_id: id });
-    return { ok: true, id, clave, supervisores: await listaSupervisores(env, camp.id) };
+    return { ok: true, id, clave, supervisores: await listaSupervisores(env, camp.id, true) };
   }
   const sup = await env.DB.prepare('SELECT * FROM supervisores WHERE id=? AND campana_id=?').bind(txt(b.id, 60), camp.id).first();
   if (!sup) throw new HttpError(404, 'Supervisor no encontrado');
@@ -2481,7 +2491,7 @@ async function rutaClienteSupervisores(env, actor, b) {
     await env.DB.prepare('UPDATE supervisores SET clave_hash=?, clave=? WHERE id=?').bind(await hashClaveSup(clave), clave, sup.id).run();
     await registrarAccion(env, camp.id, actor, 'supervisor_clave_nueva', { supervisor: sup.nombre, supervisor_id: sup.id });
   }
-  return { ok: true, id: sup.id, clave, supervisores: await listaSupervisores(env, camp.id) };
+  return { ok: true, id: sup.id, clave, supervisores: await listaSupervisores(env, camp.id, true) };
 }
 
 // ---- Perfil de una persona (lo asigna el consultor desde «Personas y enlaces»): responsable (hoy), supervisor (su sección) o gerente (su gerencia, con validación final).
@@ -2500,7 +2510,7 @@ async function rutaPersonaPerfil(env, b) {
       await env.DB.prepare('UPDATE supervisores SET activo=0 WHERE id=?').bind(sup.id).run();
       await registrarAccion(env, camp.id, actor, 'perfil_quitado', { persona: enc.nombre, supervisor_id: sup.id });
     }
-    return { ok: true, perfil, supervisores: await listaSupervisores(env, camp.id) };
+    return { ok: true, perfil, supervisores: await listaSupervisores(env, camp.id, true) };
   }
   let alcance;
   try { alcance = await alcanceValido(env, camp, perfil === 'gerente' ? { gerencias: [enc.gerencia] } : { secciones: [{ g: enc.gerencia, s: enc.seccion }] }); }
@@ -2522,7 +2532,7 @@ async function rutaPersonaPerfil(env, b) {
       .bind(id, camp.id, enc.nombre, enc.correo || '', await hashClaveSup(clave), clave, JSON.stringify(alcance), ahora(), perfil, enc.id).run();
   }
   await registrarAccion(env, camp.id, actor, 'perfil_asignado', { persona: enc.nombre, perfil, supervisor_id: id });
-  return { ok: true, perfil, supervisor_id: id, clave, supervisores: await listaSupervisores(env, camp.id) };
+  return { ok: true, perfil, supervisor_id: id, clave, supervisores: await listaSupervisores(env, camp.id, true) };
 }
 
 // ---- Trazabilidad: lo que hicieron los Supervisores (y el administrador del cliente), visible para el administrador y para el consultor.

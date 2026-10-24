@@ -508,8 +508,8 @@
 <dialog id="dlg"><div class="dlg-h"><div style="flex:1;min-width:0"><h2 id="dlgT" style="font-size:16px"></h2><div class="muted" id="dlgS"></div></div><button class="btn btn-ghost btn-xs" id="dlgCerrar">Cerrar</button></div><div class="dlg-b" id="dlgB"></div></dialog>
 <datalist id="dlGer"></datalist><datalist id="dlSec"></datalist><datalist id="dlMacro"></datalist>
 
-<script src="flujo-gerente.js?v=20261024"></script>
-<script src="flujo-admin.js?v=20261024"></script>
+<script src="flujo-gerente.js?v=20261024b"></script>
+<script src="flujo-admin.js?v=20261024b"></script>
 <script>
 'use strict';
 (function(){
@@ -3590,7 +3590,7 @@
     FLUJO_MONTADO = true;
     window.FlujoGerente.montar({raiz: $('#clFlujo'), get: getCl, post: apiCl, datos: function(){ return C; }, recargar: function(){ return recargarCl(); },
       agregarPersona: dialogoPersonaCl, asignarProceso: dialogoAsignarProcesoCl, correos: pasoCorreoCl, abrirDlg: abrirDlgCl, esc: esc, fecha: fecha,
-      copiarEnlace: function(eid, boton){ copiarEnlacesCl([eid], boton, false); },
+      copiarEnlace: function(eid, boton){ copiarEnlacesCl([eid], boton, false); }, copiarTexto: copiarAsyncCl,
       correoPersona: function(eid, pids, boton){ descargarCorreosCl([{eid: eid, pids: pids}], boton); }});
   }
   function recargarCl(aviso){
@@ -3939,9 +3939,10 @@
     var cu = $('#clSupCuerpo'); if (!cu) return;
     cu.innerHTML = '<p class="muted" style="margin-top:0">Un Supervisor entra con su propia clave y solo ve y gestiona los procesos de su alcance: puede agregar personas, delegarles procesos y descargar el correo para avisarles. No ve lo que responden las personas.</p>' +
       '<div class="row"><button type="button" class="btn btn-xs" data-sup="nuevo">+ Nuevo supervisor</button><span class="muted" id="msgSup" role="status"></span></div>' +
-      (C.supervisores.length ? '<div class="tblwrap" style="margin-top:8px"><table><thead><tr><th scope="col">Supervisor</th><th scope="col">Alcance</th><th scope="col">Estado</th><th scope="col">Último ingreso</th><th scope="col">Acciones</th></tr></thead><tbody>' +
+      (C.supervisores.length ? '<div class="tblwrap" style="margin-top:8px"><table><thead><tr><th scope="col">Supervisor</th><th scope="col">Alcance</th><th scope="col">Clave</th><th scope="col">Estado</th><th scope="col">Último ingreso</th><th scope="col">Acciones</th></tr></thead><tbody>' +
         C.supervisores.map(function(s){
           return '<tr' + (s.activo ? '' : ' class="inactivo"') + '><td><b>' + esc(s.nombre) + '</b>' + (s.correo ? '<div class="muted">' + esc(s.correo) + '</div>' : '') + '</td><td>' + esc(alcanceTextoCl(s.alcance)) + '</td>' +
+            '<td>' + (s.clave ? '<code>' + esc(s.clave) + '</code> <button type="button" class="btn-link" data-copiarclave="' + esc(s.clave) + '">Copiar</button>' : '<span class="muted">—</span>') + '</td>' +
             '<td>' + (s.activo ? '<span class="chip c-ok">Activo</span>' : '<span class="chip c-mut">Desactivado</span>') + '</td><td>' + esc(s.ultimo ? fecha(s.ultimo) : 'Nunca') + '</td>' +
             '<td class="acc-cl"><button type="button" class="btn btn-ghost btn-xs" data-sup="editar" data-id="' + esc(s.id) + '">Editar</button> ' +
             '<button type="button" class="btn btn-ghost btn-xs" data-sup="clave" data-id="' + esc(s.id) + '">Nueva clave</button> ' +
@@ -3949,11 +3950,11 @@
         }).join('') + '</tbody></table></div>' : '<p class="muted">Todavía no hay supervisores.</p>');
   }
   function urlAccesoCl(){ return location.origin + location.pathname + location.search; }
-  // La clave solo se ve en este momento: se entrega por correo (.eml para Outlook) o se copia.
+  // Datos de acceso para entregar por correo (.eml para Outlook) o copiar; la clave también queda visible en la lista.
   function mostrarAccesoSupCl(s, clave){
     var url = urlAccesoCl();
     abrirDlgCl('Acceso del supervisor', s.nombre,
-      '<p style="margin-top:0">Entrega estos datos a <b>' + esc(s.nombre) + '</b>. <b>La clave no se vuelve a mostrar</b>: si se pierde, genera una nueva.</p>' +
+      '<p style="margin-top:0">Entrega estos datos a <b>' + esc(s.nombre) + '</b>. Si se pierde, puedes volver a verla en la lista de supervisores.</p>' +
       '<div class="grid2"><div><label for="asDir">Dirección</label><input type="text" id="asDir" readonly value="' + esc(url) + '"></div><div><label for="asClave">Clave</label><input type="text" id="asClave" readonly value="' + esc(clave) + '"></div></div>' +
       '<div class="row" style="margin-top:12px"><button type="button" class="btn btn-xs" data-ac="copiar">Copiar dirección y clave</button>' +
       '<button type="button" class="btn btn-ghost btn-xs" data-ac="eml">Descargar correo de acceso (.eml)</button><button type="button" class="btn btn-ghost btn-xs" data-ac="cerrar">Terminar</button></div>' +
@@ -4035,6 +4036,7 @@
     });
   }
   $('#clAdmin').addEventListener('click', function(ev){
+    var cc = ev.target.closest('[data-copiarclave]'); if (cc){ copiarAsyncCl(cc.dataset.copiarclave, cc); return; }
     var b = ev.target.closest('[data-sup]'); if (!b) return;
     var a = b.dataset.sup, id = b.dataset.id;
     if (a === 'nuevo' || a === 'editar') return dialogoSupervisorCl(a === 'editar' ? id : null);

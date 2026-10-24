@@ -288,13 +288,15 @@
             '<div>' + (editable ? '<button type="button" class="btn btn-ghost btn-xs" data-fg="asignar" data-id="' + esc(p.id) + '">' + (nom.length ? 'Cambiar' : 'Asignar') + '</button>' : '') + '</div></div>';
         }).join('') + '</section>';
     }).join('');
-    h += responsables(vivos);
+    h += responsables(vivos) + equipo();
     c.innerHTML = h;
     pie(c, 2, sin ? 'Continuar al avance' : 'Confirmar delegación y continuar');
     enlazarPie(c, 2, sin ? 'Quedan ' + plural(sin, 'proceso', 'procesos') + ' sin responsable. Pasarás a seguir el avance de lo ya asignado; este paso quedará pendiente y podrás volver para terminarlo.'
       : 'Pasarás a seguir el avance de las respuestas. Podrás volver a este paso para delegar más.', '¿Estás seguro de continuar?');
     Array.prototype.forEach.call(c.querySelectorAll('[data-fg=copiar]'), function(b){ b.onclick = function(){ X.copiarEnlace(b.dataset.id, b); }; });
     Array.prototype.forEach.call(c.querySelectorAll('[data-fg=correo]'), function(b){ b.onclick = function(){ X.correoPersona(b.dataset.id, asignadosA(b.dataset.id, vivos), b); }; });
+    Array.prototype.forEach.call(c.querySelectorAll('[data-fg=cclave]'), function(b){ b.onclick = function(){ X.copiarTexto(b.dataset.v, b); }; });
+    Array.prototype.forEach.call(c.querySelectorAll('[data-fg=cacceso]'), function(b){ b.onclick = function(){ X.copiarTexto('Dirección: ' + direccionAcceso() + '\nClave: ' + b.dataset.v, b); }; });
     Array.prototype.forEach.call(c.querySelectorAll('[data-fg=asignar]'), function(b){ b.onclick = function(){ X.asignarProceso(b.dataset.id); }; });
     Array.prototype.forEach.call(c.querySelectorAll('[data-fg=persona]'), function(b){ b.onclick = function(){ X.agregarPersona(b.dataset.g, b.dataset.s); }; });
     var bl = c.querySelector('[data-fg=bloque]'); if (bl) bl.onclick = function(){ dialogoBloque(null); };
@@ -317,6 +319,23 @@
         return '<div class="fg-fila"><div class="fg-nom"><b>' + esc(x.e.nombre) + '</b><p class="muted">' + esc([x.e.rol, x.e.seccion, plural(x.n, 'proceso', 'procesos')].filter(Boolean).join(' · ')) + '</p></div>' +
           '<div class="fg-der"><button type="button" class="btn btn-ghost btn-xs" data-fg="copiar" data-id="' + esc(x.e.id) + '">Copiar enlace</button>' +
           '<button type="button" class="btn btn-ghost btn-xs" data-fg="correo" data-id="' + esc(x.e.id) + '">Correo para Outlook</button></div></div>';
+      }).join('') + '</section>';
+  }
+
+  // Accesos de tu equipo: las claves de los Supervisores de tu alcance (el servidor solo envía las que puedes ver).
+  function direccionAcceso(){ return location.origin + location.pathname + location.search; }
+  function equipo(){
+    var yo = (F.supervisor && F.supervisor.nombre) || '';
+    var lista = X.datos().encuestados.filter(function(e){ return e.clave_acceso && e.nombre !== yo; })
+      .sort(function(a, b){ return a.nombre.localeCompare(b.nombre, 'es'); });
+    if (!lista.length) return '';
+    return '<section class="fg-resp" aria-labelledby="fgEqT"><h3 id="fgEqT">Accesos de tu equipo</h3>' +
+      '<p class="muted" style="margin-top:0">Supervisores de tu alcance. Entran por esta misma dirección con su clave: ' + esc(direccionAcceso()) + '</p>' +
+      lista.map(function(e){
+        return '<div class="fg-fila"><div class="fg-nom"><b>' + esc(e.nombre) + '</b><p class="muted">' + esc([e.perfil === 'gerente' ? 'Gerente' : 'Supervisor', e.rol, e.seccion].filter(Boolean).join(' · ')) +
+          ' · clave <code>' + esc(e.clave_acceso) + '</code></p></div>' +
+          '<div class="fg-der"><button type="button" class="btn btn-ghost btn-xs" data-fg="cclave" data-v="' + esc(e.clave_acceso) + '">Copiar clave</button>' +
+          '<button type="button" class="btn btn-ghost btn-xs" data-fg="cacceso" data-v="' + esc(e.clave_acceso) + '">Copiar acceso</button></div></div>';
       }).join('') + '</section>';
   }
 
