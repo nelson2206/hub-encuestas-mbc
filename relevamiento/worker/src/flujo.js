@@ -60,6 +60,8 @@ function calcular(datos, sup) {
     4: { faltan: faltan(activos.filter(p => p.validacion !== 'validado')) }
   };
   [2, 3, 4].forEach(n => { compuertas[n].ok = compuertas[n].faltan.length === 0; });
+  // La delegación no bloquea: se puede seguir con procesos sin responsable y el paso queda «pendiente» hasta delegarlos todos.
+  compuertas[2].pendiente = !compuertas[2].ok; compuertas[2].ok = true;
 
   const confirmado = {};
   datos.pasos.filter(x => x.supervisor_id === sup.id).forEach(x => { confirmado[x.paso] = x.confirmado_en; });

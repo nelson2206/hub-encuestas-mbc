@@ -101,9 +101,12 @@ try {
 
   console.log('Paso 2 · delegación');
   const sinDelegar = await gerente('POST', '/c/flujo/confirmar', { paso: 2 });
-  ok(sinDelegar.status === 409 && sinDelegar.faltan.length === 2, 'no continúa con procesos sin responsable', sinDelegar);
+  ok(sinDelegar.ok && sinDelegar.paso_actual === 3, 'la delegación no bloquea: continúa con procesos sin responsable', sinDelegar);
+  f = await gerente('GET', '/c/flujo');
+  ok(f.paso_actual === 3 && f.compuertas[2].pendiente && f.compuertas[2].faltan.length === 2, 'el paso 2 queda pendiente con sus 2 procesos sin responsable', f.compuertas[2]);
   ok((await gerente('POST', '/c/asignar', { encuestado_id: pid, agregar: [p1, p2] })).ok, 'delega los procesos a una persona');
-  ok((await gerente('POST', '/c/flujo/confirmar', { paso: 2 })).ok, 'confirma el paso 2');
+  f = await gerente('GET', '/c/flujo');
+  ok(!f.compuertas[2].pendiente && f.paso_actual === 3, 'al delegarlos todos el paso 2 deja de estar pendiente', f.compuertas[2]);
 
   console.log('Paso 3 · avance');
   const sinResp = await gerente('POST', '/c/flujo/confirmar', { paso: 3 });

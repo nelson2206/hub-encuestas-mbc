@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS supervisores (
   nombre TEXT NOT NULL,
   correo TEXT NOT NULL DEFAULT '',
   clave_hash TEXT NOT NULL,
+  clave TEXT NOT NULL DEFAULT '',          -- texto de la clave, visible solo en la consola del consultor (migración 017)
   activo INTEGER NOT NULL DEFAULT 1,
   alcance TEXT NOT NULL DEFAULT '{"todo":false}',
   creado TEXT NOT NULL,

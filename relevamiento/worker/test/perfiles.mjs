@@ -68,10 +68,13 @@ try {
   ok(r.ok && r.clave && r.clave !== claveLuis, 'una clave nueva reemplaza a la anterior', r);
   ok((await sup('GET', '/c/flujo')).status === 401, 'la clave anterior deja de servir');
   ok((await conClave(r.clave)('GET', '/c/flujo')).ok, 'la clave nueva entra');
+  const claveNueva = r.clave;
   r = await admin('POST', '/a/persona/perfil', { campana_id: cid, encuestado_id: luis.id, perfil: 'responsable' });
   ok(r.ok && !r.clave, 'se quita el perfil');
   r = await admin('POST', '/a/persona/perfil', { campana_id: cid, encuestado_id: luis.id, perfil: 'supervisor' });
-  ok(r.ok && !r.clave, 'volver a darle el perfil reactiva su acceso sin cambiar la clave');
+  ok(r.ok && r.clave === claveNueva, 'volver a darle el perfil reactiva su acceso con la misma clave, que se puede volver a ver', r.clave);
+  const vista = await admin('GET', '/a/campana?id=' + cid);
+  ok((vista.encuestados || []).find(e => e.id === luis.id).clave_acceso === claveNueva, 'la consola del consultor vuelve a mostrar la clave');
   const tr = await admin('GET', '/a/campana/trazabilidad?id=' + cid);
   ok((tr.acciones || []).some(a => a.accion === 'perfil_asignado') && (tr.acciones || []).some(a => a.accion === 'perfil_quitado'), 'las asignaciones quedan en la trazabilidad');
 } finally {

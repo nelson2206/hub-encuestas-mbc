@@ -23,6 +23,10 @@
     '.fg-paso.hecho .fg-num{background:var(--ok);border-color:var(--ok);color:#fff}' +
     '.fg-paso.actual .fg-num{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}' +
     '.fg-paso.vista .fg-num{outline:3px solid var(--navy);outline-offset:2px}' +
+    '.fg-paso.hecho.pend .fg-num{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}' +
+    '.fg-paso.pend .fg-sub{color:var(--warn);font-weight:600}' +
+    '.fg-resp{margin:18px 0 6px}.fg-resp h3{font-size:15px;margin:0 0 2px}' +
+    '.fg-resp .fg-fila .fg-der{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}' +
     '.fg-et{display:block;margin-top:6px;font-family:Montserrat,sans-serif;font-weight:700;font-size:12.5px;color:var(--heading)}' +
     '.fg-sub{display:block;font-size:11.5px;color:var(--muted)}' +
     '@media (max-width:640px){.fg-sub{display:none}.fg-et{font-size:11px}}' +
@@ -54,6 +58,7 @@
     return '<span class="pbar grande" role="img" aria-label="' + esc(texto || (pct(a, b) + '%')) + '"><i style="width:' + pct(a, b) + '%"></i></span>';
   }
   function activos(){ return F.procesos.filter(function(p){ return !p.quitado; }); }
+  function sinResponsable(){ return activos().filter(function(p){ return !p.delegados; }).length; }
   function porSeccion(lista){
     var m = {}, orden = [];
     lista.forEach(function(p){
@@ -110,9 +115,10 @@
       '<br><span class="muted" style="color:inherit">Tus procesos quedaron cerrados. Si necesitas corregir algo, pídele al equipo consultor que reabra tu aprobación.</span></div>';
     h += '<ol class="fg-pasos" aria-label="Pasos del flujo">' + PASOS.map(function(p){
       var hecho = F.paso_actual > p.n, actual = F.paso_actual === p.n, bloqueado = F.paso_actual < p.n;
-      return '<li class="fg-paso ' + (hecho ? 'hecho' : actual ? 'actual' : 'bloq') + (VISTA === p.n ? ' vista' : '') + '"' + (VISTA === p.n ? ' aria-current="step"' : '') + '>' +
-        '<button type="button" data-paso="' + p.n + '"' + (bloqueado ? ' disabled' : '') + '><span class="fg-num">' + (hecho ? '✓' : p.n) + '</span>' +
-        '<span class="fg-et">' + esc(p.t) + '</span><span class="fg-sub">' + esc(p.d) + '</span></button></li>';
+      var pend = p.n === 2 && hecho && sinResponsable() > 0;   // la delegación se puede dejar a medias: queda pendiente
+      return '<li class="fg-paso ' + (hecho ? 'hecho' : actual ? 'actual' : 'bloq') + (pend ? ' pend' : '') + (VISTA === p.n ? ' vista' : '') + '"' + (VISTA === p.n ? ' aria-current="step"' : '') + '>' +
+        '<button type="button" data-paso="' + p.n + '"' + (bloqueado ? ' disabled' : '') + '><span class="fg-num">' + (hecho && !pend ? '✓' : p.n) + '</span>' +
+        '<span class="fg-et">' + esc(p.t) + '</span><span class="fg-sub">' + esc(pend ? 'Pendiente: ' + plural(sinResponsable(), 'proceso sin responsable', 'procesos sin responsable') : p.d) + '</span></button></li>';
     }).join('') + '</ol>';
     h += '<div id="fgCuerpo"></div>';
     X.raiz.innerHTML = h;
@@ -127,8 +133,11 @@
   // Barra inferior de cada paso: volver y confirmar (con la lista de lo que falta si todavía no se puede).
   function pie(c, paso, textoBoton){
     var puede = F.compuertas[paso].ok, esActual = F.paso_actual === paso, aprobada = !!F.aprobacion;
-    var h = '';
-    if (esActual && !puede && F.compuertas[paso].faltan.length){
+    var h = '', sin = paso === 2 ? sinResponsable() : 0;
+    if (sin && !aprobada){
+      h += '<div class="fg-falta msg warn"><b>' + plural(sin, 'proceso sigue', 'procesos siguen') + ' sin responsable.</b> ' +
+        (esActual ? 'Puedes continuar y volver a este paso cuando quieras; quedará marcado como pendiente hasta que todos tengan a alguien a cargo.' : 'Este paso está pendiente: asígnalos cuando puedas.') + '</div>';
+    } else if (esActual && !puede && F.compuertas[paso].faltan.length){
       var lista = F.compuertas[paso].faltan;
       h += '<div class="fg-falta msg warn"><b>' + (paso === 1 ? 'Para continuar:' : 'Para continuar faltan ' + plural(lista.length, 'proceso', 'procesos') + ':') + '</b><ul>' +
         lista.slice(0, 30).map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + (lista.length > 30 ? '<li>…y ' + (lista.length - 30) + ' más</li>' : '') + '</ul></div>';
@@ -279,13 +288,36 @@
             '<div>' + (editable ? '<button type="button" class="btn btn-ghost btn-xs" data-fg="asignar" data-id="' + esc(p.id) + '">' + (nom.length ? 'Cambiar' : 'Asignar') + '</button>' : '') + '</div></div>';
         }).join('') + '</section>';
     }).join('');
+    h += responsables(vivos);
     c.innerHTML = h;
-    pie(c, 2, 'Confirmar delegación y continuar');
-    enlazarPie(c, 2, 'Pasarás a seguir el avance de las respuestas. Podrás volver a este paso para delegar más.', '¿Estás seguro de continuar?');
+    pie(c, 2, sin ? 'Continuar al avance' : 'Confirmar delegación y continuar');
+    enlazarPie(c, 2, sin ? 'Quedan ' + plural(sin, 'proceso', 'procesos') + ' sin responsable. Pasarás a seguir el avance de lo ya asignado; este paso quedará pendiente y podrás volver para terminarlo.'
+      : 'Pasarás a seguir el avance de las respuestas. Podrás volver a este paso para delegar más.', '¿Estás seguro de continuar?');
+    Array.prototype.forEach.call(c.querySelectorAll('[data-fg=copiar]'), function(b){ b.onclick = function(){ X.copiarEnlace(b.dataset.id, b); }; });
+    Array.prototype.forEach.call(c.querySelectorAll('[data-fg=correo]'), function(b){ b.onclick = function(){ X.correoPersona(b.dataset.id, asignadosA(b.dataset.id, vivos), b); }; });
     Array.prototype.forEach.call(c.querySelectorAll('[data-fg=asignar]'), function(b){ b.onclick = function(){ X.asignarProceso(b.dataset.id); }; });
     Array.prototype.forEach.call(c.querySelectorAll('[data-fg=persona]'), function(b){ b.onclick = function(){ X.agregarPersona(b.dataset.g, b.dataset.s); }; });
     var bl = c.querySelector('[data-fg=bloque]'); if (bl) bl.onclick = function(){ dialogoBloque(null); };
     Array.prototype.forEach.call(c.querySelectorAll('[data-fg=dsec]'), function(b){ b.onclick = function(){ dialogoBloque(b.dataset.k); }; });
+  }
+
+  // Procesos de la lista que tiene a cargo una persona (asignados por cualquiera, salvo los que se excluyeron).
+  function asignadosA(eid, vivos){
+    var ids = {}; vivos.forEach(function(p){ ids[p.id] = 1; });
+    return (X.datos().asignaciones || []).filter(function(a){ return a.encuestado_id === eid && a.origen !== 'excluido' && ids[a.proceso_id]; }).map(function(a){ return a.proceso_id; });
+  }
+  // Quienes ya tienen procesos asignados, con su enlace personal a mano (copiar o correo para Outlook) para avisarles cuando se quiera.
+  function responsables(vivos){
+    var D = X.datos(), gente = D.encuestados.map(function(e){ return {e: e, n: asignadosA(e.id, vivos).length}; }).filter(function(x){ return x.n; })
+      .sort(function(a, b){ return a.e.nombre.localeCompare(b.e.nombre, 'es'); });
+    if (!gente.length) return '';
+    return '<section class="fg-resp" aria-labelledby="fgRespT"><h3 id="fgRespT">Responsables y su enlace</h3>' +
+      '<p class="muted" style="margin-top:0">Cada persona entra con su enlace personal y ve solo los procesos que le asignaste. Descarga su correo para enviarlo desde Outlook, o copia el enlace para mandarlo por Teams o WhatsApp.</p>' +
+      gente.map(function(x){
+        return '<div class="fg-fila"><div class="fg-nom"><b>' + esc(x.e.nombre) + '</b><p class="muted">' + esc([x.e.rol, x.e.seccion, plural(x.n, 'proceso', 'procesos')].filter(Boolean).join(' · ')) + '</p></div>' +
+          '<div class="fg-der"><button type="button" class="btn btn-ghost btn-xs" data-fg="copiar" data-id="' + esc(x.e.id) + '">Copiar enlace</button>' +
+          '<button type="button" class="btn btn-ghost btn-xs" data-fg="correo" data-id="' + esc(x.e.id) + '">Correo para Outlook</button></div></div>';
+      }).join('') + '</section>';
   }
 
   // Asignación en bloque: se eligen secciones y/o procesos, y personas existentes y/o nuevas; cada persona recibe todos los procesos elegidos.

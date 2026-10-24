@@ -1003,8 +1003,9 @@ async function rutaCampana(env, url) {
   precarga.forEach(x => { x.archivos = JSON.parse(x.archivos || '[]'); });
   respuestas.forEach(x => { x.sistemas = JSON.parse(x.sistemas || '[]'); x.checklist = leerMatriz(x.checklist); });
   procesos.forEach(x => { x.matriz = leerMatriz(x.matriz); x.matriz_ia = leerMatriz(x.matriz_ia); });
-  const sups = (await env.DB.prepare("SELECT id, encuestado_id, perfil, activo FROM supervisores WHERE campana_id=? AND encuestado_id<>''").bind(id).all()).results;
-  encuestados.forEach(e => { const sp = sups.find(x => x.encuestado_id === e.id && x.activo); e.perfil = sp ? sp.perfil : 'responsable'; e.sup_id = sp ? sp.id : ''; });
+  const sups = (await env.DB.prepare("SELECT id, encuestado_id, perfil, activo, clave FROM supervisores WHERE campana_id=? AND encuestado_id<>''").bind(id).all()).results;
+  // La clave de acceso se puede volver a ver en la consola del equipo consultor (nunca en el panel del cliente).
+  encuestados.forEach(e => { const sp = sups.find(x => x.encuestado_id === e.id && x.activo); e.perfil = sp ? sp.perfil : 'responsable'; e.sup_id = sp ? sp.id : ''; e.clave_acceso = sp ? sp.clave : ''; });
   return { ok: true, campana: camp, encuestados, procesos, revisiones, respuestas, asignaciones, sistemas, estructurado, precarga, ventanas, estructura: await leerEstructura(env, id), bloques: BLOQUES, estandares_base: ESTANDARES_BASE };
 }
 
@@ -2457,8 +2458,8 @@ async function rutaClienteSupervisores(env, actor, b) {
     const clave = txt(b.clave, 60) || generarClave();
     await validarClaveNueva(env, camp, clave, '');
     const id = uid();
-    await env.DB.prepare('INSERT INTO supervisores (id, campana_id, nombre, correo, clave_hash, activo, alcance, creado) VALUES (?,?,?,?,?,1,?,?)')
-      .bind(id, camp.id, nombre, correo, await hashClaveSup(clave), JSON.stringify(alcance), ahora()).run();
+    await env.DB.prepare('INSERT INTO supervisores (id, campana_id, nombre, correo, clave_hash, clave, activo, alcance, creado) VALUES (?,?,?,?,?,?,1,?,?)')
+      .bind(id, camp.id, nombre, correo, await hashClaveSup(clave), clave, JSON.stringify(alcance), ahora()).run();
     await registrarAccion(env, camp.id, actor, 'supervisor_creado', { supervisor: nombre, supervisor_id: id });
     return { ok: true, id, clave, supervisores: await listaSupervisores(env, camp.id) };
   }
@@ -2477,7 +2478,7 @@ async function rutaClienteSupervisores(env, actor, b) {
   } else {
     clave = txt(b.clave, 60) || generarClave();
     await validarClaveNueva(env, camp, clave, sup.id);
-    await env.DB.prepare('UPDATE supervisores SET clave_hash=? WHERE id=?').bind(await hashClaveSup(clave), sup.id).run();
+    await env.DB.prepare('UPDATE supervisores SET clave_hash=?, clave=? WHERE id=?').bind(await hashClaveSup(clave), clave, sup.id).run();
     await registrarAccion(env, camp.id, actor, 'supervisor_clave_nueva', { supervisor: sup.nombre, supervisor_id: sup.id });
   }
   return { ok: true, id: sup.id, clave, supervisores: await listaSupervisores(env, camp.id) };
@@ -2510,14 +2511,15 @@ async function rutaPersonaPerfil(env, b) {
     const cambia = sup.perfil !== perfil || !sup.activo;
     if (b.regenerar) { clave = generarClave(); await validarClaveNueva(env, camp, clave, sup.id); }
     const valores = [perfil, cambia ? JSON.stringify(alcance) : sup.alcance, enc.nombre, enc.correo || sup.correo];
-    if (clave) valores.push(await hashClaveSup(clave));
+    if (clave) valores.push(await hashClaveSup(clave), clave);
     valores.push(sup.id);
-    await env.DB.prepare('UPDATE supervisores SET perfil=?, alcance=?, activo=1, nombre=?, correo=?' + (clave ? ', clave_hash=?' : '') + ' WHERE id=?').bind(...valores).run();
+    await env.DB.prepare('UPDATE supervisores SET perfil=?, alcance=?, activo=1, nombre=?, correo=?' + (clave ? ', clave_hash=?, clave=?' : '') + ' WHERE id=?').bind(...valores).run();
+    if (!clave) clave = sup.clave || '';   // sin renovar, se devuelve la clave vigente (si se conoce) para volver a mostrarla
   } else {
     id = uid(); clave = generarClave();
     await validarClaveNueva(env, camp, clave, '');
-    await env.DB.prepare('INSERT INTO supervisores (id, campana_id, nombre, correo, clave_hash, activo, alcance, creado, perfil, encuestado_id) VALUES (?,?,?,?,?,1,?,?,?,?)')
-      .bind(id, camp.id, enc.nombre, enc.correo || '', await hashClaveSup(clave), JSON.stringify(alcance), ahora(), perfil, enc.id).run();
+    await env.DB.prepare('INSERT INTO supervisores (id, campana_id, nombre, correo, clave_hash, clave, activo, alcance, creado, perfil, encuestado_id) VALUES (?,?,?,?,?,?,1,?,?,?,?)')
+      .bind(id, camp.id, enc.nombre, enc.correo || '', await hashClaveSup(clave), clave, JSON.stringify(alcance), ahora(), perfil, enc.id).run();
   }
   await registrarAccion(env, camp.id, actor, 'perfil_asignado', { persona: enc.nombre, perfil, supervisor_id: id });
   return { ok: true, perfil, supervisor_id: id, clave, supervisores: await listaSupervisores(env, camp.id) };

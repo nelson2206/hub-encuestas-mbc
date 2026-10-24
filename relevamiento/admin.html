@@ -275,6 +275,13 @@
   @media (max-width:600px){ .ayuda:hover::after,.ayuda:focus::after{position:fixed;left:16px;right:16px;width:auto;top:auto;margin-top:8px} }
   .ayuda:hover::after,.ayuda:focus::after{content:attr(data-tip);position:absolute;z-index:40;left:0;top:calc(100% + 6px);width:min(360px,78vw);background:var(--navy);color:#fff;border-radius:8px;padding:9px 11px;font:400 12.5px/1.4 "Trebuchet MS","Segoe UI",sans-serif;text-align:left;white-space:normal;box-shadow:0 6px 18px rgba(0,0,0,.28)}
 
+  /* Alta de responsable dentro del diálogo «Asignar personas al proceso». */
+  .nr-cl{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+  .nr-cl h3{font-size:14.5px;margin:0 0 2px}
+  .nr-cl > .muted{margin:0 0 4px}
+  .nr-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+  .nr-grid .nr-ancho{grid-column:1 / -1}
+  @media (max-width:560px){ .nr-grid{grid-template-columns:1fr} }
   /* Acceso del cliente (?cliente=): portada a pantalla completa, con el arte de la encuesta. */
   body.en-acceso header{display:none}
   body.en-acceso main.wrap{max-width:none;padding:0}
@@ -501,8 +508,8 @@
 <dialog id="dlg"><div class="dlg-h"><div style="flex:1;min-width:0"><h2 id="dlgT" style="font-size:16px"></h2><div class="muted" id="dlgS"></div></div><button class="btn btn-ghost btn-xs" id="dlgCerrar">Cerrar</button></div><div class="dlg-b" id="dlgB"></div></dialog>
 <datalist id="dlGer"></datalist><datalist id="dlSec"></datalist><datalist id="dlMacro"></datalist>
 
-<script src="flujo-gerente.js"></script>
-<script src="flujo-admin.js"></script>
+<script src="flujo-gerente.js?v=20261024"></script>
+<script src="flujo-admin.js?v=20261024"></script>
 <script>
 'use strict';
 (function(){
@@ -3166,7 +3173,8 @@
     var p = en.perfil || 'responsable';
     return '<select data-perfil="' + esc(en.id) + '" aria-label="Perfil de ' + esc(en.nombre) + '" style="min-width:118px">' +
       PERFILES.map(function(x){ return '<option value="' + x[0] + '"' + (x[0] === p ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select>' +
-      (p !== 'responsable' ? '<div><button type="button" class="btn-link" data-nclave="' + esc(en.id) + '" title="Genera una clave nueva; la anterior deja de servir">Nueva clave</button></div>' : '');
+      (p !== 'responsable' ? '<div>' + (en.clave_acceso ? '<button type="button" class="btn-link" data-vclave="' + esc(en.id) + '" title="Muestra la dirección y la clave para volver a enviarlas">Ver acceso</button> · ' : '') +
+        '<button type="button" class="btn-link" data-nclave="' + esc(en.id) + '" title="Genera una clave nueva; la anterior deja de servir">Nueva clave</button></div>' : '');
   }
   function textoPerfil(p){
     return p === 'gerente' ? 'Gerente: ve y delega todo lo de su gerencia, lleva el flujo de 4 pasos y da la validación final.' :
@@ -3179,7 +3187,7 @@
     $('#dlgB').innerHTML = '<p class="muted" style="margin-top:0">' + esc(textoPerfil(j.perfil)) + '</p>' +
       (activo ? '' : '<p class="msg warn" role="alert">El acceso del cliente está apagado: esta clave no entra hasta que lo actives en «Carga y configuración» → «Acceso del cliente».</p>') +
       (j.clave ? '<label>Dirección</label><div class="row"><input type="text" readonly value="' + esc(url) + '" style="flex:1" aria-label="Dirección de acceso"><button type="button" class="btn btn-ghost btn-xs" id="apUrl">Copiar</button></div>' +
-        '<label>Clave (solo se muestra ahora)</label><div class="row"><input type="text" readonly value="' + esc(j.clave) + '" style="flex:1;font-family:monospace" aria-label="Clave"><button type="button" class="btn btn-ghost btn-xs" id="apClave">Copiar</button></div>' +
+        '<label>Clave</label><div class="row"><input type="text" readonly value="' + esc(j.clave) + '" style="flex:1;font-family:monospace" aria-label="Clave"><button type="button" class="btn btn-ghost btn-xs" id="apClave">Copiar</button></div>' +
         '<div class="row" style="margin-top:12px"><button type="button" class="btn btn-navy btn-xs" id="apEml">Preparar correo (.eml)</button><span class="muted">Se abre en Outlook como borrador, listo para enviar a ' + esc(en.correo || 'la persona') + '.</span></div>' :
         '<p class="muted">La clave que ya se entregó sigue valiendo. Si se perdió, usa «Nueva clave» en la fila de la persona.</p>');
     if (j.clave){
@@ -3199,7 +3207,7 @@
     var antes = en.perfil || 'responsable';
     if (sel) sel.disabled = true;
     return api('/a/persona/perfil', {campana_id: C.campana.id, encuestado_id: en.id, perfil: perfil, regenerar: !!regenerar}).then(function(j){
-      en.perfil = j.perfil; C.supervisores = j.supervisores || C.supervisores;
+      en.perfil = j.perfil; en.clave_acceso = j.perfil === 'responsable' ? '' : (j.clave || en.clave_acceso || ''); C.supervisores = j.supervisores || C.supervisores;
       pintarEncuestados();
       if (j.perfil !== 'responsable') dialogoAccesoPerfil(en, j);
     }).catch(function(err){
@@ -3218,6 +3226,8 @@
   });
 
   $('#tEncuestados').addEventListener('click', function(e){
+    var vc = e.target.closest('[data-vclave]');
+    if (vc){ var pv = C.encuestados.filter(function(x){ return x.id === vc.dataset.vclave; })[0]; if (pv) dialogoAccesoPerfil(pv, {perfil: pv.perfil, clave: pv.clave_acceso}); return; }
     var nc = e.target.closest('[data-nclave]');
     if (nc){ var pe = C.encuestados.filter(function(x){ return x.id === nc.dataset.nclave; })[0]; if (pe && confirm('Se genera una clave nueva para ' + pe.nombre + ' y la anterior deja de servir. ¿Continuar?')) cambiarPerfil(pe, pe.perfil, true, null); return; }
     var pr = e.target.closest('[data-procs]');
@@ -3579,7 +3589,9 @@
     if (FLUJO_MONTADO){ window.FlujoGerente.refrescar(); return; }
     FLUJO_MONTADO = true;
     window.FlujoGerente.montar({raiz: $('#clFlujo'), get: getCl, post: apiCl, datos: function(){ return C; }, recargar: function(){ return recargarCl(); },
-      agregarPersona: dialogoPersonaCl, asignarProceso: dialogoAsignarProcesoCl, correos: pasoCorreoCl, abrirDlg: abrirDlgCl, esc: esc, fecha: fecha});
+      agregarPersona: dialogoPersonaCl, asignarProceso: dialogoAsignarProcesoCl, correos: pasoCorreoCl, abrirDlg: abrirDlgCl, esc: esc, fecha: fecha,
+      copiarEnlace: function(eid, boton){ copiarEnlacesCl([eid], boton, false); },
+      correoPersona: function(eid, pids, boton){ descargarCorreosCl([{eid: eid, pids: pids}], boton); }});
   }
   function recargarCl(aviso){
     var y = window.scrollY;
@@ -3610,8 +3622,15 @@
   }
   function copiarAsyncCl(texto, boton){
     var ok = function(){ var antes = boton.dataset.t || boton.textContent; boton.dataset.t = antes; boton.textContent = 'Copiado ✓'; setTimeout(function(){ boton.textContent = antes; }, 1600); };
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(texto).then(ok, function(){ window.prompt('Copia el texto:', texto); });
-    else window.prompt('Copia el texto:', texto);
+    // Si el navegador no deja copiar solo (permisos, Teams, iframes), se muestra el texto ya seleccionado para copiarlo con Ctrl+C.
+    var aMano = function(){
+      abrirDlgCl('Copia el enlace', 'Tu navegador no permitió copiarlo solo',
+        '<textarea id="cpManual" readonly rows="' + Math.min(8, texto.split('\n').length + 1) + '" style="width:100%;font-family:Consolas,monospace;font-size:13px">' + esc(texto) + '</textarea>' +
+        '<p class="muted">Ya está seleccionado: cópialo con Ctrl+C (o mantén presionado en el celular) y pégalo en el correo, Teams o WhatsApp.</p>');
+      var t = $('#cpManual'); t.focus(); t.select();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(texto).then(ok, aMano);
+    else aMano();
   }
   function copiarEnlacesCl(ids, boton, conNombre){
     boton.disabled = true;
@@ -3699,7 +3718,38 @@
       agregar.forEach(function(eid){ seq = seq.then(function(){ return apiCl('/c/asignar', {encuestado_id: eid, agregar: [pid]}).then(function(r){ if (r.nuevos.length) ent.push({eid: eid, pids: r.nuevos}); }); }); });
       quitar.forEach(function(eid){ seq = seq.then(function(){ return apiCl('/c/asignar', {encuestado_id: eid, desasignar: [pid]}); }); });
       return seq.then(function(){ return ent; });
-    }, 'Todavía no hay personas cargadas. Primero agrega a los responsables desde su sección («+ Agregar responsables»).');
+    }, 'Todavía no hay responsables en esta sección. Agrégalo aquí abajo.');
+    nuevoResponsableCl(p);
+  }
+  // Alta de un responsable desde el mismo diálogo de asignación: nombre, puesto y correo; queda en la sección del proceso y asignado a él.
+  function nuevoResponsableCl(p){
+    $('#dlgB').insertAdjacentHTML('beforeend',
+      '<section class="nr-cl" aria-labelledby="nrT"><h3 id="nrT">¿No está en la lista? Agrega al responsable</h3>' +
+      '<p class="muted">Quedará en ' + esc(p.seccion) + ' y asignado a este proceso. Recibirá su propio enlace para responder.</p>' +
+      '<div class="nr-grid"><div><label for="nrNom">Nombre completo</label><input type="text" id="nrNom" autocomplete="off" placeholder="Ej. Ana Pérez Ruiz"></div>' +
+      '<div><label for="nrPue">Puesto</label><input type="text" id="nrPue" autocomplete="off" placeholder="Ej. Jefa de Ventas Corporativas"></div>' +
+      '<div class="nr-ancho"><label for="nrCor">Correo <span class="muted" style="font-weight:500">(opcional, para enviarle su enlace)</span></label><input type="text" id="nrCor" inputmode="email" autocomplete="off" placeholder="ana.perez@empresa.com"></div></div>' +
+      '<div class="row" style="margin-top:12px"><button type="button" class="btn" id="nrOk">Agregar y asignar</button><span class="muted" id="nrMsg" role="status"></span></div></section>');
+    $('#nrOk').addEventListener('click', function(){
+      var b = this, nombre = $('#nrNom').value.trim().replace(/\s+/g, ' '), puesto = $('#nrPue').value.trim(), correo = $('#nrCor').value.trim().toLowerCase(), msg = $('#nrMsg');
+      if (nombre.length < 3){ msg.textContent = 'Escribe el nombre completo.'; $('#nrNom').focus(); return; }
+      if (!puesto){ msg.textContent = 'Escribe el puesto.'; $('#nrPue').focus(); return; }
+      if (correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)){ msg.textContent = 'El correo no es válido.'; $('#nrCor').focus(); return; }
+      b.disabled = true; msg.textContent = 'Guardando…';
+      apiCl('/c/personas', {personas: [{nombre: nombre, correo: correo, rol: puesto, gerencia: p.gerencia, seccion: p.seccion}]}).then(function(j){
+        if (j.nuevos.length) return j.nuevos[0];
+        // Ya existía (mismo nombre en la sección, o mismo correo): se le asigna el proceso a esa persona.
+        return recargarCl().then(function(){
+          var e = C.encuestados.filter(function(x){ return (correo && (x.correo || '').toLowerCase() === correo) || (sinTildes(x.nombre) === sinTildes(nombre) && mismaAreaCl(x.seccion, p.seccion)); })[0];
+          if (!e) throw new Error('Esa persona ya existe en otra sección. Pídele al equipo consultor que la mueva.');
+          return e.id;
+        });
+      }).then(function(eid){
+        return apiCl('/c/asignar', {encuestado_id: eid, agregar: [p.id]}).then(function(r){ return {eid: eid, pids: r.nuevos}; });
+      }).then(function(ent){
+        return recargarCl(nombre + ' quedó asignado a ' + nombreProc(p) + '.').then(function(){ if (ent.pids.length) pasoCorreoCl([ent]); else $('#dlg').close(); });
+      }).catch(function(err){ b.disabled = false; msg.textContent = err.message; });
+    });
   }
   function dialogoProcesosPersonaCl(eid){
     var e = C.encuestados.filter(function(x){ return x.id === eid; })[0]; if (!e) return;
