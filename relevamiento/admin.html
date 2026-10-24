@@ -274,6 +274,52 @@
   .ayuda:hover,.ayuda:focus-visible{border-color:var(--navy);color:var(--navy)}
   @media (max-width:600px){ .ayuda:hover::after,.ayuda:focus::after{position:fixed;left:16px;right:16px;width:auto;top:auto;margin-top:8px} }
   .ayuda:hover::after,.ayuda:focus::after{content:attr(data-tip);position:absolute;z-index:40;left:0;top:calc(100% + 6px);width:min(360px,78vw);background:var(--navy);color:#fff;border-radius:8px;padding:9px 11px;font:400 12.5px/1.4 "Trebuchet MS","Segoe UI",sans-serif;text-align:left;white-space:normal;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+
+  /* Acceso del cliente (?cliente=): portada a pantalla completa, con el arte de la encuesta. */
+  body.en-acceso header{display:none}
+  body.en-acceso main.wrap{max-width:none;padding:0}
+  .acc{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);min-height:100vh}
+  .acc-lado{background:linear-gradient(150deg,#003478 0%,#00234F 70%,#001A3C 100%);color:#fff;padding:44px clamp(24px,5vw,72px);position:relative;overflow:hidden;display:flex;flex-direction:column}
+  .acc-lado::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.10) 1px,transparent 1.6px);background-size:26px 26px;pointer-events:none}
+  .acc-lado>*{position:relative;z-index:1}
+  .acc .lockup{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .acc .lockup .mbc-logo{height:22px;width:auto;display:block}
+  .acc .lockup .sep{width:1px;height:26px;background:rgba(255,255,255,.28)}
+  .acc .lockup .tool{font-family:Montserrat,sans-serif;font-weight:700;font-size:15px}
+  .acc-txt{margin:auto 0;padding:40px 0 24px;max-width:36em}
+  .acc-lado h1{color:#fff;font-size:clamp(28px,3.3vw,42px);font-weight:800;line-height:1.1}
+  .acc-lado .acc-intro{color:#D7E3F5;font-size:16.5px;margin:16px 0 0}
+  .acc-pasos{list-style:none;margin:36px 0 0;padding:0}
+  .acc-pasos li{display:grid;grid-template-columns:42px 1fr;column-gap:12px;padding:14px 0;border-top:1px solid rgba(255,255,255,.18)}
+  .acc-pasos li:last-child{border-bottom:1px solid rgba(255,255,255,.18)}
+  .acc-pasos b{font-family:Montserrat,sans-serif;font-weight:800;font-size:15px;color:#FF4D80;font-variant-numeric:tabular-nums;padding-top:1px}
+  .acc-pasos strong{display:block;font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;color:#fff;margin-bottom:2px}
+  .acc-pasos span{color:#C6D6EC;font-size:14px}
+  .acc-pie{font-size:12.5px;color:#9FC1F2;margin:0}
+  .acc-form{display:flex;align-items:center;justify-content:center;padding:40px 24px;background:var(--bg)}
+  .acc-caja{width:100%;max-width:400px}
+  .acc-caja h2{font-size:26px;font-weight:800;color:var(--heading)}
+  .acc-caja .acc-sub{color:var(--muted);font-size:15px;margin:8px 0 24px}
+  .acc-caja label{font-size:13px;margin:0 0 6px}
+  .acc-campo{position:relative}
+  .acc-campo input[type=password],.acc-campo input[type=text]{height:52px;font-size:17px;padding:0 88px 0 14px;border-radius:10px;letter-spacing:.03em}
+  .acc-campo input:focus{outline:none;border-color:#147AFF;box-shadow:0 0 0 3px rgba(20,122,255,.25)}
+  .acc-ver{position:absolute;right:6px;top:50%;transform:translateY(-50%);appearance:none;background:none;border:none;cursor:pointer;font-family:Montserrat,sans-serif;font-weight:700;font-size:12.5px;color:var(--heading);padding:10px}
+  .acc-btn{width:100%;height:52px;font-size:16px;margin-top:16px;border-radius:10px}
+  .acc-btn[disabled]{opacity:.7;cursor:progress}
+  .acc-msg{min-height:22px;margin:12px 0 0;font-size:14px;color:var(--muted)}
+  .acc-msg.err{color:var(--bad);font-weight:600}
+  .acc-ayuda{margin-top:26px;padding-top:18px;border-top:1px solid var(--line);font-size:13.5px;color:var(--muted)}
+  .acc-ayuda p{margin:0 0 8px}
+  .acc-ayuda b{color:var(--ink)}
+  @media (max-width:860px){
+    .acc{grid-template-columns:1fr;min-height:0}
+    .acc-lado{padding:24px 20px 28px}
+    .acc-txt{padding:26px 0 0}
+    .acc-pasos,.acc-pie{display:none}
+    .acc-lado .acc-intro{font-size:15px}
+    .acc-form{padding:28px 20px 48px;align-items:flex-start}
+  }
 </style>
 <script>
 // Migración a https://relevamiento.mbc-latam.com (2026-10-23): quien entra por la dirección antigua pasa a la nueva, con su mismo enlace.
@@ -552,7 +598,15 @@
   var CLIENTE = !!new URLSearchParams(location.search).get('cliente');   // ?cliente=1 o ?cliente=nombre (el nombre es solo estético)
   if (CLIENTE){
     document.querySelector('header .sub').textContent = 'Voz MBC · seguimiento del relevamiento (acceso del cliente)';
-    document.querySelector('#vLogin p.muted').textContent = 'Ingresa la clave de acceso que te entregaron.';
+    // Portada de acceso para el cliente (gerentes y supervisores): mismos ids que el acceso del consultor.
+    var vl = document.querySelector('#vLogin'); vl.className = ''; vl.removeAttribute('style');
+    vl.innerHTML = '<div class="acc"><div class="acc-lado"><div class="lockup"><svg viewBox="0 0 48 48" width="30" height="30" role="img" aria-label="Voz MBC"><rect x="8.55" y="16.80" width="4.1" height="14.40" rx="2.05" fill="#fff"/><rect x="15.25" y="10.80" width="4.1" height="26.40" rx="2.05" fill="#fff"/><rect x="21.95" y="4.80" width="4.1" height="38.40" rx="2.05" fill="#FF0054"/><rect x="28.65" y="12.00" width="4.1" height="24.00" rx="2.05" fill="#fff"/><rect x="35.35" y="15.85" width="4.1" height="16.30" rx="2.05" fill="#fff"/></svg><span class="sep"></span><svg class="mbc-logo" viewBox="0 0 3860.17 856.07" role="img" aria-label="MBC"><path fill="#FFFFFF" d="M418.06 0 626.07 488.07 701.67 492.29 910.14 0 1328.21 0 1328.21 856.07 1100.17 856.07 1100.17 192.01 1048.6 192.48 830.28 684.35 496.03 682.1 280.46 194.49 228.04 192.01 228.04 856.07 0 856.07 0 0 418.06 0Z"/><path fill="#FFFFFF" d="M3139.84 201 3860.17 201 3860.17 0 3148.64 0C3148.13 0 3147.62 0.01 3147.11 0.02 2906.1 1.66 2724.88 176.94 2724.88 428.03 2724.88 679.12 2905.48 852.72 3144.73 856.01 3145.07 856.01 3145.42 856.02 3145.76 856.03 3145.9 856.03 3146.05 856.03 3146.19 856.03 3147 856.04 3147.81 856.06 3148.63 856.06L3860.16 856.06 3860.16 655.06 3141.03 655.06C3033.15 651.52 2947.27 567.26 2947.27 428.02 2947.27 288.78 3029.79 204.6 3139.84 200.98Z"/><path fill="#FFFFFF" d="M1485.95 0 2304.74 0C2482.07 0 2588.46 94.17 2588.46 231.14 2588.46 311.86 2550.55 384.01 2463.72 407.24L2463.72 426.81C2560.33 441.49 2614.14 508.75 2614.14 618.81 2614.14 765.56 2516.3 856.06 2334.08 856.06L1485.94 856.06 1485.94 0ZM2292.51 335.09C2345.1 335.09 2373.23 305.74 2373.23 259.27 2373.23 212.8 2345.1 183.45 2292.51 183.45L1706.08 183.45 1706.08 335.1 2292.51 335.1ZM2299.84 672.62C2357.32 672.62 2386.67 646.94 2386.67 595.57 2386.67 544.2 2357.32 518.52 2299.84 518.52L1706.08 518.52 1706.08 672.61 2299.84 672.61Z"/></svg><span class="tool">Voz</span></div><div class="acc-txt"><h1>Inventario de procesos de tu gerencia</h1><p class="acc-intro">Desde aquí revisas los procesos de tu área, eliges quién cuenta cada uno y sigues el avance hasta dar tu visto bueno.</p><ol class="acc-pasos"><li><b>01</b><div><strong>Revisa tus procesos</strong><span>Confirma el inventario de tu gerencia: agrega lo que falte y quita lo que no te corresponde.</span></div></li><li><b>02</b><div><strong>Asigna a los responsables</strong><span>Elige quién responde cada proceso. Cada persona recibe su propio enlace.</span></div></li><li><b>03</b><div><strong>Sigue el avance</strong><span>Ves quién ya respondió y qué falta, sin perseguir a nadie por correo.</span></div></li><li><b>04</b><div><strong>Da tu validación final</strong><span>Cuando el equipo consultor valide todo, das tu visto bueno.</span></div></li></ol></div><p class="acc-pie">Voz MBC · Relevamiento de procesos</p></div><div class="acc-form"><div class="acc-caja"><h2>Ingresa con tu clave</h2><p class="acc-sub">Usa la clave personal que te envió el equipo consultor de MBC.</p><label for="inCodigo">Clave de acceso</label><div class="acc-campo"><input type="password" id="inCodigo" autocomplete="current-password" spellcheck="false" autocapitalize="off" autocorrect="off"><button type="button" class="acc-ver" id="accVer" aria-controls="inCodigo" aria-pressed="false">Mostrar</button></div><button class="btn acc-btn" id="btnEntrar">Entrar</button><p class="acc-msg" id="loginMsg" role="status" aria-live="polite"></p><div class="acc-ayuda"><p><b>¿No tienes tu clave o no funciona?</b> Escríbele a tu contacto del equipo consultor de MBC y te genera una nueva.</p><p>La clave es personal: no la compartas. Tu sesión se cierra al cerrar el navegador.</p></div></div></div></div>';
+    document.title = 'Relevamiento de procesos · Voz MBC';
+    document.querySelector('#accVer').addEventListener('click', function(){
+      var i = document.querySelector('#inCodigo'), mostrar = i.type === 'password';
+      i.type = mostrar ? 'text' : 'password'; this.textContent = mostrar ? 'Ocultar' : 'Mostrar'; this.setAttribute('aria-pressed', mostrar); i.focus();
+    });
+    document.body.classList.add('en-acceso');
   }
   var CODIGO = '';
   try { CODIGO = sessionStorage.getItem(CLIENTE ? 'relev-cliente' : 'relev-admin') || ''; } catch(e){}
@@ -570,7 +624,7 @@
       });
     });
   }
-  function ver(id){ ['vLogin','vCampanas','vCampana','vCliente'].forEach(function(v){ $('#'+v).classList.toggle('hidden', v !== id); }); ajustarAncho(); }
+  function ver(id){ ['vLogin','vCampanas','vCampana','vCliente'].forEach(function(v){ $('#'+v).classList.toggle('hidden', v !== id); }); document.body.classList.toggle('en-acceso', CLIENTE && id === 'vLogin'); ajustarAncho(); }
   function copiar(texto, boton){
     navigator.clipboard.writeText(texto).then(function(){
       if (!boton) return;
@@ -583,7 +637,8 @@
   // ------------------------------------------------------------ acceso
   function entrarCliente(){
     CODIGO = $('#inCodigo').value.trim() || CODIGO;
-    $('#loginMsg').textContent = 'Verificando…';
+    if (!CODIGO){ $('#loginMsg').textContent = 'Escribe tu clave de acceso.'; $('#loginMsg').classList.add('err'); $('#inCodigo').focus(); return; }
+    $('#loginMsg').textContent = 'Verificando…'; $('#loginMsg').classList.remove('err'); $('#btnEntrar').disabled = true;
     fetch(API + '/c/campana', {headers: {'x-client-code': CODIGO}}).then(function(r){ return r.json().catch(function(){ return {ok: false, error: 'Respuesta inesperada'}; }).then(function(j){ return {r: r, j: j}; }); })
       .then(function(x){
         if (!x.r.ok || !x.j.ok) throw new Error(x.j.error || 'Código de acceso incorrecto');
@@ -592,8 +647,9 @@
         cargarCliente(x.j);
       }).catch(function(err){
         try { sessionStorage.removeItem('relev-cliente'); } catch(e){}
-        ver('vLogin'); $('#loginMsg').textContent = err.message;
-      });
+        ver('vLogin'); $('#loginMsg').textContent = /incorrect|inválid|no válid/i.test(err.message) ? 'La clave no es correcta. Revísala o pide una nueva a tu contacto de MBC.' : err.message;
+        $('#loginMsg').classList.add('err'); $('#inCodigo').select();
+      }).then(function(){ $('#btnEntrar').disabled = false; });
   }
   function entrar(){
     if (CLIENTE) return entrarCliente();
