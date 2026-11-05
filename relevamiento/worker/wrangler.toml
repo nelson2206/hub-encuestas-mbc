@@ -33,6 +33,9 @@ IA_ESFUERZO_ESTRUCTURAR = "medium"
 IA_MODELO_REVISION = "claude-sonnet-5-5"
 IA_ESFUERZO_REVISION = "low"
 IA_ESFUERZO_IMAGEN = "low"
+# Tope de costo: minutos de audio al día para la IA de Cloudflare (Whisper). Producción 150 + demo 30 = 180 min,
+# dentro del cupo gratuito diario de la cuenta (~215 min). Ver reservarAudioIA en src/index.js.
+IA_MINUTOS_DIA = "150"
 
 # Workers Logs: guarda los eventos que registra log() (sesión, registro, errores, CORS rechazado)
 # para diagnosticar problemas de acceso. Ver en el panel de Cloudflare > Workers > voz-relevamiento-api > Logs.

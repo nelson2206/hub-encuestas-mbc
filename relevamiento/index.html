@@ -1549,13 +1549,15 @@
         estado(key, 'Listo. Revisa el texto y corrige lo que haga falta (se guarda solo).', 'ok');
         verificar(t.pid, t.qid);
       });
-    }).catch(function(){
+    }).catch(function(err){
       delete grab[key];
       restaurarBoton(key);
       fallidos[key] = t;
       var st = document.getElementById('st-' + key);
       if (!st) return;
       st.className = 'estado warn';
+      // Tope diario de dictado (costo): no sirve reintentar hoy, se pide escribir.
+      if (err && /límite de hoy/.test(err.message || '')) { st.textContent = err.message; return; }
       st.textContent = 'No pudimos convertir tu voz en texto. Tu grabación no se perdió: ';
       var r = document.createElement('button');
       r.type = 'button'; r.className = 'btn-link'; r.textContent = 'Reintentar sin volver a grabar';

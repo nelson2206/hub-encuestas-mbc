@@ -196,3 +196,9 @@ CREATE TABLE IF NOT EXISTS login_intentos (
 -- Base nueva: aplicar después de schema.sql las migraciones 011, 012 y 014 (schema.sql no incluye sus columnas ni tablas).
 
 -- Esqueleto Área > Gerencia > Sección (migracion-015.sql): tabla estructura. Aplicarla también en una base nueva.
+
+CREATE TABLE IF NOT EXISTS uso_ia (
+  dia TEXT PRIMARY KEY,              -- AAAA-MM-DD en UTC
+  segundos REAL NOT NULL DEFAULT 0,  -- audio enviado a Whisper (cada intento cuenta, también los reintentos)
+  llamadas INTEGER NOT NULL DEFAULT 0
+);
